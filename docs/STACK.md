@@ -2,33 +2,65 @@
 
 Versions checked against the npm registry on 2026-10-27. Pin exact versions in `package.json` and commit the lockfile. Anything marked VERIFY must be confirmed in the first session that uses it, and the result written here.
 
-| Layer | Choice | Version | Notes |
-| --- | --- | --- | --- |
-| Runtime | Node.js LTS | 24 LTS (22.12+ also works) | All chosen packages support Node >= 22.12. Set in `.nvmrc` and `engines`. |
-| Package manager | pnpm + Turborepo | pnpm 12.x, turbo 2.11 | Use `packageManager` field with corepack. |
-| Language | TypeScript strict | **6.0.3** | Do NOT use 7.x yet: typescript-eslint 8.72 supports `>=4.8.4 <6.1.0`. Revisit when it supports 7. |
-| API framework | Express | 5.3 | Async errors propagate natively in v5. |
-| Validation | zod | 4.6 | Shared in `packages/shared`. |
-| OpenAPI | @asteasolutions/zod-to-openapi, openapi-typescript, openapi-fetch | 9.1 / 7.13 / 0.17 | VERIFY zod 4 compatibility on Day 1. |
-| ORM / DB | Prisma + PostgreSQL 16 | **prisma and @prisma/client 7.10.1** | The npm `latest` tag for `prisma` currently points to an 8.0 release candidate. Pin the stable 7.10.1 for BOTH packages; do not use `latest`. VERIFY: driver adapter and `set_config` inside interactive transactions for row-level security. |
-| Jobs | pg-boss | 12.38 | Runs on the same PostgreSQL; no Redis. |
-| Auth | Self-managed: jose, argon2 | 6.2 / 0.45 | argon2id; 15-min JWT; rotating refresh tokens; device tokens for Android. |
-| Logging / errors | pino, @sentry/node | 10.4 / 11.9 | Redaction list is mandatory. |
-| HTTP hardening | helmet + express-rate-limit | 8.3 / latest 8.x | VERIFY rate-limit version on install. |
-| Phones | libphonenumber-js | 1.13 | E.164 everywhere. |
-| Storage | AWS S3 (ap-south-1), @aws-sdk/client-s3 | 3.x | Private, SSE, signed URLs. |
-| Web apps | React, Vite, Tailwind CSS | 19.3 / 8.3 / 4.3 | Tailwind via `@tailwindcss/vite`. |
-| Web libs | React Router 8, TanStack Query 5, TanStack Table, React Hook Form 7, date-fns | 8.5 / 5.105 / latest / 7.91 / latest | Radix primitives with shadcn/ui pattern. |
-| Web tests | Vitest 5, Testing Library, MSW 3, Playwright | 5.0 / latest / 3.0 / 1.64 | |
-| API tests | Vitest, Supertest, Testcontainers (PostgreSQL) | 5.0 / 7.3 / 12.2 | Connect as restricted `app_user` role. |
-| Android (last phase) | Provisional: Kotlin, Jetpack Compose, Hilt, Room, WorkManager, FCM | decided when Android starts | Built after API, admin-web and clinic-web. The scope document says React Native; confirm then. |
-| Voice | Sarvam Voice Agents | per `docs/voice/sarvam-contract.md` | Thin `VoiceProvider` interface, one implementation. |
-| Cloud | AWS ap-south-1 (Mumbai) | | RDS PostgreSQL, ECS Fargate, S3, Secrets Manager, CloudWatch, CloudFront. Terraform. |
-| CI/CD | GitHub Actions | | See `release-readiness` skill. |
-| Quality | ESLint 10 + typescript-eslint, Prettier, husky + lint-staged, commitlint | 10.13 / 8.72 | `pnpm check` is the gate. |
+| Layer                | Choice                                                                        | Version                              | Notes                                                                                                                                                                                                                                         |
+| -------------------- | ----------------------------------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime              | Node.js LTS                                                                   | 24 LTS (22.12+ also works)           | All chosen packages support Node >= 22.12. Set in `.nvmrc` and `engines`.                                                                                                                                                                     |
+| Package manager      | pnpm + Turborepo                                                              | pnpm 12.x, turbo 2.11                | Use `packageManager` field with corepack.                                                                                                                                                                                                     |
+| Language             | TypeScript strict                                                             | **6.0.3**                            | Do NOT use 7.x yet: typescript-eslint 8.72 supports `>=4.8.4 <6.1.0`. Revisit when it supports 7.                                                                                                                                             |
+| API framework        | Express                                                                       | 5.3                                  | Async errors propagate natively in v5.                                                                                                                                                                                                        |
+| Validation           | zod                                                                           | 4.6                                  | Shared in `packages/shared`.                                                                                                                                                                                                                  |
+| OpenAPI              | @asteasolutions/zod-to-openapi, openapi-typescript, openapi-fetch             | 9.1 / 7.13 / 0.17                    | VERIFY zod 4 compatibility on Day 1.                                                                                                                                                                                                          |
+| ORM / DB             | Prisma + PostgreSQL 16                                                        | **prisma and @prisma/client 7.10.1** | The npm `latest` tag for `prisma` currently points to an 8.0 release candidate. Pin the stable 7.10.1 for BOTH packages; do not use `latest`. VERIFY: driver adapter and `set_config` inside interactive transactions for row-level security. |
+| Jobs                 | pg-boss                                                                       | 12.38                                | Runs on the same PostgreSQL; no Redis.                                                                                                                                                                                                        |
+| Auth                 | Self-managed: jose, argon2                                                    | 6.2 / 0.45                           | argon2id; 15-min JWT; rotating refresh tokens; device tokens for Android.                                                                                                                                                                     |
+| Logging / errors     | pino, @sentry/node                                                            | 10.4 / 11.9                          | Redaction list is mandatory.                                                                                                                                                                                                                  |
+| HTTP hardening       | helmet + express-rate-limit                                                   | 8.3 / latest 8.x                     | VERIFY rate-limit version on install.                                                                                                                                                                                                         |
+| Phones               | libphonenumber-js                                                             | 1.13                                 | E.164 everywhere.                                                                                                                                                                                                                             |
+| Storage              | AWS S3 (ap-south-1), @aws-sdk/client-s3                                       | 3.x                                  | Private, SSE, signed URLs. Local dev uses SeaweedFS, not MinIO - see "Local object storage" below.                                                                                                                                            |
+| Web apps             | React, Vite, Tailwind CSS                                                     | 19.3 / 8.3 / 4.3                     | Tailwind via `@tailwindcss/vite`.                                                                                                                                                                                                             |
+| Web libs             | React Router 8, TanStack Query 5, TanStack Table, React Hook Form 7, date-fns | 8.5 / 5.105 / latest / 7.91 / latest | Radix primitives with shadcn/ui pattern.                                                                                                                                                                                                      |
+| Web tests            | Vitest 5, Testing Library, MSW 3, Playwright                                  | 5.0 / latest / 3.0 / 1.64            |                                                                                                                                                                                                                                               |
+| API tests            | Vitest, Supertest, Testcontainers (PostgreSQL)                                | 5.0 / 7.3 / 12.2                     | Connect as restricted `app_user` role.                                                                                                                                                                                                        |
+| Android (last phase) | Provisional: Kotlin, Jetpack Compose, Hilt, Room, WorkManager, FCM            | decided when Android starts          | Built after API, admin-web and clinic-web. The scope document says React Native; confirm then.                                                                                                                                                |
+| Voice                | Sarvam Voice Agents                                                           | per `docs/voice/sarvam-contract.md`  | Thin `VoiceProvider` interface, one implementation.                                                                                                                                                                                           |
+| Cloud                | AWS ap-south-1 (Mumbai)                                                       |                                      | RDS PostgreSQL, ECS Fargate, S3, Secrets Manager, CloudWatch, CloudFront. Terraform.                                                                                                                                                          |
+| CI/CD                | GitHub Actions                                                                |                                      | See `release-readiness` skill.                                                                                                                                                                                                                |
+| Quality              | ESLint 10 + typescript-eslint, Prettier, husky + lint-staged, commitlint      | 10.13 / 8.72                         | `pnpm check` is the gate.                                                                                                                                                                                                                     |
 
 ## Open items
+
 - Android stack (React Native per scope document vs Kotlin) is decided when the Android phase starts.
 - Telephony/number provider not yet named.
 - Email provider for invites and resets (SES or Resend) or temporary-password flow.
 - Recording retention default to be confirmed with legal.
+
+## Local object storage (decided 2026-10-27)
+
+**Decision: SeaweedFS (`chrislusf/seaweedfs:3.97`) is the S3-compatible service in `docker-compose.yml`.** Production is unchanged: real AWS S3 in ap-south-1.
+
+Why not MinIO, which earlier drafts assumed: MinIO stopped free Docker image distribution in Oct 2025. `minio/minio:latest`, `quay.io/minio/minio:latest` and dated `RELEASE.*` tags all fail to resolve, and any tag that could still be pulled would be unpatched. It is not a safe dependency for a new project.
+
+Why not LocalStack, which was the first replacement tried: LocalStack community serves S3 to **unsigned anonymous requests**. It accepts `put-public-access-block` and reports the bucket as private, but an anonymous `GET` of an object still returned `HTTP 200` with the object body, even with `S3_SKIP_SIGNATURE_VALIDATION=0` and `ENFORCE_IAM=1`. A private-bucket guarantee that cannot be tested is worse than no guarantee, so it was rejected.
+
+Why SeaweedFS: its S3 gateway enforces credentials. The bucket is private by construction - the generated identity file defines exactly one credentialed identity and no anonymous identity. Verified in this session: authenticated `PUT`/`GET` succeed, while anonymous object `GET`, bucket listing and service-level bucket listing all return `403 AccessDenied`.
+
+Trade-off accepted: SeaweedFS does not implement the S3 _management_ APIs (`put-public-access-block`, `put-bucket-versioning`, `put-bucket-encryption`). Those are production bucket settings configured in Terraform, and they are not what local development exercises. Real credential enforcement was judged more valuable locally than accepting management calls that have no effect.
+
+## Verification log
+
+### 2026-10-27, foundation setup session
+
+Confirmed against the npm registry and by installing:
+
+- **TypeScript 6.0.3** - installed and in use. The warning above is correct: registry `latest` is **7.0.2**, and typescript-eslint 8.72.x still declares `typescript: >=4.8.4 <6.1.0`. Do not move to 7.x yet.
+- **Prisma: `latest` really is a prerelease** - `prisma@latest` resolves to **8.0.0-rc.27**, while `@prisma/client@latest` is 7.10.1. `prisma@7.10.1` exists and is the version to pin. NOT INSTALLED in this session (no Prisma yet), so the driver-adapter and `set_config` RLS items remain **UNVERIFIED**.
+- **pnpm 12.15.0** - works, but requires **corepack >= 0.36.0**. The Node 22.21.1 bundled corepack (0.34.0) fails with `Cannot find module .../bin/pnpm.cjs`, because pnpm 12 ships `bin/pnpm.mjs`. `npm i -g corepack@latest` fixes it. Recorded in README prerequisites.
+- **typescript-eslint pinned to 8.72.0, not 8.72.1.** pnpm 12 enforces a `minimumReleaseAge` supply-chain policy; 8.72.1 was published 2026-10-26 and is inside the 24h window. 8.72.0 (2026-10-19) passes and declares identical peer ranges (`eslint ^10`, `typescript >=4.8.4 <6.1.0`). STACK.md pins the minor (8.72), so this stays in spec. The policy was kept rather than relaxed.
+- **PostgreSQL 16** - `postgres:16.15-alpine` pulled and running; `select version()` reports `PostgreSQL 16.15 on x86_64-pc-linux-musl`.
+- **Express 5.3.0, zod 4.6.7, ESLint 10.13.0, Prettier 3.9.10, Vitest 5.0.5, Supertest 7.3.1, turbo 2.11.10, pino 10.4.0** - all installed; `pnpm check` green.
+
+Still **UNVERIFIED** (nothing in this session exercised them):
+
+- OpenAPI toolchain zod-4 compatibility (`@asteasolutions/zod-to-openapi` 9.1, `openapi-typescript` 7.13, `openapi-fetch` 0.17). `pnpm openapi` is a stub that exits 0. This is the STACK.md "VERIFY zod 4 compatibility on Day 1" item and it is still open.
+- Prisma driver adapter and `set_config` inside interactive transactions for row-level security.
+- `express-rate-limit` version, helmet, pg-boss, jose, argon2, Testcontainers, and every web-app dependency.

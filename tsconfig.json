@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.base.json",
+  "files": [],
+  "references": [
+    { "path": "./apps/api/tsconfig.build.json" },
+    { "path": "./packages/shared/tsconfig.build.json" }
+  ]
+}

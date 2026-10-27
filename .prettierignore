@@ -1,0 +1,15 @@
+node_modules
+dist
+build
+coverage
+.turbo
+pnpm-lock.yaml
+
+# Owned by the Claude Code setup and reviewed as a unit (see SETUP.md). Formatting
+# these would create noise in a diff nobody asked for, so `pnpm format` leaves them be.
+.claude/
+CLAUDE.md
+apps/*/CLAUDE.md
+
+# Built last and not part of the TypeScript workspace.
+apps/android/

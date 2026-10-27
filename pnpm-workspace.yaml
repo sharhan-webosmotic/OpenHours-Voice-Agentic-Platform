@@ -1,0 +1,22 @@
+packages:
+  - apps/api
+  - apps/clinic-web
+  - apps/admin-web
+  - packages/shared
+  - packages/api-client
+  - infra
+  - docs
+
+# Supply-chain controls. Stated explicitly rather than relying on pnpm's defaults so
+# that every developer and CI resolve identically.
+
+# Reject dependency versions published less than 24h ago: the window in which most
+# compromised-package incidents are caught and unpublished. Moving a pin to a release
+# newer than this must be a deliberate decision, not an accident.
+minimumReleaseAge: 1440
+
+# Dependencies allowed to run install scripts. Keep this list as short as possible and
+# justify every entry: esbuild's postinstall links its platform native binary, and it is
+# required by tsx (the dev server) and vitest.
+allowBuilds:
+  esbuild: true

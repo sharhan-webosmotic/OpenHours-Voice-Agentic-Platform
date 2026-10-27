@@ -1,0 +1,73 @@
+# Local development stack only. Production uses RDS PostgreSQL and real AWS S3
+# in ap-south-1 (see docs/STACK.md). Ports and credentials come from .env;
+# copy .env.example to .env to get started.
+name: openhours
+
+services:
+  postgres:
+    image: postgres:16.15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - '${POSTGRES_PORT}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # S3-compatible object storage for local development. SeaweedFS is used instead of
+  # MinIO because MinIO stopped free Docker image distribution in Oct 2025, and instead
+  # of LocalStack because LocalStack's community S3 serves unsigned anonymous requests,
+  # which would make the "private bucket" guarantee untestable locally.
+  # See docs/STACK.md for the full reasoning. Production uses real AWS S3.
+  s3:
+    image: chrislusf/seaweedfs:3.97
+    restart: unless-stopped
+    entrypoint: ['/entrypoint.sh']
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    ports:
+      - '${S3_PORT}:8333'
+    volumes:
+      - s3-data:/data
+      - ./infra/local/seaweedfs/entrypoint.sh:/entrypoint.sh:ro
+    healthcheck:
+      # An unauthenticated request must be refused, so any HTTP response means the S3
+      # gateway is both up and enforcing credentials.
+      test: ['CMD-SHELL', 'wget -q -S -O /dev/null http://127.0.0.1:8333/ 2>&1 | grep -q HTTP/']
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 10s
+
+  # One-shot: creates the private recordings bucket, then exits.
+  s3-init:
+    image: amazon/aws-cli:2.33.9
+    depends_on:
+      s3:
+        condition: service_healthy
+    environment:
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_DEFAULT_REGION: ${AWS_REGION}
+      RECORDINGS_BUCKET: ${RECORDINGS_BUCKET}
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        aws --endpoint-url http://s3:8333 s3api create-bucket --bucket "$${RECORDINGS_BUCKET}" 2>/dev/null \
+          || echo "bucket $${RECORDINGS_BUCKET} already exists"
+        aws --endpoint-url http://s3:8333 s3api head-bucket --bucket "$${RECORDINGS_BUCKET}"
+        echo "s3-init: bucket '$${RECORDINGS_BUCKET}' is ready and requires credentials"
+
+volumes:
+  postgres-data:
+  s3-data:
