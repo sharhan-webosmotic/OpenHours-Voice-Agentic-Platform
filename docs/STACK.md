@@ -14,7 +14,7 @@ Versions checked against the npm registry on 2026-10-27. Pin exact versions in `
 | Jobs                 | pg-boss                                                                       | 12.38                                | Runs on the same PostgreSQL; no Redis.                                                                                                                                                                                                        |
 | Auth                 | Self-managed: jose, argon2                                                    | 6.2 / 0.45                           | argon2id; 15-min JWT; rotating refresh tokens; device tokens for Android.                                                                                                                                                                     |
 | Logging / errors     | pino, @sentry/node                                                            | 10.4 / 11.9                          | Redaction list is mandatory.                                                                                                                                                                                                                  |
-| HTTP hardening       | helmet + express-rate-limit                                                   | 8.3 / latest 8.x                     | VERIFY rate-limit version on install.                                                                                                                                                                                                         |
+| HTTP hardening       | helmet + express-rate-limit + cors                                            | **8.3.0 / 8.7.1 / 2.8.6**            | VERIFIED 2026-10-27 against Express 5.3.0, see "HTTP hardening verified" below. `cors` added in M1-02.                                                                                                                                        |
 | Phones               | libphonenumber-js                                                             | 1.13                                 | E.164 everywhere.                                                                                                                                                                                                                             |
 | Storage              | AWS S3 (ap-south-1), @aws-sdk/client-s3                                       | 3.x                                  | Private, SSE, signed URLs. Local dev uses SeaweedFS, not MinIO - see "Local object storage" below.                                                                                                                                            |
 | Web apps             | React, Vite, Tailwind CSS                                                     | 19.3 / 8.3 / 4.3                     | Tailwind via `@tailwindcss/vite`.                                                                                                                                                                                                             |
@@ -63,4 +63,56 @@ Still **UNVERIFIED** (nothing in this session exercised them):
 
 - OpenAPI toolchain zod-4 compatibility (`@asteasolutions/zod-to-openapi` 9.1, `openapi-typescript` 7.13, `openapi-fetch` 0.17). `pnpm openapi` is a stub that exits 0. This is the STACK.md "VERIFY zod 4 compatibility on Day 1" item and it is still open.
 - Prisma driver adapter and `set_config` inside interactive transactions for row-level security.
-- `express-rate-limit` version, helmet, pg-boss, jose, argon2, Testcontainers, and every web-app dependency.
+- pg-boss, jose, argon2, Testcontainers, and every web-app dependency. (`express-rate-limit`, `helmet` and `cors` were closed in M1-02, below.)
+
+## HTTP hardening verified (M1-02, 2026-10-27)
+
+**express-rate-limit 8.7.1 works with Express 5.3.0. This closes the STACK.md VERIFY item.**
+
+Not inferred from the peer range (`express: ">= 4.11"`), which would only show the pin is
+permitted. Proven by test: `apps/api/src/common/hardening.test.ts` builds a limiter with
+`limit: 1`, sends two requests, and asserts the second returns `429` with an
+`application/problem+json` body. Also asserted: `draft-8` `RateLimit` headers are emitted,
+the legacy `X-RateLimit-*` set is not, and a custom `keyGenerator` buckets independently.
+
+- **helmet 8.3.0** - baseline headers verified (`X-Content-Type-Options: nosniff`,
+  `X-Frame-Options` present, no `X-Powered-By`).
+- **cors 2.8.6** - new dependency, approved in M1-02. Chosen over a hand-rolled middleware
+  because preflight handling (OPTIONS, `Vary`, allowed headers and methods) is easy to get
+  subtly wrong. Configured with a function origin, so no code path can emit `*`.
+
+### Two operational limits to carry forward
+
+1. **The rate-limit store is in-memory, so it is single-instance only.** Counters live in
+   the process, so with N API tasks the effective limit is `limit x N`. A shared store
+   (Redis, or `rate-limit-postgresql` on the existing database) is required before the API
+   is scaled past one instance, and before the limits on auth and webhook routes can be
+   treated as a real control. Tracked for M7.
+2. **`TRUST_PROXY` must never be `true`.** Express's `trust proxy: true` trusts the whole
+   `X-Forwarded-For` chain, so any client can spoof its address and win a fresh rate-limit
+   bucket per request; express-rate-limit rejects the setting for the same reason. Config
+   accepts only `false` or a hop count and refuses `"true"` at boot. Behind one ALB in
+   ap-south-1 the value is `1`.
+
+### Logging: pino cannot redact at arbitrary depth
+
+This matters for CLAUDE.md rule 4, which sets no depth limit. `pino`'s `redact.paths` is
+backed by fast-redact, whose `*` wildcard matches exactly ONE level: `*.phone` scrubs
+`{patient:{phone}}` but NOT `{data:{patient:{phone}}}`, which was observed leaking a
+real-format phone number into output. Redaction is therefore done by a recursive walker in
+`apps/api/src/common/redaction.ts`, wired as pino's `formatters.log`.
+
+Two pino behaviours were established empirically and are now relied on:
+
+- **`formatters.log` runs BEFORE serializers.** The formatter receives live `Error`
+  instances whose `name`, `message` and `stack` are non-enumerable, so it copies them out
+  explicitly; a plain key walk or `JSON.stringify` would drop all three.
+- **pino's default `err` serializer folds a cause's message into its parent's**
+  (`"outer: inner"`). Messages are deliberately never redacted, so that fold is a route for
+  unreviewed cause text to reach a message field. It is disabled with an identity `err`
+  serializer on both the base logger and pino-http, and the `cause` chain is kept nested so
+  each level is redacted on its own.
+
+Consequence for every later ticket: **error messages must never contain patient data or
+secrets.** Redaction cannot protect a message without making it useless, so throw with
+identifiers only.

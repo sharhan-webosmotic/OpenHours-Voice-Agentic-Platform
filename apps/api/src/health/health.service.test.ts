@@ -1,15 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createDatabasePool, createDatabaseReadinessProbe } from './health.service.js';
-import type { Config } from '../config.js';
+import { makeTestConfig } from '../test-support/config.js';
 
-const testConfig: Config = Object.freeze({
-  NODE_ENV: 'test',
-  PORT: 3000,
-  LOG_LEVEL: 'silent',
-  // Port 1 is never a PostgreSQL server, so connections fail fast.
-  DATABASE_URL: 'postgresql://test:test@127.0.0.1:1/test',
-  SHUTDOWN_TIMEOUT_MS: 10_000,
-});
+const testConfig = makeTestConfig();
 
 describe('createDatabasePool', () => {
   it('handles idle-client errors instead of crashing the process', async () => {

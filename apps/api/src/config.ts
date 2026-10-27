@@ -4,22 +4,85 @@ import { z } from 'zod';
  * The ONLY reader of process.env in apps/api (see apps/api/CLAUDE.md).
  * Everything else imports `config`. Parse, do not trust.
  */
-const configSchema = z.object({
-  NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
-  PORT: z.coerce.number().int().positive().max(65535).default(3000),
-  LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent']).default('info'),
-  DATABASE_URL: z.string().min(1),
-  SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
-});
+
+/** Comma-separated origin allow-list. Empty means "no cross-origin browser access". */
+const originListSchema = z
+  .string()
+  .default('')
+  .transform((raw) =>
+    raw
+      .split(',')
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0),
+  );
+
+/**
+ * `false`, or the number of reverse-proxy hops to trust.
+ *
+ * Deliberately cannot be `true`. Express's `trust proxy: true` trusts the whole
+ * X-Forwarded-For chain, which lets any client spoof its own address and evade a
+ * rate limit keyed on IP. express-rate-limit rejects that setting for the same reason.
+ */
+const trustProxySchema = z
+  .string()
+  .default('false')
+  .transform((raw) => raw.trim().toLowerCase())
+  .refine((raw) => raw === 'false' || /^\d+$/.test(raw), {
+    message: 'must be "false" or a number of proxy hops (never "true")',
+  })
+  .transform((raw) => (raw === 'false' ? (false as const) : Number.parseInt(raw, 10)));
+
+const configSchema = z
+  .object({
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
+    PORT: z.coerce.number().int().positive().max(65535).default(3000),
+    LOG_LEVEL: z
+      .enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'silent'])
+      .default('info'),
+    DATABASE_URL: z.string().min(1),
+    SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
+
+    CORS_ALLOWED_ORIGINS: originListSchema,
+    CORS_ALLOW_CREDENTIALS: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((raw) => raw === 'true'),
+
+    TRUST_PROXY: trustProxySchema,
+    /** Max JSON request body, in the byte-string form `express.json` accepts. */
+    BODY_LIMIT: z.string().default('100kb'),
+
+    RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+    RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+  })
+  .superRefine((value, ctx) => {
+    // A wildcard origin with credentials lets any site read authenticated responses.
+    // Browsers reject the combination anyway; failing at boot makes it un-deployable
+    // rather than a surprise at runtime.
+    if (value.CORS_ALLOW_CREDENTIALS && value.CORS_ALLOWED_ORIGINS.includes('*')) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['CORS_ALLOWED_ORIGINS'],
+        message: 'wildcard origin "*" cannot be combined with CORS_ALLOW_CREDENTIALS=true',
+      });
+    }
+  });
 
 export type Config = Readonly<z.infer<typeof configSchema>>;
 
-const parsed = configSchema.safeParse(process.env);
+export const parseConfig = (env: NodeJS.ProcessEnv): Config => {
+  const parsed = configSchema.safeParse(env);
 
-if (!parsed.success) {
-  // Never print the values, only which variables are wrong: process.env holds secrets.
-  const invalid = parsed.error.issues.map((issue) => issue.path.join('.')).join(', ');
-  throw new Error(`Invalid environment configuration. Check these variables: ${invalid}`);
-}
+  if (!parsed.success) {
+    // Report which variables are wrong and why, never their values: process.env
+    // holds secrets and this message reaches logs.
+    const problems = parsed.error.issues
+      .map((issue) => `${issue.path.join('.') || '(root)'}: ${issue.message}`)
+      .join('; ');
+    throw new Error(`Invalid environment configuration. ${problems}`);
+  }
 
-export const config: Config = Object.freeze(parsed.data);
+  return Object.freeze(parsed.data);
+};
+
+export const config: Config = parseConfig(process.env);
