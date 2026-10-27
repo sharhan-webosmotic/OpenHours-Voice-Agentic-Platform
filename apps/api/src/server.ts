@@ -1,10 +1,12 @@
 import { createApp } from './app.js';
 import { config } from './config.js';
 import { logger } from './common/logger.js';
-import { createDatabasePool, createDatabaseReadinessProbe } from './health/health.service.js';
+import { createReadinessRepository } from './health/health.repository.js';
+import { createReadinessProbe } from './health/health.service.js';
+import { disconnectDatabase } from './db/index.js';
 
-const pool = createDatabasePool(config);
-const app = createApp({ readiness: createDatabaseReadinessProbe(pool) });
+const readinessRepository = createReadinessRepository(config);
+const app = createApp({ readiness: createReadinessProbe(readinessRepository) });
 
 const server = app.listen(config.PORT, () => {
   logger.info({ port: config.PORT, env: config.NODE_ENV }, 'api listening');
@@ -30,14 +32,14 @@ const shutdown = (signal: string): void => {
     if (closeError) {
       logger.error({ err: closeError }, 'error closing http server');
     }
-    pool
-      .end()
+    // Both clients hold their own pool: the readiness probe's and the tenant client's.
+    Promise.all([readinessRepository.disconnect(), disconnectDatabase()])
       .then(() => {
         logger.info('shutdown complete');
         process.exit(closeError ? 1 : 0);
       })
       .catch((poolError: unknown) => {
-        logger.error({ err: poolError }, 'error closing database pool');
+        logger.error({ err: poolError }, 'error closing database connections');
         process.exit(1);
       });
   });

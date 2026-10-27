@@ -59,6 +59,45 @@ export default tseslint.config(
     languageOptions: { globals: { ...globals.node } },
   },
   {
+    /**
+     * Prisma may only be imported where tenancy is enforced: src/db (which builds the
+     * scoped client) and repositories. Anywhere else, a direct import would bypass the
+     * application isolation lock entirely (apps/api/CLAUDE.md).
+     */
+    files: ['apps/api/src/**/*.ts'],
+    ignores: [
+      'apps/api/src/db/**',
+      'apps/api/src/**/repositories/**',
+      'apps/api/src/**/*.repository.ts',
+      'apps/api/src/generated/**',
+    ],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@prisma/client',
+              message:
+                'Import Prisma only in src/db or a repository. Elsewhere, take the scoped client from the request context.',
+            },
+            {
+              name: '@prisma/adapter-pg',
+              message: 'Database connection setup belongs in src/db.',
+            },
+          ],
+          patterns: [
+            {
+              group: ['**/generated/prisma/**'],
+              message:
+                'Import the generated Prisma client only in src/db or a repository. Elsewhere, take the scoped client from the request context.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     // Config files legitimately use default exports (tooling requires them).
     files: ['**/*.config.{ts,mjs}', 'commitlint.config.mjs', 'eslint.config.mjs'],
     rules: { 'no-restricted-syntax': 'off' },

@@ -1,42 +1,33 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createDatabasePool, createDatabaseReadinessProbe } from './health.service.js';
-import { makeTestConfig } from '../test-support/config.js';
+import { createReadinessProbe } from './health.service.js';
+import type { ReadinessRepository } from './health.repository.js';
 
-const testConfig = makeTestConfig();
-
-describe('createDatabasePool', () => {
-  it('handles idle-client errors instead of crashing the process', async () => {
-    const pool = createDatabasePool(testConfig);
-    try {
-      // Regression test: pg emits this when an idle connection dies, e.g. on a database
-      // restart. Without a listener Node turns it into an unhandled 'error' event and
-      // the API process exits.
-      expect(pool.listenerCount('error')).toBeGreaterThan(0);
-      expect(() => pool.emit('error', new Error('terminating connection'))).not.toThrow();
-    } finally {
-      await pool.end();
-    }
-  });
+const repositoryWith = (ping: () => Promise<void>): ReadinessRepository => ({
+  ping,
+  disconnect: () => Promise.resolve(),
 });
 
-describe('createDatabaseReadinessProbe', () => {
-  it('rejects when the database cannot be reached', async () => {
-    const pool = createDatabasePool(testConfig);
-    try {
-      await expect(createDatabaseReadinessProbe(pool)()).rejects.toThrow();
-    } finally {
-      await pool.end();
-    }
+describe('createReadinessProbe', () => {
+  it('resolves when the repository answers', async () => {
+    const ping = vi.fn<() => Promise<void>>(() => Promise.resolve());
+
+    await expect(createReadinessProbe(repositoryWith(ping))()).resolves.toBeUndefined();
+    expect(ping).toHaveBeenCalledOnce();
   });
 
-  it('releases the client even when the query fails', async () => {
-    const release = vi.fn();
-    const query = vi.fn(() => Promise.reject(new Error('boom')));
-    const fakePool = {
-      connect: () => Promise.resolve({ query, release }),
-    } as unknown as Parameters<typeof createDatabaseReadinessProbe>[0];
+  it('rejects when the database cannot be reached', async () => {
+    const probe = createReadinessProbe(
+      repositoryWith(() => Promise.reject(new Error('connection refused'))),
+    );
 
-    await expect(createDatabaseReadinessProbe(fakePool)()).rejects.toThrow('boom');
-    expect(release).toHaveBeenCalledOnce();
+    await expect(probe()).rejects.toThrow('connection refused');
+  });
+
+  it('does not swallow the driver error, so the route can log the real cause', async () => {
+    const probe = createReadinessProbe(
+      repositoryWith(() => Promise.reject(new Error('password authentication failed'))),
+    );
+
+    await expect(probe()).rejects.toThrow(/password authentication failed/);
   });
 });
