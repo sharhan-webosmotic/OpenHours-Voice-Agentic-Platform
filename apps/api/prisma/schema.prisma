@@ -87,13 +87,29 @@ model Organisation {
   createdAt              DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt              DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  users         User[]
-  phoneNumbers  PhoneNumber[]
-  voiceAgents   VoiceAgent[]
-  devices       Device[]
-  pairingCodes  PairingCode[]
-  notifications Notification[]
-  auditLogs     AuditLog[]
+  users               User[]
+  phoneNumbers        PhoneNumber[]
+  voiceAgents         VoiceAgent[]
+  devices             Device[]
+  pairingCodes        PairingCode[]
+  notifications       Notification[]
+  auditLogs           AuditLog[]
+  clinicHours         ClinicHours[]
+  doctors             Doctor[]
+  doctorWorkingHours  DoctorWorkingHours[]
+  doctorTimeOff       DoctorTimeOff[]
+  services            Service[]
+  doctorServices      DoctorService[]
+  patients            Patient[]
+  appointments        Appointment[]
+  calls               Call[]
+  prescriptions       Prescription[]
+  prescriptionItems   PrescriptionItem[]
+  followUps           FollowUp[]
+  outboundCalls       OutboundCall[]
+  forwardingSchedules ForwardingSchedule[]
+  forwardingEvents    ForwardingEvent[]
+  webhookEvents       WebhookEvent[]
 
   @@index([status])
   @@map("organisations")
@@ -118,10 +134,12 @@ model User {
   createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  organisation  Organisation?  @relation(fields: [organisationId], references: [id], onDelete: Restrict)
-  refreshTokens RefreshToken[]
-  pairingCodes  PairingCode[]
-  notifications Notification[]
+  organisation      Organisation?  @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  refreshTokens     RefreshToken[]
+  pairingCodes      PairingCode[]
+  notifications     Notification[]
+  doctorProfile     Doctor?
+  assignedFollowUps FollowUp[]
 
   @@index([organisationId, status])
   @@index([organisationId, role])
@@ -265,4 +283,483 @@ model AuditLog {
   @@index([organisationId, entityType, entityId])
   @@index([action, createdAt])
   @@map("audit_logs")
+}
+
+// ─── Clinic domain (M1-05) ───────────────────────────────────────────────────────
+// Same conventions as M1-04: UUID v7 keys from the application, snake_case mapping,
+// timestamptz, organisation_id on every table with every composite index led by it.
+//
+// webhook_events is the one new table with a NULLABLE organisation_id: a provider
+// payload is stored BEFORE it is understood (root CLAUDE.md rule 8), so the
+// organisation is not known at insert time. Unresolved rows are reachable only with
+// app.platform = 'on', which is what an operator debugging a failed webhook needs.
+
+enum Weekday {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+
+  @@map("weekday")
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+
+  @@map("appointment_status")
+}
+
+enum AppointmentSource {
+  VOICE_AGENT
+  DASHBOARD
+  IMPORT
+
+  @@map("appointment_source")
+}
+
+enum CallDirection {
+  INBOUND
+  OUTBOUND
+
+  @@map("call_direction")
+}
+
+enum CallStatus {
+  RINGING
+  IN_PROGRESS
+  COMPLETED
+  MISSED
+  ABANDONED
+  FAILED
+
+  @@map("call_status")
+}
+
+enum CallOutcome {
+  BOOKED
+  RESCHEDULED
+  CANCELLED
+  INFORMATION
+  TRANSFERRED
+  NONE
+
+  @@map("call_outcome")
+}
+
+enum PrescriptionStatus {
+  DRAFT
+  ISSUED
+
+  @@map("prescription_status")
+}
+
+enum FollowUpStatus {
+  PENDING
+  DONE
+  CANCELLED
+
+  @@map("follow_up_status")
+}
+
+enum OutboundCallStatus {
+  QUEUED
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELLED
+
+  @@map("outbound_call_status")
+}
+
+enum WebhookEventStatus {
+  RECEIVED
+  PROCESSED
+  FAILED
+
+  @@map("webhook_event_status")
+}
+
+model ClinicHours {
+  id             String   @id @db.Uuid
+  organisationId String   @map("organisation_id") @db.Uuid
+  weekday        Weekday
+  /// Clinic-local wall-clock minutes from midnight, resolved against organisations.timezone.
+  /// Stored as minutes rather than a time so a DST transition cannot shift opening hours.
+  opensAtMinute  Int      @map("opens_at_minute")
+  closesAtMinute Int      @map("closes_at_minute")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@unique([organisationId, weekday, opensAtMinute])
+  @@index([organisationId, weekday])
+  @@map("clinic_hours")
+}
+
+model Doctor {
+  id             String    @id @db.Uuid
+  organisationId String    @map("organisation_id") @db.Uuid
+  /// The DOCTOR-role login that owns this profile, when one exists. A doctor may be
+  /// bookable without having an account.
+  userId         String?   @unique @map("user_id") @db.Uuid
+  fullName       String    @map("full_name")
+  specialty      String?
+  /// Minutes of gap enforced after each appointment for this doctor.
+  bufferMinutes  Int       @default(0) @map("buffer_minutes")
+  active         Boolean   @default(true)
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation  Organisation         @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  user          User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  workingHours  DoctorWorkingHours[]
+  timeOff       DoctorTimeOff[]
+  services      DoctorService[]
+  appointments  Appointment[]
+  prescriptions Prescription[]
+  followUps     FollowUp[]
+
+  @@index([organisationId, active, deletedAt])
+  @@map("doctors")
+}
+
+model DoctorWorkingHours {
+  id             String   @id @db.Uuid
+  organisationId String   @map("organisation_id") @db.Uuid
+  doctorId       String   @map("doctor_id") @db.Uuid
+  weekday        Weekday
+  startAtMinute  Int      @map("start_at_minute")
+  endAtMinute    Int      @map("end_at_minute")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  doctor       Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@unique([organisationId, doctorId, weekday, startAtMinute])
+  @@index([organisationId, doctorId, weekday])
+  @@map("doctor_working_hours")
+}
+
+model DoctorTimeOff {
+  id             String   @id @db.Uuid
+  organisationId String   @map("organisation_id") @db.Uuid
+  doctorId       String   @map("doctor_id") @db.Uuid
+  startAt        DateTime @map("start_at") @db.Timestamptz(6)
+  endAt          DateTime @map("end_at") @db.Timestamptz(6)
+  reason         String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  doctor       Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId, doctorId, startAt])
+  @@map("doctor_time_off")
+}
+
+model Service {
+  id              String    @id @db.Uuid
+  organisationId  String    @map("organisation_id") @db.Uuid
+  name            String
+  durationMinutes Int       @map("duration_minutes")
+  /// Integer minor units (paise). Never a float: money must not be approximated.
+  priceMinor      Int?      @map("price_minor")
+  active          Boolean   @default(true)
+  deletedAt       DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation Organisation    @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  doctors      DoctorService[]
+  appointments Appointment[]
+
+  @@unique([organisationId, name])
+  @@index([organisationId, active, deletedAt])
+  @@map("services")
+}
+
+model DoctorService {
+  id             String   @id @db.Uuid
+  organisationId String   @map("organisation_id") @db.Uuid
+  doctorId       String   @map("doctor_id") @db.Uuid
+  serviceId      String   @map("service_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  doctor       Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  service      Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([organisationId, doctorId, serviceId])
+  @@index([organisationId, serviceId])
+  @@map("doctor_services")
+}
+
+model Patient {
+  id             String    @id @db.Uuid
+  organisationId String    @map("organisation_id") @db.Uuid
+  /// PHI. Trigram index for search added in M1-06.
+  fullName       String    @map("full_name")
+  /// PHI, E.164. Indexed but NOT unique: families share numbers, and a clinic may hold
+  /// two records for one number until they are merged.
+  phone          String
+  dateOfBirth    DateTime? @map("date_of_birth") @db.Date
+  notes          String?
+  /// Soft delete: appointment and prescription history must survive a patient removal.
+  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation  Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  appointments  Appointment[]
+  calls         Call[]
+  prescriptions Prescription[]
+  followUps     FollowUp[]
+  outboundCalls OutboundCall[]
+
+  @@index([organisationId, phone])
+  @@index([organisationId, deletedAt])
+  @@map("patients")
+}
+
+model Appointment {
+  id                String            @id @db.Uuid
+  organisationId    String            @map("organisation_id") @db.Uuid
+  patientId         String            @map("patient_id") @db.Uuid
+  doctorId          String            @map("doctor_id") @db.Uuid
+  serviceId         String?           @map("service_id") @db.Uuid
+  startAt           DateTime          @map("start_at") @db.Timestamptz(6)
+  endAt             DateTime          @map("end_at") @db.Timestamptz(6)
+  status            AppointmentStatus @default(SCHEDULED)
+  source            AppointmentSource @default(DASHBOARD)
+  /// Replay protection for creates the voice agent can reach (root CLAUDE.md rule 8).
+  /// Unique per organisation so two clinics cannot collide on one key.
+  idempotencyKey    String?           @map("idempotency_key")
+  /// Set when this appointment replaces an earlier one, so a reschedule keeps its history.
+  rescheduledFromId String?           @unique @map("rescheduled_from_id") @db.Uuid
+  cancelledAt       DateTime?         @map("cancelled_at") @db.Timestamptz(6)
+  cancellationReason String?          @map("cancellation_reason")
+  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation     Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  patient          Patient        @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  doctor           Doctor         @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  service          Service?       @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  rescheduledFrom  Appointment?   @relation("AppointmentReschedule", fields: [rescheduledFromId], references: [id], onDelete: SetNull)
+  rescheduledTo    Appointment?   @relation("AppointmentReschedule")
+  calls            Call[]
+  prescriptions    Prescription[]
+  followUps        FollowUp[]
+
+  @@unique([organisationId, idempotencyKey])
+  @@index([organisationId, startAt])
+  @@index([organisationId, doctorId, startAt])
+  @@index([organisationId, patientId, startAt])
+  @@index([organisationId, status, startAt])
+  @@map("appointments")
+}
+
+model Call {
+  id             String        @id @db.Uuid
+  organisationId String        @map("organisation_id") @db.Uuid
+  provider       Provider      @default(SARVAM)
+  /// The provider's call identifier, unique per provider.
+  externalCallId String        @map("external_call_id")
+  direction      CallDirection
+  status         CallStatus
+  outcome        CallOutcome   @default(NONE)
+  /// PHI: caller and callee numbers in E.164.
+  fromE164       String        @map("from_e164")
+  toE164         String        @map("to_e164")
+  /// Linked when exactly one patient matches the normalised number, else left NULL.
+  patientId      String?       @map("patient_id") @db.Uuid
+  appointmentId  String?       @map("appointment_id") @db.Uuid
+  startedAt      DateTime?     @map("started_at") @db.Timestamptz(6)
+  endedAt        DateTime?     @map("ended_at") @db.Timestamptz(6)
+  durationSeconds Int?         @map("duration_seconds")
+  /// Integer minor units.
+  costMinor      Int?          @map("cost_minor")
+  /// Private S3 key, never a public URL. PHI.
+  recordingKey   String?       @map("recording_key")
+  transcript     String?
+  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  patient      Patient?     @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  appointment  Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, externalCallId])
+  @@index([organisationId, startedAt])
+  @@index([organisationId, status, startedAt])
+  @@index([organisationId, patientId, startedAt])
+  @@map("calls")
+}
+
+model WebhookEvent {
+  id              String             @id @db.Uuid
+  /// NULL until the payload is resolved to an organisation. A webhook is stored before it
+  /// is understood, so this cannot be required at insert time.
+  organisationId  String?            @map("organisation_id") @db.Uuid
+  provider        Provider           @default(SARVAM)
+  externalEventId String             @map("external_event_id")
+  eventType       String             @map("event_type")
+  status          WebhookEventStatus @default(RECEIVED)
+  /// Raw provider payload, retained for replay. May contain PHI, so it is never logged.
+  payload         Json
+  /// Set when processing failed; the message, never the payload.
+  lastError       String?            @map("last_error")
+  attempts        Int                @default(0)
+  processedAt     DateTime?          @map("processed_at") @db.Timestamptz(6)
+  receivedAt      DateTime           @default(now()) @map("received_at") @db.Timestamptz(6)
+
+  organisation Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, externalEventId])
+  @@index([status, receivedAt])
+  @@index([organisationId, receivedAt])
+  @@map("webhook_events")
+}
+
+model Prescription {
+  id             String             @id @db.Uuid
+  organisationId String             @map("organisation_id") @db.Uuid
+  patientId      String             @map("patient_id") @db.Uuid
+  doctorId       String             @map("doctor_id") @db.Uuid
+  appointmentId  String?            @map("appointment_id") @db.Uuid
+  status         PrescriptionStatus @default(DRAFT)
+  /// PHI.
+  notes          String?
+  issuedAt       DateTime?          @map("issued_at") @db.Timestamptz(6)
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation Organisation       @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  patient      Patient            @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  doctor       Doctor             @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  appointment  Appointment?       @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  items        PrescriptionItem[]
+
+  @@index([organisationId, patientId, createdAt])
+  @@index([organisationId, doctorId, createdAt])
+  @@map("prescriptions")
+}
+
+model PrescriptionItem {
+  id             String   @id @db.Uuid
+  organisationId String   @map("organisation_id") @db.Uuid
+  prescriptionId String   @map("prescription_id") @db.Uuid
+  /// PHI: medication, dose and instructions.
+  medication     String
+  dosage         String?
+  frequency      String?
+  durationDays   Int?     @map("duration_days")
+  instructions   String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId, prescriptionId])
+  @@map("prescription_items")
+}
+
+model FollowUp {
+  id               String         @id @db.Uuid
+  organisationId   String         @map("organisation_id") @db.Uuid
+  patientId        String         @map("patient_id") @db.Uuid
+  doctorId         String?        @map("doctor_id") @db.Uuid
+  appointmentId    String?        @map("appointment_id") @db.Uuid
+  /// The STAFF user responsible. "assigned" in the permission matrix refers to this.
+  assignedUserId   String?        @map("assigned_user_id") @db.Uuid
+  dueAt            DateTime       @map("due_at") @db.Timestamptz(6)
+  status           FollowUpStatus @default(PENDING)
+  /// PHI.
+  notes            String?
+  completedAt      DateTime?      @map("completed_at") @db.Timestamptz(6)
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  patient      Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  doctor       Doctor?      @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  appointment  Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  assignedUser User?        @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+
+  @@index([organisationId, status, dueAt])
+  @@index([organisationId, assignedUserId, status])
+  @@index([organisationId, patientId])
+  @@map("follow_ups")
+}
+
+model OutboundCall {
+  id             String             @id @db.Uuid
+  organisationId String             @map("organisation_id") @db.Uuid
+  patientId      String?            @map("patient_id") @db.Uuid
+  /// Globally unique: a worker restart must never place a second call to a patient
+  /// (apps/api/CLAUDE.md). The key is derived from what the call is FOR, not from when
+  /// it was queued.
+  dedupeKey      String             @unique @map("dedupe_key")
+  kind           String
+  status         OutboundCallStatus @default(QUEUED)
+  scheduledAt    DateTime           @map("scheduled_at") @db.Timestamptz(6)
+  attempts       Int                @default(0)
+  lastAttemptAt  DateTime?          @map("last_attempt_at") @db.Timestamptz(6)
+  lastError      String?            @map("last_error")
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  patient      Patient?     @relation(fields: [patientId], references: [id], onDelete: SetNull)
+
+  @@index([organisationId, status, scheduledAt])
+  @@index([status, scheduledAt])
+  @@map("outbound_calls")
+}
+
+model ForwardingSchedule {
+  id             String   @id @db.Uuid
+  organisationId String   @map("organisation_id") @db.Uuid
+  weekday        Weekday
+  /// Clinic-local minutes from midnight, same reasoning as clinic_hours.
+  startAtMinute  Int      @map("start_at_minute")
+  endAtMinute    Int      @map("end_at_minute")
+  /// Whether forwarding is ON during this window.
+  forwardingOn   Boolean  @default(true) @map("forwarding_on")
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation Organisation      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  events       ForwardingEvent[]
+
+  @@unique([organisationId, weekday, startAtMinute])
+  @@index([organisationId, active, weekday])
+  @@map("forwarding_schedules")
+}
+
+model ForwardingEvent {
+  id             String   @id @db.Uuid
+  organisationId String   @map("organisation_id") @db.Uuid
+  scheduleId     String?  @map("schedule_id") @db.Uuid
+  deviceId       String?  @map("device_id") @db.Uuid
+  /// What the device reported: applied, failed, or cleared.
+  outcome        String
+  detail         String?
+  occurredAt     DateTime @default(now()) @map("occurred_at") @db.Timestamptz(6)
+
+  organisation Organisation        @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  schedule     ForwardingSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+
+  @@index([organisationId, occurredAt])
+  @@map("forwarding_events")
 }

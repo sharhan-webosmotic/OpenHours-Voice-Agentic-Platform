@@ -1,7 +1,15 @@
 import argon2 from 'argon2';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client.js';
-import { Role, UserStatus } from '../src/generated/prisma/enums.js';
+import { uuidV7 } from '../src/common/uuid.js';
+import {
+  AppointmentSource,
+  AppointmentStatus,
+  PhoneKind,
+  Role,
+  UserStatus,
+  Weekday,
+} from '../src/generated/prisma/enums.js';
 
 /**
  * Idempotent development seed. SYNTHETIC DATA ONLY: no real person's name, phone number
@@ -15,6 +23,36 @@ import { Role, UserStatus } from '../src/generated/prisma/enums.js';
  */
 
 const DEMO_ORGANISATION_ID = '01930000-0000-7000-8000-000000000001';
+
+/** Fixed ids so repeated runs address the same rows instead of inserting duplicates. */
+const ID = {
+  doctorUser: '01930000-0000-7000-8000-000000000103',
+  doctor: '01930000-0000-7000-8000-000000000201',
+  serviceConsult: '01930000-0000-7000-8000-000000000211',
+  serviceFollowUp: '01930000-0000-7000-8000-000000000212',
+  clinicLine: '01930000-0000-7000-8000-000000000221',
+  agentNumber: '01930000-0000-7000-8000-000000000222',
+  patients: [
+    '01930000-0000-7000-8000-000000000231',
+    '01930000-0000-7000-8000-000000000232',
+    '01930000-0000-7000-8000-000000000233',
+  ],
+  appointments: [
+    '01930000-0000-7000-8000-000000000241',
+    '01930000-0000-7000-8000-000000000242',
+    '01930000-0000-7000-8000-000000000243',
+  ],
+} as const;
+
+const WEEKDAYS: readonly Weekday[] = [
+  Weekday.MONDAY,
+  Weekday.TUESDAY,
+  Weekday.WEDNESDAY,
+  Weekday.THURSDAY,
+  Weekday.FRIDAY,
+];
+
+const MINUTE = 60 * 1000;
 
 /** Local development password for every seeded user. Never used outside a dev database. */
 const DEV_PASSWORD = 'openhours-dev-password';
@@ -61,6 +99,139 @@ const SEED_USERS: readonly SeedUser[] = [
     organisationId: DEMO_ORGANISATION_ID,
   },
 ];
+
+/**
+ * Clinic-domain demo data. Synthetic throughout: the names are obviously fictional and
+ * the phone numbers sit in a reserved test range, so no real person can be contacted by
+ * a mistake in development.
+ */
+const seedClinicDomain = async (
+  tx: Parameters<Parameters<PrismaClient['$transaction']>[0]>[0],
+): Promise<void> => {
+  const organisationId = DEMO_ORGANISATION_ID;
+
+  if ((await tx.doctor.findUnique({ where: { id: ID.doctor }, select: { id: true } })) === null) {
+    await tx.doctor.create({
+      data: {
+        id: ID.doctor,
+        organisationId,
+        userId: ID.doctorUser,
+        fullName: 'Demo Clinic Doctor',
+        specialty: 'General Medicine',
+        bufferMinutes: 10,
+      },
+    });
+    out('created doctor');
+
+    // Clinic hours and the doctor's working hours: 09:00-17:00, weekdays.
+    for (const weekday of WEEKDAYS) {
+      await tx.clinicHours.create({
+        data: {
+          id: uuidV7(),
+          organisationId,
+          weekday,
+          opensAtMinute: 9 * 60,
+          closesAtMinute: 17 * 60,
+        },
+      });
+      await tx.doctorWorkingHours.create({
+        data: {
+          id: uuidV7(),
+          organisationId,
+          doctorId: ID.doctor,
+          weekday,
+          startAtMinute: 9 * 60,
+          endAtMinute: 17 * 60,
+        },
+      });
+    }
+    out('created clinic hours and doctor working hours (weekdays 09:00-17:00)');
+  } else {
+    out('doctor already present, left unchanged');
+  }
+
+  const services = [
+    { id: ID.serviceConsult, name: 'Consultation', durationMinutes: 30, priceMinor: 50_000 },
+    { id: ID.serviceFollowUp, name: 'Follow-up', durationMinutes: 15, priceMinor: 25_000 },
+  ];
+  for (const service of services) {
+    if (
+      (await tx.service.findUnique({ where: { id: service.id }, select: { id: true } })) !== null
+    ) {
+      continue;
+    }
+    await tx.service.create({ data: { ...service, organisationId } });
+    await tx.doctorService.create({
+      data: { id: uuidV7(), organisationId, doctorId: ID.doctor, serviceId: service.id },
+    });
+    out(`created service: ${service.name}`);
+  }
+
+  for (const [index, patientId] of ID.patients.entries()) {
+    if (
+      (await tx.patient.findUnique({ where: { id: patientId }, select: { id: true } })) !== null
+    ) {
+      continue;
+    }
+    await tx.patient.create({
+      data: {
+        id: patientId,
+        organisationId,
+        fullName: `Test Patient ${index + 1}`,
+        // Reserved test range: never routable to a real handset.
+        phone: `+9199000000${String(index + 1).padStart(2, '0')}`,
+        dateOfBirth: new Date(Date.UTC(1990, index, 15)),
+      },
+    });
+    out(`created patient ${index + 1}`);
+  }
+
+  // Three non-overlapping appointments on one fixed weekday, so the exclusion
+  // constraint added in M1-06 is satisfied by the seed as well.
+  const base = Date.parse('2026-11-02T09:00:00.000Z');
+  for (const [index, appointmentId] of ID.appointments.entries()) {
+    if (
+      (await tx.appointment.findUnique({ where: { id: appointmentId }, select: { id: true } })) !==
+      null
+    ) {
+      continue;
+    }
+    const startAt = new Date(base + index * 60 * MINUTE);
+    await tx.appointment.create({
+      data: {
+        id: appointmentId,
+        organisationId,
+        patientId: ID.patients[index] ?? ID.patients[0],
+        doctorId: ID.doctor,
+        serviceId: ID.serviceConsult,
+        startAt,
+        endAt: new Date(startAt.getTime() + 30 * MINUTE),
+        status: AppointmentStatus.SCHEDULED,
+        source: AppointmentSource.DASHBOARD,
+      },
+    });
+    out(`created appointment ${index + 1}`);
+  }
+
+  const phoneNumbers = [
+    { id: ID.clinicLine, e164: '+919900001000', kind: PhoneKind.CLINIC_LINE, label: 'Reception' },
+    {
+      id: ID.agentNumber,
+      e164: '+919900001001',
+      kind: PhoneKind.AGENT_NUMBER,
+      label: 'Voice agent',
+    },
+  ];
+  for (const phone of phoneNumbers) {
+    if (
+      (await tx.phoneNumber.findUnique({ where: { id: phone.id }, select: { id: true } })) !== null
+    ) {
+      continue;
+    }
+    await tx.phoneNumber.create({ data: { ...phone, organisationId } });
+    out(`created phone number: ${phone.kind}`);
+  }
+};
 
 const main = async (): Promise<void> => {
   const connectionString = process.env.DATABASE_URL;
@@ -122,6 +293,8 @@ const main = async (): Promise<void> => {
         });
         out(`created user: ${user.role}`);
       }
+
+      await seedClinicDomain(tx);
     });
   } finally {
     await prisma.$disconnect();
