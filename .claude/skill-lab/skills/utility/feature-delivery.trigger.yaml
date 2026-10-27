@@ -1,0 +1,151 @@
+skill_name: feature-delivery
+skill_id: SK-097
+category: utility
+version: 1.0.0
+
+target_description: |
+  Library skill (not user-facing): the per-feature implementation methodology applied inside /do's build phase, never invoked directly by the user. Reads planning docs first, creates a complete no-placeholder plan, implements feature by feature with schema/backend validation, updates AI_DOCS after each feature. /do owns dispatch and gating; direct invocation would bypass /do and Gate 1.
+# Likely sibling collisions (HIGH risk):
+#   - build:  single-component/endpoint coding: smaller scope
+#   - do (Phase 1 lead dispatch):        MULTI-AGENT orchestrated delivery: spawns agents
+#   - milestone-planning:  plan the milestone (not implement it)
+#   - task-planner:        task intake + planning: not execution
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "End-to-end implement Milestone 3 feature by feature with AI_DOCS updates and commits."
+    expected_trigger: true
+    rationale: "End-to-end milestone, feature-by-feature, AI_DOCS, commits = feature-delivery's exact flow."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Implement the entire feature set for this milestone with schema/backend validation between each feature."
+    expected_trigger: true
+    rationale: "Entire feature set + schema/backend validation between features = feature-delivery."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Read the planning docs and make a complete no-placeholder plan, then implement it."
+    expected_trigger: true
+    rationale: "Planning-docs-first + no-placeholder plan = feature-delivery signature."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Drive the feature-by-feature delivery for Milestone 2 — no scaffolding, production code."
+    expected_trigger: true
+    rationale: "Feature-by-feature milestone drive with no scaffolding = feature-delivery."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Run the feature-delivery pipeline for the payments milestone."
+    expected_trigger: true
+    rationale: "Direct skill name + use case."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Implement this related set of features one by one, update AI_DOCS after each, and prompt me for commits."
+    expected_trigger: true
+    rationale: "Related feature set, one-by-one, AI_DOCS + commit prompts = feature-delivery."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Take ownership of delivering the whole milestone — plan completely, implement sequentially, validate each piece."
+    expected_trigger: true
+    rationale: "Own the whole-milestone delivery: plan + sequential implement + validate = feature-delivery."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Work through this epic one feature at a time and stop to commit after each one."
+    expected_trigger: true
+    rationale: "Epic, one feature at a time, commit per feature = feature-delivery."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Handle the full build-out of this milestone with docs updates between steps."
+    expected_trigger: true
+    rationale: "Full build-out of a milestone with inter-step doc updates = feature-delivery."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Drive this multi-feature implementation solo — plan everything first, then execute linearly."
+    expected_trigger: true
+    rationale: "Solo multi-feature implementation with upfront plan + linear execute = feature-delivery."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Milestone 4 has 7 related features — read the spec, plan them all, then build in order."
+    expected_trigger: true
+    rationale: "N related features in a milestone, read spec, plan all, build in order = feature-delivery."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "I want the whole reporting module built end-to-end with AI_DOCS updates and staged commits."
+    expected_trigger: true
+    rationale: "Whole module end-to-end + AI_DOCS + staged commits = feature-delivery."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "This sprint has 5 user stories — implement each, validate backend + schema, commit, then move on."
+    expected_trigger: true
+    rationale: "Multi-story sprint with per-story validate+commit = feature-delivery."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Close the milestone by implementing the remaining 4 features with no placeholders."
+    expected_trigger: true
+    rationale: "Close milestone, implement remaining features, no placeholders = feature-delivery."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Run feature-delivery on this milestone."
+    expected_trigger: true
+    rationale: "Direct skill invocation."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Deliver the whole milestone."
+    expected_trigger: true
+    rationale: "Whole-milestone delivery = feature-delivery scope."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Implement the login form component."
+    expected_trigger: false
+    expected_sibling: build
+    rationale: "Single component = build, not milestone-level delivery."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Orchestrate PD-SCOPE, SA-ARCH, and QA-TEST-COVERAGE gates with multiple agents for this feature."
+    expected_trigger: false
+    expected_sibling: do
+    rationale: "Multi-agent orchestrated gates = do (Phase 1 lead dispatch), not feature-delivery."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Create dependency-ordered milestones with exit criteria and git branches for the project."
+    expected_trigger: false
+    expected_sibling: milestone-planning
+    rationale: "Plan milestones (not implement them) = milestone-planning."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Write the PRD with user personas and competitive analysis."
+    expected_trigger: false
+    rationale: "PRD = prd-generation, unrelated to implementation."

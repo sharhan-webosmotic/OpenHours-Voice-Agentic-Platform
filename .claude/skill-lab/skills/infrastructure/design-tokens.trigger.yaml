@@ -1,0 +1,151 @@
+skill_name: design-tokens
+skill_id: SK-046
+category: infrastructure
+version: 1.0.0
+
+target_description: |
+  Gate 3 of the design process: define the production design token set in design-system/tokens.json + build the core reusable components (Button, Input, Card, Modal, etc.) with all variants and states + produce 3-4 draft screens using live tokens. Requires Design DNA and frontend stack locked. Use after /design-discovery completes. Produces canonical tokens.json that becomes the single source of truth for all styling. Also triggers on: 'Finalize tokens', 'Build core components', 'Design tokens', 'Production design system', 'Token definitions'.
+# Likely sibling collisions:
+#   - design-discovery: earlier phase: Design DNA + component-lib pick (no tokens yet)
+#   - design-screens:   later phase: full screen inventory, NOT token/component authoring
+#   - do (Phase 1 lead dispatch):      multi-agent orchestrator (not a single-phase token build)
+#   - shadcn-ui:        single-component install, not the full token set authoring
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Define the production design tokens in tokens.json."
+    expected_trigger: true
+    rationale: "Matches 'define the production design token set in design-system/tokens.json' verbatim."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Build the core reusable components — Button, Input, Card, Modal — with all variants and states."
+    expected_trigger: true
+    rationale: "Names the exact four components and the variants/states clause verbatim."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Run Gate 3 of the design process now that DNA is locked."
+    expected_trigger: true
+    rationale: "Gate 3 + DNA-locked precondition both appear verbatim."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Produce 3-4 draft screens using live tokens."
+    expected_trigger: true
+    rationale: "'Produce 3-4 draft screens using live tokens' is verbatim from the description."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Generate the canonical tokens.json that will be the single source of truth for styling."
+    expected_trigger: true
+    rationale: "Canonical tokens.json + single source of truth = design-tokens's stated output."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Start the production design system build now that discovery is signed off."
+    expected_trigger: true
+    rationale: "Production design system after discovery = design-tokens (matches 'Use after /design-discovery completes')."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Let's author the design-system primitives — color, spacing, radii — and the base components."
+    expected_trigger: true
+    rationale: "Authoring tokens (color/spacing/radii) + base components = design-tokens."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Stand up the reusable component library with every variant the app will need."
+    expected_trigger: true
+    rationale: "Reusable components + all variants = core-components piece of design-tokens."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Put the design-system tokens into a file that every screen can consume."
+    expected_trigger: true
+    rationale: "Tokens file consumable by every screen = tokens.json single source of truth."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Turn the DNA into actual token values and build the building-block components from them."
+    expected_trigger: true
+    rationale: "DNA -> tokens + components = design-tokens's precise scope."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Discovery's done and we need something the engineers can start coding against."
+    expected_trigger: true
+    rationale: "Post-discovery, engineer-consumable output = tokens.json + core components."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "We've got the brand mood locked; now we need production color/typography tokens plus 3 sample screens to validate them."
+    expected_trigger: true
+    rationale: "Production tokens + 3 sample screens = design-tokens signature."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Our design-dna says 'playful dense' — please translate that to concrete Button, Input, Card variants."
+    expected_trigger: true
+    rationale: "DNA -> concrete component variants = design-tokens's translation job."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Ship the base design system so every future screen can pull from a single tokens file."
+    expected_trigger: true
+    rationale: "Base design system + single tokens file for every future screen = design-tokens."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "OK, DNA approved — on to Gate 3."
+    expected_trigger: true
+    rationale: "Gate 3 after DNA approval is design-tokens's signature entry point."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Build the tokens."
+    expected_trigger: true
+    rationale: "'Build the tokens' maps directly to design-tokens."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "We haven't picked a component library or settled on the brand mood yet — help us decide."
+    expected_trigger: false
+    expected_sibling: design-discovery
+    rationale: "Picking component library + brand mood is discovery, which precedes tokens."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Map all user roles' UX flows and deliver the full production screen inventory with error states and handoff notes."
+    expected_trigger: false
+    expected_sibling: design-screens
+    rationale: "Full screen inventory + UX flows + handoff = design-screens (Gates 4-5)."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Install just the shadcn dialog component into this Next.js project."
+    expected_trigger: false
+    expected_sibling: shadcn-ui
+    rationale: "Single-component install is shadcn-ui, not a full token-set build."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Generate a PRD for the new notifications feature."
+    expected_trigger: false
+    rationale: "PRD authoring is a product-requirements task, unrelated to token authoring."

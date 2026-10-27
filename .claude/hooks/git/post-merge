@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# .claude/hooks/git/post-merge — auto-migration after `git pull` inside .claude/
+#
+# Activated via: git config core.hooksPath hooks/git
+# (setup.sh and upgrade.sh both self-heal this config so it is always set
+#  after a fresh clone or a first post-pull upgrade.)
+#
+# Fires once per successful merge (git pull is a fetch + merge). Runs
+# upgrade.sh in --auto mode so the user never has to remember the two-step
+# pull-then-migrate flow documented in earlier versions of UPGRADING.md.
+
+set -u
+
+FRAMEWORK_DIR="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+UPGRADE_SCRIPT="$FRAMEWORK_DIR/upgrade.sh"
+
+if [[ ! -f "$UPGRADE_SCRIPT" ]]; then
+  # Not our framework repo - quietly no-op so this hook is harmless if
+  # core.hooksPath accidentally points here for another clone.
+  exit 0
+fi
+
+echo ""
+echo "[post-merge] Framework pull detected - running upgrade.sh --auto"
+bash "$UPGRADE_SCRIPT" --auto || {
+  echo "[post-merge] upgrade.sh reported issues; re-run manually with: bash upgrade.sh"
+  exit 0
+}

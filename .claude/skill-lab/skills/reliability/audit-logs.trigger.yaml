@@ -1,0 +1,150 @@
+skill_name: audit-logs
+skill_id: SK-042
+category: reliability
+version: 1.0.0
+
+target_description: |
+  Implement audit trail logging for compliance. Track who-did-what with immutable event logs. Use when adding audit logging, compliance tracking, or investigating changes. Also triggers on: 'Track changes', 'Activity log', 'Compliance logging'.
+# Likely sibling collisions:
+#   - analytics:      user-behavior event tracking (GA4/PostHog/Mixpanel): NOT compliance/who-did-what audit trails
+#   - error-handling: runtime error/exception logging: NOT immutable compliance events
+#   - guardrails:     coding rules + lint config: NOT runtime logging at all
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Add audit trail logging for our admin actions."
+    expected_trigger: true
+    rationale: "Audit trail logging is the description's first capability verbatim."
+
+  - id: P02
+    bucket: positive_direct
+    text: "We need compliance tracking on all user data changes."
+    expected_trigger: true
+    rationale: "Compliance tracking is named verbatim in description."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Build immutable event logs for who did what on sensitive entities."
+    expected_trigger: true
+    rationale: "Immutable event logs + who-did-what both match description exactly."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Set up audit logging for the order management module."
+    expected_trigger: true
+    rationale: "Adding audit logging is a direct trigger phrase."
+
+  - id: P05
+    bucket: positive_direct
+    text: "I need to investigate who changed this record last week."
+    expected_trigger: true
+    rationale: "Investigating changes is the description's named use case."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Implement an audit log table with actor, action, and resource fields."
+    expected_trigger: true
+    rationale: "Implementing audit log schema = core audit-logs scope."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "SOC2 requires us to record every admin change — build that logging layer."
+    expected_trigger: true
+    rationale: "SOC2 compliance recording of admin changes = audit trail implementation."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "We need a tamper-proof history of permission grants and revocations."
+    expected_trigger: true
+    rationale: "Tamper-proof history of permission changes = immutable who-did-what audit."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Keep a record of every sensitive data mutation so we can trace back who did it."
+    expected_trigger: true
+    rationale: "Tracing mutations back to actor = audit trail compliance logging."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Capture an unalterable ledger of all CRUD operations on the Users table."
+    expected_trigger: true
+    rationale: "Unalterable ledger of CRUD = immutable event-log audit trail."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Auditors are coming next month — we need to prove which admin suspended which user and when."
+    expected_trigger: true
+    rationale: "Auditor-driven who-did-what investigation = audit-logs purpose."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "HIPAA compliance requires a 6-year retained trail of PHI access events — build it."
+    expected_trigger: true
+    rationale: "Compliance-retained trail of access events = audit-logs implementation."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "A customer disputes a config change; we need a log showing exactly what was modified and by whom."
+    expected_trigger: true
+    rationale: "Investigating a disputed change via actor+change log = audit-logs."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Add Prisma middleware that writes every write operation on audited models to an AuditLog table."
+    expected_trigger: true
+    rationale: "Prisma audit middleware writing AuditLog entries = audit-logs canonical pattern."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Now wire up the audit trail."
+    expected_trigger: true
+    rationale: "Audit trail is audit-logs' signature term."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "OK, add compliance logging to this route."
+    expected_trigger: true
+    rationale: "Compliance logging = audit-logs verbatim."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Set up GA4 event tracking to see which buttons users click on the dashboard."
+    expected_trigger: false
+    expected_sibling: analytics
+    rationale: "GA4 user-behavior event tracking = analytics, not compliance audit."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Wrap API calls with structured Sentry logging and retry-with-backoff for runtime failures."
+    expected_trigger: false
+    expected_sibling: error-handling
+    rationale: "Sentry runtime error logging + retry = error-handling, not audit trail."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Generate our 80+ coding standards including ESLint rules and naming conventions."
+    expected_trigger: false
+    expected_sibling: guardrails
+    rationale: "Coding standards + ESLint = guardrails, not audit-logs runtime logging."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Design the hero section of the marketing landing page."
+    expected_trigger: false
+    rationale: "Landing page design = design skills, unrelated to audit logging."

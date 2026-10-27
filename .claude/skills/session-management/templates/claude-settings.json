@@ -1,0 +1,168 @@
+{
+  "//": "Claude Skills Framework — Project-level Claude Code settings",
+  "//note": "This file is committed to git. Personal overrides go in .claude/settings.local.json (gitignored).",
+  "//version": "2.1.0 — Hooks-enabled",
+
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "Agent(Explore)",
+      "Agent(Plan)",
+
+      "Bash(npm run *)",
+      "Bash(npm install *)",
+      "Bash(npm ci)",
+      "Bash(npm test *)",
+      "Bash(npm create *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(pip install *)",
+      "Bash(python *)",
+
+      "Bash(git status)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git merge *)",
+      "Bash(git tag *)",
+      "Bash(git stash *)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+
+      "Bash(ls *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(cat *)",
+      "Bash(echo *)",
+      "Bash(which *)",
+      "Bash(pwd)",
+      "Bash(cd *)",
+
+      "Bash(nest *)",
+      "Bash(prisma *)",
+      "Bash(flutter *)",
+
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:npmjs.com)",
+      "WebFetch(domain:docs.nestjs.com)",
+      "WebFetch(domain:nextjs.org)",
+      "WebFetch(domain:reactnative.dev)",
+      "WebFetch(domain:tailwindcss.com)",
+      "WebFetch(domain:ui.shadcn.com)"
+    ],
+
+    "deny": [
+      "Bash(git push *)",
+      "Bash(git push)",
+      "Bash(git force-push *)",
+      "Bash(git reset --hard *)",
+      "Bash(rm -rf *)",
+      "Bash(rm -r /)*",
+      "Bash(docker *)",
+      "Bash(kubectl *)",
+      "Bash(terraform *)",
+      "Bash(ssh *)",
+      "Bash(scp *)",
+      "Bash(curl -X POST *)",
+      "Bash(curl -X DELETE *)",
+
+      "Edit(.env)",
+      "Edit(.env.*)",
+      "Edit(.env.local)",
+      "Edit(.env.staging)",
+      "Edit(.env.production)",
+      "Edit(*.pem)",
+      "Edit(*.key)",
+      "Edit(*.cert)",
+      "Edit(.git/**)"
+    ]
+  },
+
+  "hooks": {
+    "PreToolUse": [
+      {
+        "//": "GUARD: Block edits to locked API contract after Gate 1 approval",
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'INPUT=$(cat); FILE_PATH=$(echo \"$INPUT\" | jq -r \".tool_input.file_path // empty\"); if [[ \"$FILE_PATH\" == *\"api-contract.md\"* ]]; then if grep -q \"LOCKED\" AI_DOCS/memory/gate-status.md 2>/dev/null; then echo \"BLOCKED: api-contract.md is LOCKED after Gate 1 approval. Use change-request skill to modify.\" >&2; exit 2; fi; fi; exit 0'"
+          }
+        ]
+      }
+    ],
+
+    "PostToolUse": [
+      {
+        "//": "AUTO-FORMAT: Run Prettier on edited TypeScript/JavaScript/CSS files",
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'INPUT=$(cat); FILE_PATH=$(echo \"$INPUT\" | jq -r \".tool_input.file_path // empty\"); if [[ \"$FILE_PATH\" =~ \\.(ts|tsx|js|jsx|css|scss|json)$ ]]; then if command -v npx &>/dev/null && [ -f node_modules/.bin/prettier ] 2>/dev/null; then npx prettier --write \"$FILE_PATH\" 2>/dev/null; fi; fi; exit 0'"
+          }
+        ]
+      },
+      {
+        "//": "LINT: Run ESLint fix on edited TypeScript/JavaScript files",
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'INPUT=$(cat); FILE_PATH=$(echo \"$INPUT\" | jq -r \".tool_input.file_path // empty\"); if [[ \"$FILE_PATH\" =~ \\.(ts|tsx|js|jsx)$ ]]; then if command -v npx &>/dev/null && [ -f node_modules/.bin/eslint ] 2>/dev/null; then npx eslint --fix \"$FILE_PATH\" 2>/dev/null; fi; fi; exit 0'"
+          }
+        ]
+      }
+    ],
+
+    "Stop": [
+      {
+        "//": "VERIFY: Check for uncommitted AI_DOCS changes before session ends",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'if [ -d AI_DOCS ]; then changes=$(git diff --name-only AI_DOCS/ 2>/dev/null | head -5); untracked=$(git ls-files --others --exclude-standard AI_DOCS/ 2>/dev/null | head -5); if [ -n \"$changes\" ] || [ -n \"$untracked\" ]; then echo \"WARNING: Uncommitted AI_DOCS changes detected:\" >&2; [ -n \"$changes\" ] && echo \"Modified: $changes\" >&2; [ -n \"$untracked\" ] && echo \"Untracked: $untracked\" >&2; echo \"Consider committing memory files before ending session.\" >&2; fi; fi; exit 0'"
+          }
+        ]
+      }
+    ],
+
+    "SessionStart": [
+      {
+        "//": "CONTEXT: Remind Claude of project state on every session start",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'if [ -f CLAUDE.md ]; then echo \"CLAUDE.md found — project context available.\"; fi; if [ -f AI_DOCS/memory/task.md ]; then echo \"Current tasks:\"; head -30 AI_DOCS/memory/task.md 2>/dev/null; fi; if [ -f AI_DOCS/memory/gate-status.md ]; then echo \"Gate status:\"; head -20 AI_DOCS/memory/gate-status.md 2>/dev/null; fi; exit 0'"
+          }
+        ]
+      }
+    ]
+  },
+
+  "excludedFiles": [
+    ".env",
+    ".env.local",
+    ".env.staging",
+    ".env.production",
+    "*.pem",
+    "*.key",
+    "*.cert",
+    "*.p12",
+    ".git/**",
+    "node_modules/**",
+    "dist/**",
+    "build/**",
+    ".next/**",
+    "coverage/**",
+    ".claude/skills/**/node_modules/**"
+  ]
+}

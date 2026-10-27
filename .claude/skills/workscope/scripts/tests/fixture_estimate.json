@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 3,
+  "project": {"name": "Acme", "client": "Acme", "preparedBy": "WebOsmotic", "date": "2026-10-14", "hoursPerDay": 8},
+  "milestones": [{"id": "M1", "name": "Discovery"}, {"id": "M2", "name": "Launch"}],
+  "features": [
+    {"id": "F01", "name": "Booking management", "scopeStatus": "Included", "milestone": "M2"},
+    {"id": "F02", "name": "Online payments", "scopeStatus": "Included", "milestone": "M2"},
+    {"id": "F03", "name": "Push notifications", "scopeStatus": "Included", "milestone": "M2"},
+    {"id": "F04", "name": "Loyalty wallet", "scopeStatus": "Excluded", "milestone": "M2"},
+    {"id": "F05", "name": "Referral programme", "scopeStatus": "Excluded", "milestone": "M2"}
+  ],
+  "tasks": []
+}

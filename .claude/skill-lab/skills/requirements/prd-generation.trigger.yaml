@@ -1,0 +1,151 @@
+skill_name: prd-generation
+skill_id: SK-002
+category: requirements
+version: 1.0.0
+
+target_description: |
+  Create Product Requirements (PRD) AND Functional Requirements (FRD) in one skill: user personas, competitive analysis, prioritization, functional requirements, user flows, and Given-When-Then acceptance criteria. Produce a PRD, an FRD, or both. Use when creating product or functional requirements. Also triggers on: 'Create PRD', 'Generate PRD', 'Create FRD', 'product requirements', 'functional requirements', 'acceptance criteria', 'user flows'.
+# Likely sibling collisions:
+#   - prd-generation:     functional requirements (GWT criteria): dev-facing, not stakeholder
+#   - workscope:          client-facing scope doc: earlier in SDLC, less detailed
+#   - tech-specification: engineering spec: deep technical, not stakeholder
+#   - brainstorm:         pre-requirements ideation: before PRD
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Create a PRD for the new checkout flow."
+    expected_trigger: true
+    rationale: "Direct 'create a PRD' trigger."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Write a product requirements document for the mobile app rewrite."
+    expected_trigger: true
+    rationale: "Matches 'product requirements document' trigger verbatim."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Generate a PRD with user personas, competitive analysis, and feature prioritization."
+    expected_trigger: true
+    rationale: "Names the exact three PRD sections from description."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Draft the stakeholder-facing product requirements doc for this initiative."
+    expected_trigger: true
+    rationale: "Stakeholder-facing PRD = prd-generation's exact purpose."
+
+  - id: P05
+    bucket: positive_direct
+    text: "I need a PRD for the Q3 roadmap item."
+    expected_trigger: true
+    rationale: "Direct PRD request."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Produce the product requirements document with personas and prioritization sections."
+    expected_trigger: true
+    rationale: "Produce PRD with personas + prioritization = prd-generation."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Help me draft the executive-facing product doc that explains who the users are and what wins."
+    expected_trigger: true
+    rationale: "Executive/stakeholder product doc with personas = PRD."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Write up the product vision doc — target users, competitors, what to build first."
+    expected_trigger: true
+    rationale: "Product vision with users + competitors + prioritization = PRD."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Draft the pitch-ready requirements doc for leadership review."
+    expected_trigger: true
+    rationale: "Pitch-ready leadership doc = stakeholder-facing PRD."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Document who our target users are and what problems this product solves."
+    expected_trigger: true
+    rationale: "Target users + problems-solved framing = PRD."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Leadership needs sign-off before we build — draft the product requirements with personas and market positioning."
+    expected_trigger: true
+    rationale: "Leadership sign-off + personas + positioning = PRD."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "We're proposing a new feature — write the PM doc with users, competitors, and what to prioritize."
+    expected_trigger: true
+    rationale: "PM doc with users+competitors+prioritization = PRD."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Product discovery is done — now I need the stakeholder PRD before engineering gets involved."
+    expected_trigger: true
+    rationale: "Stakeholder PRD pre-engineering = prd-generation slot."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Turn our product strategy notes into a PRD with competitive analysis."
+    expected_trigger: true
+    rationale: "Strategy -> PRD with competitive analysis = prd-generation."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Write the PRD now."
+    expected_trigger: true
+    rationale: "Direct trigger."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Draft the product requirements doc."
+    expected_trigger: true
+    rationale: "Unambiguously PRD."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Create Given-When-Then acceptance criteria for the login feature."
+    expected_trigger: false
+    expected_sibling: prd-generation
+    rationale: "GWT acceptance criteria = prd-generation, not PRD."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Run the 32 discovery questions and produce a client-facing scope document."
+    expected_trigger: false
+    expected_sibling: workscope
+    rationale: "32 discovery questions + client-facing scope = workscope."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Write the 19-section technical specification with API contracts and database schemas."
+    expected_trigger: false
+    expected_sibling: tech-specification
+    rationale: "19-section tech spec with API+DB = tech-specification."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Generate mock JSON fixtures for our user table."
+    expected_trigger: false
+    rationale: "Mock fixtures = mock-data, unrelated to PRD."

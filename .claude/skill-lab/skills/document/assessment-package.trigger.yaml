@@ -1,0 +1,150 @@
+skill_name: assessment-package
+skill_id: SK-165
+category: document
+version: 1.0.0
+
+target_description: |
+  Turn raw technical assessment findings into a complete client-ready consulting package: Platform Assessment Report, Prioritized Recommendation Report, Implementation Roadmap, and a Technical Assessment Workbook. Reconciles all totals against the detailed findings before writing a word, builds every summary programmatically so it cannot go stale, and enforces traceability from findings through risks and recommendations to roadmap phases and blockers. Use when a discovery or assessment engagement needs its client deliverables produced. Also triggers on 'assessment report package', 'client deliverable package', 'turn findings into a report', 'platform assessment report', 'prioritized recommendation report', 'implementation roadmap', 'consulting deliverable from findings'.
+# Likely sibling collisions:
+#   - code-quality-report: produces the FINDINGS this skill turns into deliverables (the analysis half, not the package)
+#   - workscope:            a pre-engagement scope proposal, not a post-findings deliverable package
+#   - project-brief:        a short complexity brief, not a findings-to-report consulting package
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Turn these findings into a client deliverable package: assessment report, recommendation report, and roadmap."
+    expected_trigger: true
+    rationale: "'client deliverable package' and 'turn findings into a report' are named trigger phrases."
+
+  - id: P02
+    bucket: positive_direct
+    text: "We need the platform assessment report and prioritized recommendation report produced from this findings register."
+    expected_trigger: true
+    rationale: "Names both headline deliverables verbatim."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Build the implementation roadmap and technical assessment workbook from the audit findings."
+    expected_trigger: true
+    rationale: "Names the roadmap and the workbook, two of the four deliverables."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Generate the assessment report package for this engagement."
+    expected_trigger: true
+    rationale: "'assessment report package' is a named trigger phrase."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Turn these raw findings into a report the client can read."
+    expected_trigger: true
+    rationale: "Matches the skill's own framing: raw findings into a client-ready package."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Produce the consulting deliverable from the findings we already have."
+    expected_trigger: true
+    rationale: "'consulting deliverable from findings' is a named trigger phrase."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "The findings are locked, now assemble the full client-facing package: report, recommendations, and phased plan."
+    expected_trigger: true
+    rationale: "Same intent as the four-deliverable package, worded around 'phased plan' instead of 'roadmap'."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Take this discovery engagement's findings and package them into the deliverables the client is paying for."
+    expected_trigger: true
+    rationale: "Discovery/assessment engagement producing client deliverables is exactly the trigger condition."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "We have the audit data. Write the assessment report, the recommendation report, and the rollout roadmap from it."
+    expected_trigger: true
+    rationale: "Findings already exist, deliverables are requested from them."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Compile the workbook and the two client reports from the reconciled findings."
+    expected_trigger: true
+    rationale: "Reconciled findings as the input, workbook plus reports as the output, matches Rule 0."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "The security review wrapped up yesterday. Client call is Friday and they need the full report package: findings, recommendations, roadmap."
+    expected_trigger: true
+    rationale: "A completed assessment needing its client package produced before a deadline."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "We finished the discovery engagement. Put together everything the client needs to sign off on the assessment."
+    expected_trigger: true
+    rationale: "Discovery engagement complete, client deliverables requested."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Our findings register has 132 rows. Turn that into the platform assessment report and prioritized recommendations before the workshop."
+    expected_trigger: true
+    rationale: "A findings register as the explicit input to the report and recommendations."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "The assessment is done. I need the deliverables: report, recommendations, roadmap, and the workbook, ready to send."
+    expected_trigger: true
+    rationale: "Names all four deliverables from a finished assessment."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Findings are reconciled, now build the deliverable package."
+    expected_trigger: true
+    rationale: "Assumes the findings-locked precondition from Rule 0 and asks for the package."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "The register is locked, go ahead and produce the reports."
+    expected_trigger: true
+    rationale: "Short prompt relying on prior context that the findings register is finalized."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Run a SonarQube-style static analysis of the whole repo and find the bugs and vulnerabilities."
+    expected_trigger: false
+    expected_sibling: code-quality-report
+    rationale: "This produces the findings that assessment-package later turns into deliverables. It is the analysis half, not the package."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Draft the client scope document with milestones and acceptance criteria for this new project."
+    expected_trigger: false
+    expected_sibling: workscope
+    rationale: "A pre-engagement scope proposal, not a post-findings consulting package."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Write a short complexity brief so the team knows what they are getting into before we start."
+    expected_trigger: false
+    expected_sibling: project-brief
+    rationale: "A short pre-work complexity brief, not a findings-derived deliverable package."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Set up Redis caching for the product search endpoint."
+    expected_trigger: false
+    rationale: "Caching implementation is unrelated to assembling a client assessment deliverable package."

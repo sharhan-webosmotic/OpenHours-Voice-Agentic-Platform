@@ -1,0 +1,145 @@
+skill_name: python-deployment
+skill_id: SK-085
+category: platform
+version: 1.0.0
+
+target_description: |
+  Prepare Python deployment runbooks for FastAPI/uvicorn applications. Covers uvicorn worker configuration, gunicorn process management, Docker container builds, environment-specific configs, health checks, and the ai-server's multi-worker formula derived from uvicorn_config.py. Use when deploying the ai-server, configuring uvicorn/gunicorn workers, writing Dockerfiles, setting up environment configs, or planning production releases. Also triggers on: 'Deploy Python', 'Uvicorn config', 'Dockerfile Python', 'Deploy FastAPI', 'Python production', 'AI server deployment', 'Python release', 'FastAPI Docker', 'Production uvicorn'.
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Deploy the ai-server to staging with the right uvicorn worker count."
+    expected_trigger: true
+    rationale: "Matches 'deploying the ai-server' and 'uvicorn worker configuration'."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Configure gunicorn process management for our FastAPI service."
+    expected_trigger: true
+    rationale: "Matches 'configuring uvicorn/gunicorn workers' verbatim."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Write a Dockerfile for the Python ai-server."
+    expected_trigger: true
+    rationale: "Matches 'writing Dockerfiles' directly."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Set up environment-specific configs for staging vs production."
+    expected_trigger: true
+    rationale: "Matches 'environment-specific configs' / 'setting up environment configs'."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Prepare the Python deployment runbook for the next ai-server production release."
+    expected_trigger: true
+    rationale: "Matches 'Python deployment runbooks' and 'deploying the ai-server' verbatim."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Add FastAPI health check endpoints and wire them into the uvicorn container."
+    expected_trigger: true
+    rationale: "FastAPI health checks + uvicorn container = python-deployment stack."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Containerize the FastAPI app and pick a sane worker count."
+    expected_trigger: true
+    rationale: "Containerize + worker count = Docker + uvicorn worker config."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Figure out how many workers to run per CPU for the AI server."
+    expected_trigger: true
+    rationale: "Multi-worker formula from uvicorn_config.py is explicit in the description."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Prepare the uvicorn + Docker setup we need to ship the ai-server to prod."
+    expected_trigger: true
+    rationale: "uvicorn + Docker for ai-server production release = python-deployment."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Make sure the FastAPI app reads the right env-specific configs in staging vs prod."
+    expected_trigger: true
+    rationale: "Environment-specific FastAPI configs is this skill's explicit scope."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "We're shipping the ai-server on Friday — draft the uvicorn worker config and Docker image build steps."
+    expected_trigger: true
+    rationale: "ai-server + uvicorn worker config + Docker image = python-deployment."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "Ops wants health and readiness probes on the FastAPI service for k8s."
+    expected_trigger: true
+    rationale: "Health checks for a FastAPI service = python-deployment scope."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Our AI server is OOM'ing under load — revisit the uvicorn worker formula."
+    expected_trigger: true
+    rationale: "Revisiting the uvicorn multi-worker formula is explicit."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Bake the Python image so CI can push it on every tag."
+    expected_trigger: true
+    rationale: "Building the Python Docker image = python-deployment."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Now write the Dockerfile and entrypoint for it."
+    expected_trigger: true
+    rationale: "Dockerfile + entrypoint resolves to python-deployment."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "OK, let's tune the gunicorn workers next."
+    expected_trigger: true
+    rationale: "Gunicorn worker tuning = this skill."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Implement a new async FastAPI route for invoices with Pydantic schemas."
+    expected_trigger: false
+    expected_sibling: build
+    rationale: "Implementing a FastAPI route + Pydantic is python-backend."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Add the Anthropic LLM provider under BaseLLMProvider and wire it into the agent."
+    expected_trigger: false
+    expected_sibling: python-ai-services
+    rationale: "Adding an LLM provider under the ABC is python-ai-services."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Write pytest integration tests with httpx.AsyncClient for the new endpoint."
+    expected_trigger: false
+    expected_sibling: python-testing
+    rationale: "pytest + httpx.AsyncClient integration tests is python-testing."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Generate icon assets for the new mobile app home screen."
+    expected_trigger: false
+    rationale: "Mobile icon generation is unrelated to Python deployment."

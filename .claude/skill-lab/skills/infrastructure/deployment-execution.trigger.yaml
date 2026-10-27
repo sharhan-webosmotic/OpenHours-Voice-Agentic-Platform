@@ -1,0 +1,150 @@
+skill_name: deployment-execution
+skill_id: SK-045
+category: infrastructure
+version: 1.0.0
+
+target_description: |
+  Assist during a live deployment: the user runs commands, this skill tracks step-by-step progress, diagnoses failed steps, verifies post-deploy health, decides rollback/continue, and drives sign-off. Reads the runbook produced by /deployment-planning. Does NOT run deployment commands. Use during the deploy window after a runbook is ready. Also triggers on: 'Execute deployment', 'Start deployment', 'Monitor deployment', 'Ship it now', 'Deployment in progress', 'Verify deployment', 'Rollback deployment', 'Post-deploy verification'.
+# Likely sibling collisions (HIGH risk: split pair):
+#   - deployment-planning: PRE-deploy runbook authoring
+#   - debugger:            diagnose issues: overlaps with "diagnoses failed steps"
+#   - do (Phase 3 plus gate-enforcement Gate 5):        pre-release orchestration
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "We're in the deploy window — track my progress through the runbook."
+    expected_trigger: true
+    rationale: "Live deploy + track progress through runbook = deployment-execution."
+
+  - id: P02
+    bucket: positive_direct
+    text: "I'm mid-deploy and step 4 failed — diagnose it and tell me if we continue or rollback."
+    expected_trigger: true
+    rationale: "Mid-deploy failed-step diagnosis + rollback decision = deployment-execution."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Verify post-deploy health and drive the sign-off."
+    expected_trigger: true
+    rationale: "Post-deploy health + sign-off = deployment-execution."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Assist me while I run the deploy commands manually."
+    expected_trigger: true
+    rationale: "Assist during manual deploy commands = deployment-execution."
+
+  - id: P05
+    bucket: positive_direct
+    text: "The runbook is ready — guide me through the deploy window step-by-step."
+    expected_trigger: true
+    rationale: "Runbook ready + guide through deploy window = deployment-execution."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Walk me through the live release — you watch, I type the commands."
+    expected_trigger: true
+    rationale: "Live release, user types, skill watches = deployment-execution's exact role."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "I'm about to run the first deploy step — stay with me and flag anything that looks off."
+    expected_trigger: true
+    rationale: "Stay-with-me during deploy = deployment-execution."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Deploy is happening right now — help me decide whether this error is rollback-worthy."
+    expected_trigger: true
+    rationale: "Real-time deploy + rollback decision = deployment-execution."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "We're pushing to prod — track each step and call out regressions."
+    expected_trigger: true
+    rationale: "Mid-prod-push step tracking + regression calls = deployment-execution."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "I just ran step 3 and got a warning — is that expected, and should I proceed?"
+    expected_trigger: true
+    rationale: "Mid-step decision support = deployment-execution."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Starting the deploy now — database migration finished, should I proceed to the blue-green cutover step?"
+    expected_trigger: true
+    rationale: "Mid-deploy proceed decision = deployment-execution."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "Rollback question — the health check is red at step 6. Continue or revert?"
+    expected_trigger: true
+    rationale: "Live rollback/continue decision on failed health check = deployment-execution."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Cutover complete — verify traffic is flowing correctly and sign off the deploy."
+    expected_trigger: true
+    rationale: "Post-cutover verification + sign-off = deployment-execution."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "During this release window, drive the step-by-step checklist and catch anything unexpected."
+    expected_trigger: true
+    rationale: "Drive during-window step-by-step checklist = deployment-execution."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "We're in the deploy window now."
+    expected_trigger: true
+    rationale: "Deploy window = deployment-execution's scope."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Step 2 failed — what now?"
+    expected_trigger: true
+    rationale: "Mid-deploy 'step N failed' = deployment-execution."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Prepare a Blue-Green deployment runbook with the cutover plan and readiness review."
+    expected_trigger: false
+    expected_sibling: deployment-planning
+    rationale: "Runbook authoring + readiness review = deployment-planning (pre-deploy)."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Trace why our test suite is failing intermittently in CI."
+    expected_trigger: false
+    expected_sibling: debugger
+    rationale: "Intermittent CI test failure tracing = debugger, not deployment-execution."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Orchestrate the release pipeline with engineering-lead, qa-lead, and security-auditor before the deploy."
+    expected_trigger: false
+    expected_sibling: do
+    rationale: "Pre-deploy release orchestration = do (Phase 3 plus gate-enforcement Gate 5)."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Generate a logo and favicon for the new product."
+    expected_trigger: false
+    rationale: "Logo/favicon = image-generation, unrelated."

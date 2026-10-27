@@ -1,0 +1,149 @@
+skill_name: architecture
+skill_id: SK-020
+category: infrastructure
+version: 1.0.0
+
+target_description: |
+  Create Architecture Decision Records (ADR), document system design choices and trade-offs. Use when making architecture decisions, choosing technologies, or documenting system design. Also triggers on: 'Tech decision', 'How should we build', 'AWS', 'Azure', 'GCP', 'design system'.
+# Likely sibling collisions:
+#   - tech-specification: full 19-section tech spec document (API contracts, DB schemas)
+#     architecture records DECISIONS; tech-specification records the full SPEC
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Create an ADR for our choice of Postgres over DynamoDB."
+    expected_trigger: true
+    rationale: "ADR creation is the primary deliverable named in the description."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Document this architecture decision and the trade-offs we considered."
+    expected_trigger: true
+    rationale: "Matches 'document system design choices and trade-offs' verbatim."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Write an Architecture Decision Record for switching from REST to gRPC."
+    expected_trigger: true
+    rationale: "Architecture Decision Record (ADR) is named in the description."
+
+  - id: P04
+    bucket: positive_direct
+    text: "We need to make an architecture decision about the messaging layer — capture it properly."
+    expected_trigger: true
+    rationale: "Matches 'making architecture decisions' trigger phrase."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Help me choose between AWS Lambda and ECS Fargate and record the decision."
+    expected_trigger: true
+    rationale: "Matches 'choosing technologies' and recording the decision."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Start a new ADR documenting why we picked Kafka for event streaming."
+    expected_trigger: true
+    rationale: "New ADR authoring: the skill's core output."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "I want a formal record of why we're dropping microservices for a modular monolith."
+    expected_trigger: true
+    rationale: "Formal record of a design shift is an ADR: architecture's job."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Capture the rationale and alternatives for this tech choice so future engineers can trace it."
+    expected_trigger: true
+    rationale: "Rationale + alternatives + posterity = the exact purpose of an ADR."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "We keep re-litigating this design call — can you write it down with the pros/cons?"
+    expected_trigger: true
+    rationale: "Persist a design decision with trade-offs is ADR territory."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Log the decision to move from Redis to Memcached along with the reasoning."
+    expected_trigger: true
+    rationale: "Log-a-decision-with-reasoning is the ADR pattern."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "The team keeps flip-flopping on whether to use GraphQL. Can you put together something that captures the options and locks in a direction?"
+    expected_trigger: true
+    rationale: "Lock in a directional architecture decision with options considered: ADR task."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "I'm preparing for the architecture review meeting — produce the decision doc on our choice of GCP."
+    expected_trigger: true
+    rationale: "Decision doc for architecture review is an ADR."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Before we start coding, record our system design choice of CQRS + event sourcing with context and consequences."
+    expected_trigger: true
+    rationale: "Context + consequences are canonical ADR sections for a design choice."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "For future devs: formalize the tech-stack decision we made today — React Native over Flutter."
+    expected_trigger: true
+    rationale: "Formalizing a tech-stack decision is an ADR deliverable."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "OK, write up the ADR."
+    expected_trigger: true
+    rationale: "Short context-dependent prompt that unambiguously names the ADR deliverable."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Now record this design decision properly."
+    expected_trigger: true
+    rationale: "Recording a design decision properly is this skill's role."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Generate the full 19-section technical specification with API contracts and database schemas."
+    expected_trigger: false
+    expected_sibling: tech-specification
+    rationale: "19-section spec with API contracts + DB schemas is tech-specification's deliverable, not an ADR."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Write up the API contract and endpoint specs for the payments service."
+    expected_trigger: false
+    expected_sibling: tech-specification
+    rationale: "API contract authoring lives in tech-specification."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Define the database schema and entity relationships for the new tenant model."
+    expected_trigger: false
+    expected_sibling: tech-specification
+    rationale: "DB schema definition is a tech-spec task, not an architecture decision record."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Summarize today's standup notes into action items."
+    expected_trigger: false
+    rationale: "Standup summarization is unrelated to architecture decisions."

@@ -1,0 +1,145 @@
+skill_name: project-stage-detect
+skill_id: SK-092
+category: utility
+version: 1.0.0
+
+target_description: |
+  Automatically analyze project state and detect current SDLC phase. Scans AI_DOCS/, codebase structure, gate-status.md, and package.json. Reports current phase, missing artifacts per phase, and recommends next skill. Use when you don't know what phase you're in or what to do next.
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Detect the current SDLC phase of this project."
+    expected_trigger: true
+    rationale: "Direct verbatim match: detecting current SDLC phase is the headline of the description."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Analyze project state and tell me what phase we're in."
+    expected_trigger: true
+    rationale: "'Analyze project state and detect current SDLC phase' is the description's opening sentence."
+
+  - id: P03
+    bucket: positive_direct
+    text: "What phase are we in and what should I do next?"
+    expected_trigger: true
+    rationale: "Two explicit trigger questions: 'what phase you're in' and 'what to do next'."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Scan AI_DOCS and the codebase and report missing artifacts per phase."
+    expected_trigger: true
+    rationale: "Scanning AI_DOCS + missing-artifacts-per-phase is a verbatim description capability."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Recommend the next skill to run based on the current project state."
+    expected_trigger: true
+    rationale: "Recommending next skill is the direct output this skill produces."
+
+  - id: P06
+    bucket: positive_direct
+    text: "I don't know what phase this project is in — figure it out."
+    expected_trigger: true
+    rationale: "Exact 'don't know what phase' trigger from the description."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Where are we in the development lifecycle? I just inherited this repo."
+    expected_trigger: true
+    rationale: "Lifecycle position detection is the paraphrase of SDLC phase detection."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Figure out which step of the process we're on and what's still missing."
+    expected_trigger: true
+    rationale: "Current step + missing items == phase detection + missing artifacts."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "I'm lost — inspect the repo and tell me what to run."
+    expected_trigger: true
+    rationale: "Inspecting repo + recommending next action maps to this skill."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Give me a status check on how far along this project is."
+    expected_trigger: true
+    rationale: "Status check on progress === phase detection."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "A teammate handed me this repo this morning. Can you look around and summarize where they left off and what's next?"
+    expected_trigger: true
+    rationale: "Look around + summarize + next-step == scan codebase/AI_DOCS and recommend next skill."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "We haven't touched this project in three months. What's left to do and which skill should I start with?"
+    expected_trigger: true
+    rationale: "Detect remaining work + next skill recommendation is this skill's output."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Check gate-status.md and package.json and figure out whether we're still in design or already coding."
+    expected_trigger: true
+    rationale: "Checks gate-status.md and package.json: both explicit sources named in the description."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Before I pick a task, confirm what phase this project is really in."
+    expected_trigger: true
+    rationale: "Phase confirmation before choosing a task is this skill's diagnostic role."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Now figure out what phase we're in."
+    expected_trigger: true
+    rationale: "Short 'figure out phase' maps directly."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "OK, detect the stage first."
+    expected_trigger: true
+    rationale: "Stage detection is this skill's direct name/purpose."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Has Gate 2 passed? Give me a PASS/FAIL verdict so I know if we can move on."
+    expected_trigger: false
+    expected_sibling: gate-enforcement
+    rationale: "Explicit PASS/FAIL verdict is gate-enforcement: this skill only reports phase, no verdict."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Can we move to the next phase? Validate the gate conditions and tell me yes or no."
+    expected_trigger: false
+    expected_sibling: gate-enforcement
+    rationale: "Validating gate conditions with yes/no authorization is gate-enforcement's deliverable."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Generate or refresh CLAUDE.md at the project root now that the milestone changed."
+    expected_trigger: false
+    expected_sibling: project-context
+    rationale: "CLAUDE.md regeneration is project-context, not phase detection."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Compose a marketing email announcing our Series A."
+    expected_trigger: false
+    rationale: "Marketing copywriting is unrelated to SDLC phase detection."

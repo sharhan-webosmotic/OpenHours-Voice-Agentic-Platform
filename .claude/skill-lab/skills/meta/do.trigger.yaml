@@ -1,0 +1,144 @@
+skill_name: do
+skill_id: SK-100
+category: meta
+version: 1.0.0
+
+target_description: |
+  The ONE skill you talk to. Handles everything: planning, building, verifying, auditing, and shipping. Always plans first (mandatory intake), then builds task by task, asks questions inline when stuck. FIRES on any coding/building/fixing/shipping request. DOES NOT FIRE on pure questions ('how do I…', 'explain…', 'what is…').
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 3
+  negative_sibling: 2
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "/do build me a small URL shortener with stats"
+    expected_trigger: true
+    rationale: "Explicit /do invocation with a build imperative: exactly the description's lead example."
+
+  - id: P02
+    bucket: positive_direct
+    text: "do this"
+    expected_trigger: true
+    rationale: "Description names 'do this' as a positive trigger phrase verbatim."
+
+  - id: P03
+    bucket: positive_direct
+    text: "do build the profile page end-to-end"
+    expected_trigger: true
+    rationale: "'do build X' pattern matches the description's listed positive trigger pattern."
+
+  - id: P04
+    bucket: positive_direct
+    text: "do fix the login bug"
+    expected_trigger: true
+    rationale: "'do fix X' is a listed positive trigger pattern in the description."
+
+  - id: P05
+    bucket: positive_direct
+    text: "do ship the latest changes"
+    expected_trigger: true
+    rationale: "'do ship X' is a listed positive trigger pattern in the description."
+
+  - id: P06
+    bucket: positive_direct
+    text: "just do it"
+    expected_trigger: true
+    rationale: "Description names 'just do it' as a positive trigger phrase verbatim."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Build me a multi-tenant SaaS with auth, billing, and dashboards."
+    expected_trigger: true
+    rationale: "Imperative build request without an explicit /do prefix; /do is the front door for any build/implement intent and should pick it up via the autonomous outer loop."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Implement the search feature now."
+    expected_trigger: true
+    rationale: "Imperative implement request; /do is the autonomous front door that routes to /plan→/build."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Make the homepage responsive."
+    expected_trigger: true
+    rationale: "Imperative make/build request; /do drives implementation via /build inside the loop."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Let's start working on the API."
+    expected_trigger: true
+    rationale: "'Let's start' is an imperative; /do is the single entry point that picks the next task from the milestone capsule."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Add a 404 page with a link back home."
+    expected_trigger: true
+    rationale: "Concrete add-feature task implies a build invocation; /do creates/picks the task and dispatches /build."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "Fix the bug where checkout 500s on retry."
+    expected_trigger: true
+    rationale: "Bug-fix imperative; /do routes the fix through its loop (BLOCKED stamps lead to /ask if needed)."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Wire the new payment provider into checkout."
+    expected_trigger: true
+    rationale: "Multi-layer integration task; /do dispatches the appropriate specialist (the Phase 1 lead dispatch) when state demands it."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Audit and ship the v0.4 release."
+    expected_trigger: true
+    rationale: "Combined audit+ship intent; /do has explicit subcommand routing for /audit then /ship."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "go"
+    expected_trigger: true
+    rationale: "Bare imperative resolves through /do's 'Resolving do this' protocol: read most recent context, pick up the next task from the active capsule."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "continue"
+    expected_trigger: true
+    rationale: "Resume intent is handled by /do's bootstrap which reads session-state.md and picks up the active task."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Which skill handles SEO?"
+    expected_trigger: false
+    expected_sibling: skill-router
+    rationale: "Meta-discovery question about skill mapping: that's skill-router. Description explicitly excludes question intents."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Draft a multi-chunk plan for the user-profile redesign before any code."
+    expected_trigger: false
+    expected_sibling: task-planner
+    rationale: "Pure plan-drafting (no execution) for a multi-chunk task is task-planner's job. /do dispatches task-planner when needed but the user explicitly asks for the plan, not the execution."
+
+  - id: P19
+    bucket: positive_context_based
+    text: "Run the full pre-release fan-out — solutions architect, security audit, QA gate."
+    expected_trigger: true
+    rationale: "Pre-release fan-out is /do Phase 3 plus gate-enforcement Gate 5 since the team-release skill was retired in v4.32.0."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Do you know which Postgres version supports logical replication out of the box?"
+    expected_trigger: false
+    rationale: "Knowledge question, not an imperative. Description explicitly excludes 'do you know...' patterns."

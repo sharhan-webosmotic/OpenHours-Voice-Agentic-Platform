@@ -1,0 +1,151 @@
+skill_name: seo
+skill_id: SK-033
+category: optimization
+version: 1.0.0
+
+target_description: |
+  Implement SEO meta tags, structured data (JSON-LD), sitemaps, and Open Graph tags. Use when adding SEO, meta tags, sitemaps, or structured data. Also triggers on: 'Add SEO'.
+# Likely sibling collisions:
+#   - caching-strategy:  performance/edge perf tangentially
+#   - image-assets:      social-preview image optimization
+#   - i18n:              hreflang tags for international SEO
+#   - nextjs / reactjs:  Head / metadata tag implementation
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Add SEO meta tags to the marketing pages."
+    expected_trigger: true
+    rationale: "Direct 'SEO meta tags' trigger."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Implement structured data (JSON-LD) for our product pages."
+    expected_trigger: true
+    rationale: "Structured data JSON-LD = SEO signature."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Create a sitemap.xml for the site."
+    expected_trigger: true
+    rationale: "Sitemap = named capability."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Add Open Graph tags so the URL previews look nice on Slack/Twitter."
+    expected_trigger: true
+    rationale: "OG tags = named capability."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Set up the full SEO pass — meta, OG, JSON-LD, sitemap."
+    expected_trigger: true
+    rationale: "Full SEO pass with named deliverables."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Add canonical tags and robots meta for the blog section."
+    expected_trigger: true
+    rationale: "Canonical + robots = SEO meta."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Make these pages rank well on Google — proper tags, schema, sitemap."
+    expected_trigger: true
+    rationale: "Rank well + tags + schema + sitemap = SEO."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Social share previews are broken — add the right metadata to each route."
+    expected_trigger: true
+    rationale: "Social share metadata = OG tags = SEO."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Get the site discoverable by search engines with proper indexing signals."
+    expected_trigger: true
+    rationale: "Discoverable + indexing signals = SEO meta."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Add schema.org markup for articles and products."
+    expected_trigger: true
+    rationale: "schema.org markup = JSON-LD structured data = SEO."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Marketing says we need rich snippets showing in Google results — implement the schema."
+    expected_trigger: true
+    rationale: "Rich snippets via schema = SEO structured data."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "Before launch, get meta tags, OG previews, sitemap, and canonical URLs in place."
+    expected_trigger: true
+    rationale: "Pre-launch SEO bundle = seo."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Our product pages don't show the right preview when shared on LinkedIn — fix the metadata."
+    expected_trigger: true
+    rationale: "Share preview fix = OG tags = SEO."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Add hreflang alternates so Google serves the right locale URL."
+    expected_trigger: true
+    rationale: "hreflang = SEO meta tag (even though it's i18n-adjacent, the task is tagging)."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Add SEO."
+    expected_trigger: true
+    rationale: "Direct SEO trigger."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Set up the sitemap."
+    expected_trigger: true
+    rationale: "Sitemap trigger."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Add Redis caching and CDN in front of the product API."
+    expected_trigger: false
+    expected_sibling: caching-strategy
+    rationale: "Redis + CDN for an API = caching-strategy."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Optimize product photos: WebP conversion, responsive srcset, lazy loading."
+    expected_trigger: false
+    expected_sibling: image-assets
+    rationale: "WebP + srcset + lazy-loading = image-assets."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Add react-i18next with French and German translations and RTL support for Arabic."
+    expected_trigger: false
+    expected_sibling: i18n
+    rationale: "Translations + RTL = i18n."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Orchestrate the release pipeline with engineering-lead and qa-lead."
+    expected_trigger: false
+    rationale: "Release orchestration = do (Phase 3 plus gate-enforcement Gate 5), unrelated."

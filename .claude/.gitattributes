@@ -1,0 +1,16 @@
+# Force LF line endings for shell and text config files so bash scripts
+# run correctly on Windows (Git Bash / MSYS) after a fresh clone or pull.
+# Without this, default core.autocrlf=true on Windows inserts CRLF into
+# upgrade.sh / setup.sh / hooks, which bash rejects with syntax errors.
+
+*.sh        text eol=lf
+*.bash      text eol=lf
+*.yaml      text eol=lf
+*.yml       text eol=lf
+*.json      text eol=lf
+*.md        text eol=lf
+
+# Git hooks (no extension) must be LF
+hooks/git/post-merge    text eol=lf
+hooks/git/pre-push      text eol=lf
+hooks/git/post-checkout text eol=lf

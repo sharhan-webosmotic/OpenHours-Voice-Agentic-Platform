@@ -1,0 +1,154 @@
+skill_name: team-security
+skill_id: SK-099
+category: team
+version: 1.0.0
+
+target_description: |
+  Orchestrate a parallel security review. Spawns security-auditor (OWASP Top 10 + secrets) + api-validator (contract drift + auth mismatches) + code-reviewer (XSS, injection, input validation) simultaneously. Use for pre-release security gates, after auth/payment changes, or after dependency updates.
+# Likely sibling collisions (critical: these tests must distinguish team-security from):
+#   - audit: the SOLO version, not orchestrated. Just disambiguated.
+#   - do (Phase 1 lead dispatch):    full feature delivery orchestrator
+#   - do (Phase 3 plus gate-enforcement Gate 5):    release orchestrator, also invokes security-auditor
+#   - project-audit:   broad codebase scan
+#
+# This spec also serves as a validation that the audit description fix
+# didn't accidentally reroute team-security's positives to audit.
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Run the parallel security review with multiple agents."
+    expected_trigger: true
+    rationale: "Matches 'parallel security review' in description."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Spawn security-auditor, api-validator, and code-reviewer in parallel on this branch."
+    expected_trigger: true
+    rationale: "Names the exact three agents team-security spawns."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Kick off the pre-release security gate orchestration."
+    expected_trigger: true
+    rationale: "Pre-release security gate is a named use case in description."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Run the team-security workflow after this dependency update."
+    expected_trigger: true
+    rationale: "Direct skill name + 'after dependency updates' trigger."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Orchestrate a multi-agent security review on the payment changes."
+    expected_trigger: true
+    rationale: "Multi-agent orchestration + 'after auth/payment changes' = team-security."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Run the security orchestrator after these auth changes."
+    expected_trigger: true
+    rationale: "Security orchestrator + auth changes = team-security's exact trigger."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "I need a comprehensive multi-angle security review — OWASP, API contracts, XSS — all at once."
+    expected_trigger: true
+    rationale: "Multi-angle (OWASP + API contracts + XSS) all-at-once = team-security's parallel orchestration."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Fan out security checks across multiple reviewers in parallel before the release."
+    expected_trigger: true
+    rationale: "Fan-out parallel security checks before release = team-security."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Run the three-agent security pass (auditor + api-validator + reviewer) and compile the findings."
+    expected_trigger: true
+    rationale: "Three-agent pass with those specific agents = team-security signature."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Launch a concurrent security sweep that covers OWASP, contract drift, and injection vectors."
+    expected_trigger: true
+    rationale: "Concurrent sweep covering all three angles = team-security."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "We've just updated several npm packages — run the full orchestrated security pass."
+    expected_trigger: true
+    rationale: "'After dependency updates' + 'full orchestrated' = team-security."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "Before we ship next week, I want OWASP, API, and code-level security reviews running together."
+    expected_trigger: true
+    rationale: "Pre-release + three review angles together = team-security orchestration."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "The payment module changed — fire off all three security agents in parallel."
+    expected_trigger: true
+    rationale: "Payment change + parallel three agents = team-security."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Gate 5 needs the multi-agent security review before we can close the milestone."
+    expected_trigger: true
+    rationale: "Gate 5 multi-agent security review is team-security's slot."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Run team-security."
+    expected_trigger: true
+    rationale: "Direct skill name."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Time for the multi-agent security review."
+    expected_trigger: true
+    rationale: "'Multi-agent security review' = team-security's exact framing."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "I want a solo, quick OWASP check on the auth file — no orchestration."
+    expected_trigger: false
+    expected_sibling: audit
+    rationale: "Solo/quick, no orchestration = audit (the direct version)."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Orchestrate the full feature delivery pipeline with product-director, architect, and QA-lead."
+    expected_trigger: false
+    expected_sibling: do
+    rationale: "Product-director + architect + QA-lead feature pipeline = do (Phase 1 lead dispatch), not team-security."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Orchestrate the release pipeline with engineering-lead, qa-lead, and deployment prep."
+    expected_trigger: false
+    expected_sibling: do
+    rationale: "Engineering-lead + qa-lead + deployment prep = do (Phase 3 plus gate-enforcement Gate 5)."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Write the FRD with Given-When-Then acceptance criteria for user signup."
+    expected_trigger: false
+    rationale: "FRD with GWT acceptance criteria = prd-generation, unrelated to security."

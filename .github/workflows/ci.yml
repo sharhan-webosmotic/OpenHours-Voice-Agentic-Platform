@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  pull_request:
+    branches: ['**']
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # corepack must never block waiting for a download confirmation on CI.
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+
+jobs:
+  verify:
+    name: lint, typecheck, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:16.15-alpine
+        env:
+          POSTGRES_USER: openhours
+          POSTGRES_PASSWORD: postgres_ci_only
+          POSTGRES_DB: openhours_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U openhours -d openhours_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+
+    env:
+      # Synthetic CI database only. Real or production data never reaches CI.
+      DATABASE_URL: postgresql://openhours:postgres_ci_only@localhost:5432/openhours_test
+      NODE_ENV: test
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          # setup-node v5 auto-enables package-manager caching when package.json has a
+          # `packageManager` field, and that cache restore shells out to `pnpm store
+          # path` before pnpm exists, failing with "Unable to locate executable file:
+          # pnpm". pnpm is installed by the next step, so the automatic cache is turned
+          # off and the pnpm store is cached explicitly below instead.
+          package-manager-cache: false
+
+      # pnpm 12 ships bin/pnpm.mjs, which the corepack bundled with Node cannot load
+      # (it looks for bin/pnpm.cjs). Pin a corepack new enough to run it.
+      - name: Install pnpm via corepack
+        run: |
+          npm install -g --force corepack@0.36.0
+          corepack enable
+          pnpm --version
+
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        run: echo "dir=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.dir }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: OpenAPI drift
+        run: pnpm openapi:check
+
+      - name: Build
+        run: pnpm build
+
+  audit:
+    name: dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          # See the comment in the verify job.
+          package-manager-cache: false
+
+      - name: Install pnpm via corepack
+        run: |
+          npm install -g --force corepack@0.36.0
+          corepack enable
+          pnpm --version
+
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        run: echo "dir=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.dir }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Fails the build on any high or critical advisory.
+      - name: Audit
+        run: pnpm audit --audit-level high

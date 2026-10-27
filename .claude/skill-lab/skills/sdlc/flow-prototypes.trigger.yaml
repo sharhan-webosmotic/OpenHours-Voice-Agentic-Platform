@@ -1,0 +1,150 @@
+skill_name: flow-prototypes
+skill_id: SK-168
+category: sdlc
+version: 1.0.0
+
+target_description: |
+  Triage every feature into Tier S (standard, skips this skill) or Tier F (flow-validated: 3+ screens in sequence, more than one role, branching outcomes, user-visible business calculations or money movement, state machines driving the UI, or cross-entity relations the user must understand to act). For each Tier F flow, generate 3 clickable HTML journey variants in genuinely different interaction models, judge them with the ux-advisor and principal-designer agents against the ux-brief Role and JTBD table, and record the operator's pick as Gate FLOW PASS before any implementation task tagged with that flow may start. Owns AI_DOCS/design/flow-validation-plan.md and AI_DOCS/design/flows/**. Dispatched by /do Phase 0 after tech-spec (triage mode) and per Tier F flow before its build tasks (prototype and judge modes). Triggers on: 'triage the flows', 'which flows need prototypes', 'prototype this journey', 'clickable journey variants', 'approve the flow', 'Gate FLOW', 'waive this flow'.
+# Likely sibling collisions:
+#   - design-direction: picks the visual/token direction of ONE representative screen (not a multi-screen clickable journey)
+#   - design-screens:   builds the full production screen inventory + derived flow maps AFTER a journey is already approved
+#   - ux-foundation:    decomposes the requirement into roles/JTBD (upstream input this skill reads, never itself judges variants)
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Triage the flows for complexity and tell me which ones need prototypes."
+    expected_trigger: true
+    rationale: "Matches 'triage the flows' + 'which flows need prototypes' verbatim."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Prototype this journey before we build it, I want to click through it first."
+    expected_trigger: true
+    rationale: "'prototype this journey' is a named trigger phrase, and clicking through end to end is the skill's headline output."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Generate clickable journey variants for the order-approval flow."
+    expected_trigger: true
+    rationale: "'clickable journey variants' is a named trigger phrase matching Mode 2 exactly."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Approve the flow, Gate FLOW needs to pass before that task can start."
+    expected_trigger: true
+    rationale: "'approve the flow' and 'Gate FLOW' are named trigger phrases tied to Mode 3."
+
+  - id: P05
+    bucket: positive_direct
+    text: "We don't need to prototype the refund flow yet, waive it for now."
+    expected_trigger: true
+    rationale: "'waive this flow' is a named trigger phrase, matching the waiver path in Mode 1."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Tech spec is approved and the ux brief is written, run the flow triage now."
+    expected_trigger: true
+    rationale: "Names the exact entry condition (after tech-spec, ux-brief present) for Mode 1 triage."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Which of our features are complex enough to deserve real clickable mockups before we code them?"
+    expected_trigger: true
+    rationale: "Paraphrases Tier S vs Tier F classification and the clickable-prototype output."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Give me three genuinely different ways to click through the multi-step approval process so I can compare them."
+    expected_trigger: true
+    rationale: "Three different interaction-model variants for a multi-step, multi-role flow is Mode 2's exact job."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Before the developers touch the escalation workflow, I want a judged recommendation on which candidate journey is best."
+    expected_trigger: true
+    rationale: "Judged ranking against the brief before implementation starts is Mode 3."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "This flow moves money and hands off between two roles, it needs to be validated as a real design before anyone builds it."
+    expected_trigger: true
+    rationale: "Money movement + role handoff are two of the Tier F triggers, and validating the design pre-build is the skill's purpose."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "The onboarding wizard has five screens, branches on verification failure, and moves through two roles, figure out if it needs the heavier design treatment and get it validated."
+    expected_trigger: true
+    rationale: "Describes the exact Tier F triggers (5 screens, branching, multi-role) and asks for the validation this skill performs."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "I don't want another journey shipping with a UX nobody clicked through first, set up the comparison prototypes for the claims-processing flow."
+    expected_trigger: true
+    rationale: "States the exact motivating problem (unclicked journeys shipping) and asks for comparison prototypes."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "The state machine driving the subscription lifecycle is confusing, mock up a couple of different ways to present it before the team commits to one."
+    expected_trigger: true
+    rationale: "State machines driving the UI is a Tier F trigger, and mocking up multiple presentations for a pre-commit decision is Mode 2."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Block the dispute-resolution tasks until someone actually picks a validated journey design for that flow."
+    expected_trigger: true
+    rationale: "Describes the Gate FLOW enforcement behavior: tasks stay blocked until a variant is approved."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Brief's done, now triage the flows."
+    expected_trigger: true
+    rationale: "Short context-dependent instruction naming the triage step right after the ux-brief."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Three variants are up, run the judge step."
+    expected_trigger: true
+    rationale: "Assumes Mode 2 already ran and asks for Mode 3 (judge and approve) by name."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Show me 2-3 visual directions for the main dashboard screen so I can pick a look before tokens lock."
+    expected_trigger: false
+    expected_sibling: design-direction
+    rationale: "Picking ONE screen's visual/token direction is design-direction, not a multi-screen clickable journey."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Build out the full production screen inventory and the per-role UX flow maps now that the journey is approved."
+    expected_trigger: false
+    expected_sibling: design-screens
+    rationale: "Building the full screen set and deriving flow maps AFTER approval is design-screens, not the approval step itself."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Decompose this requirement into roles, jobs-to-be-done, and success metrics before any design work starts."
+    expected_trigger: false
+    expected_sibling: ux-foundation
+    rationale: "Decomposing the requirement into the Role x JTBD table is ux-foundation, the upstream input this skill reads."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Add a Redis cache in front of the product search endpoint."
+    expected_trigger: false
+    rationale: "Caching strategy for an API endpoint is unrelated to flow triage or journey prototyping."

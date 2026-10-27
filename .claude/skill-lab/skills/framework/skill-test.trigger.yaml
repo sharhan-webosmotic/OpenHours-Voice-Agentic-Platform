@@ -1,0 +1,148 @@
+skill_name: skill-test
+skill_id: SK-093
+category: framework
+version: 1.0.0
+
+target_description: |
+  READ-ONLY VALIDATOR for ADF skill and agent files: checks structural compliance, behavioral correctness, category rubric adherence, and auto-trigger accuracy without modifying anything. Five modes: static (structural checks), spec (behavioral test cases), category (rubric evaluation), trigger (natural-language prompts), and audit (coverage dashboard). Use to QA the framework itself, produce pass/fail verdicts, or audit skill coverage. Do NOT use for fixing failing skills (use skill-improve) or creating new skills (use skill-authoring).
+# HIGH collision risk: skill-improve (test+fix loop), skill-authoring (create new).
+# Distinction: skill-test is READ-ONLY: runs checks and reports a verdict but never modifies files.
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Run the 7 static checks on debugger/SKILL.md and report pass/fail."
+    expected_trigger: true
+    rationale: "7 static checks + pass/fail verdict = skill-test static mode."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Validate the error-handling skill file for structural compliance."
+    expected_trigger: true
+    rationale: "Validate for structural compliance = skill-test's role."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Run the 20-prompt trigger test on caching-strategy and tell me if it scores 18 or higher."
+    expected_trigger: true
+    rationale: "20-prompt trigger test + 18/20 threshold = skill-test trigger mode."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Do a category-rubric evaluation for the gate-enforcement skill."
+    expected_trigger: true
+    rationale: "Category rubric evaluation = skill-test category mode."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Run the 5 behavioral spec test cases on prd-generation."
+    expected_trigger: true
+    rationale: "5 behavioral spec cases = skill-test spec mode."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Give me the full audit coverage dashboard for all skills."
+    expected_trigger: true
+    rationale: "Full audit coverage dashboard = skill-test audit mode verbatim."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Check if my new skill file is structurally valid — don't change anything."
+    expected_trigger: true
+    rationale: "Check structural validity without changing = read-only skill-test."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Produce a pass/fail verdict for the memory-protocol skill against the framework standards."
+    expected_trigger: true
+    rationale: "Produce pass/fail verdict against framework standards = skill-test."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "QA the whole framework — how many skills pass every check?"
+    expected_trigger: true
+    rationale: "QA the framework + coverage count = skill-test audit."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Does workscope meet the rubric? Just tell me — no edits."
+    expected_trigger: true
+    rationale: "Rubric check + no edits = read-only skill-test."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Before I merge this skill PR, I want to know if the file passes the 7 static checks."
+    expected_trigger: true
+    rationale: "Pre-merge pass verdict on 7 static checks = skill-test static mode."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "I need a coverage report showing which skills have trigger_status: passing."
+    expected_trigger: true
+    rationale: "Coverage report of trigger_status = skill-test audit dashboard."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Evaluate the project-audit skill against the category rubric and give me a score."
+    expected_trigger: true
+    rationale: "Category rubric scoring = skill-test category mode."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "I just wrote a new skill — run all validation checks on it but don't auto-fix anything."
+    expected_trigger: true
+    rationale: "Run validation without auto-fixing = skill-test (skill-improve would fix)."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Now run the static check on it."
+    expected_trigger: true
+    rationale: "Short 'run the static check' = skill-test static mode."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Test it — just tell me the verdict."
+    expected_trigger: true
+    rationale: "Test + verdict without action = read-only skill-test."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "My seo skill is failing the trigger tests — fix it end-to-end."
+    expected_trigger: false
+    expected_sibling: skill-improve
+    rationale: "Fix end-to-end after failure = skill-improve repair loop, not read-only skill-test."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Diagnose why the debugger skill mis-routes and rewrite its description until it passes."
+    expected_trigger: false
+    expected_sibling: skill-improve
+    rationale: "Diagnose + rewrite until passes = skill-improve's fix loop."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Scaffold a new skill called sentry-reporter with the standard metadata."
+    expected_trigger: false
+    expected_sibling: skill-authoring
+    rationale: "Scaffold new with standard metadata = skill-authoring."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Generate design tokens from the Figma file."
+    expected_trigger: false
+    rationale: "Design tokens = design-tokens skill, unrelated to skill-file validation."

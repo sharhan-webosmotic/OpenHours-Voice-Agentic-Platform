@@ -1,0 +1,145 @@
+skill_name: docx
+skill_id: SK-147
+category: document
+version: 1.0.0
+
+target_description: |
+  Create, read, edit, and manipulate Word documents (.docx files). Generate professional documents with tables of contents, headings, page numbers. Use when working with .docx files, Word documents, or producing formatted reports.
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Create a Word document with a table of contents and headings."
+    expected_trigger: true
+    rationale: "Matches 'Word documents' and 'tables of contents, headings' verbatim from description."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Edit this .docx file to add page numbers in the footer."
+    expected_trigger: true
+    rationale: ".docx file extension + page numbers is named capability."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Generate a professional formatted report as a Word document."
+    expected_trigger: true
+    rationale: "Matches 'producing formatted reports' and 'professional documents' phrasing."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Read and extract the text content from this .docx file."
+    expected_trigger: true
+    rationale: "Reading .docx files is explicitly in the description."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Manipulate an existing Word document to replace a section."
+    expected_trigger: true
+    rationale: "'Manipulate Word documents' is direct description match."
+
+  - id: P06
+    bucket: positive_direct
+    text: "I need to work with .docx files — create a new one with headings."
+    expected_trigger: true
+    rationale: "Direct: .docx files + headings are both in description."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Produce an MS Word file for the quarterly report."
+    expected_trigger: true
+    rationale: "MS Word = .docx; quarterly report is a formatted report."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Update the existing Word doc with the new executive summary."
+    expected_trigger: true
+    rationale: "Editing a Word doc = editing .docx files."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Assemble a formal report with chapter headings and a TOC."
+    expected_trigger: true
+    rationale: "Formal report with TOC is the formatted-report capability."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Parse this Microsoft Word file and pull out every heading."
+    expected_trigger: true
+    rationale: "Reading Word documents for structure is in-scope."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Our compliance team wants the policy delivered as a .docx with TOC and numbered sections."
+    expected_trigger: true
+    rationale: "Policy delivery as .docx with TOC maps directly to docx skill."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "Convert this Markdown into a client-ready Word document with headings styled."
+    expected_trigger: true
+    rationale: "Output format is a Word document: docx produces the file."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "The proposal needs to be a formatted Word report with page numbers before Friday."
+    expected_trigger: true
+    rationale: "Formatted Word report with page numbers is docx's exact role."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Build the employee handbook as a .docx, with a TOC generated from headings."
+    expected_trigger: true
+    rationale: ".docx output + TOC generation maps cleanly to this skill."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Now export this draft into a .docx file."
+    expected_trigger: true
+    rationale: ".docx export maps directly to the docx skill."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Okay, make the final version a Word document."
+    expected_trigger: true
+    rationale: "Word document output is docx's role."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Build a slide deck presentation from this outline."
+    expected_trigger: false
+    expected_sibling: pptx
+    rationale: "Slide deck = .pptx, not a Word document."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Create a spreadsheet with formulas summing quarterly revenue."
+    expected_trigger: false
+    expected_sibling: xlsx
+    rationale: "Spreadsheet with formulas = .xlsx, not .docx."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Merge and split these PDF files, then OCR the scanned pages."
+    expected_trigger: false
+    expected_sibling: pdf
+    rationale: "PDF merge/split/OCR belongs to the pdf skill."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Set up CI/CD pipeline for deploying the backend to production."
+    expected_trigger: false
+    rationale: "Deployment pipelines are unrelated to Word document authoring."

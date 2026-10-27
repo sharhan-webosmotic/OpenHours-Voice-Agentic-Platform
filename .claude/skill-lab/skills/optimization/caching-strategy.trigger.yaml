@@ -1,0 +1,151 @@
+skill_name: caching-strategy
+skill_id: SK-031
+category: optimization
+version: 1.0.0
+
+target_description: |
+  Implement multi-layer caching with Redis, CDN, browser cache, and React Query. Use when adding caching, optimizing slow APIs, setting up Redis, or configuring CDN. Also triggers on: 'Add caching', 'Redis setup', 'Cache strategy', 'Performance caching', 'RTK Query', 'SWR'.
+# Likely sibling collisions:
+#   - seo:               CDN/perf overlap in some prompts
+#   - error-handling:    not really overlapping but can catch "optimize" generics
+#   - build: generic "implement" cue
+#   - mcp-connector:     Redis/external service connection overlap
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Add Redis caching to the user API."
+    expected_trigger: true
+    rationale: "Redis caching is named capability."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Set up CDN caching for static assets."
+    expected_trigger: true
+    rationale: "CDN is named capability."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Configure React Query to cache the product list."
+    expected_trigger: true
+    rationale: "React Query caching is named capability."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Optimize this slow API — add a cache layer."
+    expected_trigger: true
+    rationale: "Matches 'optimizing slow APIs' trigger."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Implement multi-layer caching: browser, CDN, and Redis."
+    expected_trigger: true
+    rationale: "Multi-layer caching = description signature."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Add browser cache headers and ETag support."
+    expected_trigger: true
+    rationale: "Browser cache = named capability."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Our dashboard refetches everything on every page — add a caching layer so it's snappy."
+    expected_trigger: true
+    rationale: "Avoid-refetch by adding cache = caching-strategy."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Make repeat requests instant — cache aggressively at the edge and in memory."
+    expected_trigger: true
+    rationale: "Edge + in-memory caching = multi-layer."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "This /products endpoint is slow — introduce Redis between it and the DB."
+    expected_trigger: true
+    rationale: "Redis between endpoint + DB = caching-strategy."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Put CDN in front of our assets and tune the cache-control headers."
+    expected_trigger: true
+    rationale: "CDN in front of assets + cache-control = caching-strategy."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "P95 latency on /search is 900ms — cache results and invalidate on write."
+    expected_trigger: true
+    rationale: "Cache results + invalidate on write = caching-strategy."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "TanStack Query is set up but doesn't cache our catalog requests — configure stale/fresh windows."
+    expected_trigger: true
+    rationale: "React Query stale/fresh windows = caching-strategy."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Before the Black-Friday load, I want Redis in front of the auth/session reads."
+    expected_trigger: true
+    rationale: "Redis in front of reads for load = caching-strategy."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Our feature images reload every navigation — fix with proper CDN + browser caching."
+    expected_trigger: true
+    rationale: "CDN + browser caching for assets = caching-strategy."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Add caching."
+    expected_trigger: true
+    rationale: "Direct 'adding caching' trigger."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Set up Redis."
+    expected_trigger: true
+    rationale: "Matches 'setting up Redis' trigger."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Add meta tags, JSON-LD structured data, and sitemap for the marketing pages."
+    expected_trigger: false
+    expected_sibling: seo
+    rationale: "Meta + JSON-LD + sitemap = seo, not caching."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Add react-i18next translation keys and RTL layout support."
+    expected_trigger: false
+    expected_sibling: i18n
+    rationale: "Translations + RTL = i18n."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Connect the project to the PostgreSQL MCP server for database queries."
+    expected_trigger: false
+    expected_sibling: mcp-connector
+    rationale: "Connect to MCP server = mcp-connector, not a caching task."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Generate a scope document from the client discovery call."
+    expected_trigger: false
+    rationale: "Scope doc = workscope, unrelated."

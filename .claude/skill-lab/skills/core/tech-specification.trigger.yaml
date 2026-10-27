@@ -1,0 +1,152 @@
+skill_name: tech-specification
+skill_id: SK-070
+category: core
+version: 1.0.0
+
+target_description: |
+  Generate a complete 23-section technical specification with API contracts, database schemas, compliance/security matrix, traceability matrix, and UI specs. Use when creating or updating the tech spec, defining architecture, or establishing the API contract. Also triggers on: 'Start new project', 'Create tech spec', 'Generate spec from workscope'.
+# Likely sibling collisions:
+#   - workscope:     scope document: sibling "authoring" skill; covers WHAT/WHY, not HOW
+#   - prd-generation: product-side doc: stakeholder facing
+#   - prd-generation: functional requirements: closer to tech spec than workscope
+#   - architecture:   ADRs for specific decisions: smaller scope than a full 19-section spec
+#   - brainstorm:     pre-requirements: earlier in SDLC than tech spec
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Create the tech spec for the new checkout service."
+    expected_trigger: true
+    rationale: "Direct 'create tech spec' trigger: matches description verbatim."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Generate a technical specification for our API gateway."
+    expected_trigger: true
+    rationale: "Matches 'generate' + 'technical specification' from description."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Update the tech spec to include the new payment flow."
+    expected_trigger: true
+    rationale: "Matches 'updating the tech spec' trigger."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Define the API contract for the orders service."
+    expected_trigger: true
+    rationale: "API contract is named in description as a core deliverable."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Write the 19-section technical specification for this module."
+    expected_trigger: true
+    rationale: "19-section is the skill's signature output format."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Document the database schema and UI specs for the admin panel."
+    expected_trigger: true
+    rationale: "Database schemas + UI specs are named capabilities."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "I need the detailed engineering doc before development starts."
+    expected_trigger: true
+    rationale: "Detailed engineering doc = tech spec in plainer language."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Lay out the backend architecture, endpoints, and data model for the reporting service."
+    expected_trigger: true
+    rationale: "Architecture + endpoints + data model = tech spec contents."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Spec out the REST API surface and request/response schemas."
+    expected_trigger: true
+    rationale: "REST API + schemas = tech spec territory, not workscope."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "I want a full design doc with endpoints, tables, and component structure."
+    expected_trigger: true
+    rationale: "Full design doc with endpoints+tables+components = tech spec."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Before devs start, we need the spec that locks down API shapes and DB tables."
+    expected_trigger: true
+    rationale: "Pre-dev spec locking API shapes + DB tables = tech-specification's Gate 1."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "The backend team needs the full technical breakdown to start building."
+    expected_trigger: true
+    rationale: "Full technical breakdown for engineering is the tech-specification deliverable."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "We've agreed on the scope — now produce the engineering spec with endpoints, DB schema, and UI component breakdown."
+    expected_trigger: true
+    rationale: "Explicitly 'after scope agreed' = tech spec phase, not workscope."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Make the single source of truth for this feature's API contract."
+    expected_trigger: true
+    rationale: "Single source of truth for API contract = tech-specification's purpose."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "OK, time to write the tech spec."
+    expected_trigger: true
+    rationale: "Short direct trigger."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Now document the 19 sections."
+    expected_trigger: true
+    rationale: "19 sections is tech-specification's signature structure."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Create a scope document from our client discussion, including the 32 discovery questions."
+    expected_trigger: false
+    expected_sibling: workscope
+    rationale: "Scope document + 32 discovery questions = workscope, not tech-specification."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Write the PRD with user personas and competitive analysis."
+    expected_trigger: false
+    expected_sibling: prd-generation
+    rationale: "PRD + personas + competitive analysis = prd-generation's territory."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Create Given-When-Then acceptance criteria for the login feature."
+    expected_trigger: false
+    expected_sibling: prd-generation
+    rationale: "Given-When-Then acceptance criteria = prd-generation, not tech spec."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Generate a logo and favicon for our marketing site."
+    expected_trigger: false
+    rationale: "Logo/favicon generation: image-generation territory, unrelated to tech spec."

@@ -1,0 +1,150 @@
+skill_name: ai-cost-guard
+skill_id: SK-095
+category: utility
+version: 1.0.0
+
+target_description: |
+  AI token cost estimation, risk analysis, and written approval gate before any LLM API implementation. Calculates per-call and monthly cost estimates, flags high-risk patterns (unbounded loops, per-user Opus calls, no caching, missing max_tokens), recommends optimizations, and requires written user approval before proceeding. Use before implementing any Anthropic/OpenAI/LLM API call in code.
+# Likely sibling collisions:
+#   - analytics:       user-behavior metrics/dashboards: NOT LLM cost metrics
+#   - guardrails:      coding rules / ESLint config: NOT LLM spend approval gate
+#   - tech-specification: general feature spec: NOT an LLM-specific cost gate
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Estimate the token cost before we implement this Claude API feature."
+    expected_trigger: true
+    rationale: "Token cost estimation before LLM API implementation = description verbatim."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Run a cost and risk analysis on the proposed OpenAI integration."
+    expected_trigger: true
+    rationale: "Cost + risk analysis on LLM integration = ai-cost-guard's core role."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Calculate per-call and monthly cost for using Opus on this endpoint."
+    expected_trigger: true
+    rationale: "Per-call and monthly cost calculation = description verbatim."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Flag high-risk LLM patterns in this design — unbounded loops, missing max_tokens, no caching."
+    expected_trigger: true
+    rationale: "High-risk LLM pattern flags named verbatim in description."
+
+  - id: P05
+    bucket: positive_direct
+    text: "We need written approval before shipping any new LLM API call — set that up."
+    expected_trigger: true
+    rationale: "Written approval gate before LLM API = description verbatim."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Recommend cost optimizations for our anthropic.messages.create() calls."
+    expected_trigger: true
+    rationale: "Cost optimization recommendations for Anthropic calls = named capability."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Before I add this GPT-4 feature, what will it cost us per month?"
+    expected_trigger: true
+    rationale: "Pre-implementation monthly LLM cost question = ai-cost-guard."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Is it safe to put Opus in a per-user loop, or will it blow up the bill?"
+    expected_trigger: true
+    rationale: "Per-user Opus risk check = ai-cost-guard's high-risk pattern analysis."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Sanity check the spend implications of this RAG pipeline before we build it."
+    expected_trigger: true
+    rationale: "Pre-build spend sanity check on RAG = ai-cost-guard scope."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Should we use Haiku or Sonnet for this classifier to keep costs down?"
+    expected_trigger: true
+    rationale: "Model-downgrade cost recommendation = ai-cost-guard optimization advice."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Finance is asking for an estimate: we're adding a chat feature that calls Claude on every message — how much per month?"
+    expected_trigger: true
+    rationale: "Per-call chat estimate with monthly projection = ai-cost-guard's estimation template."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "I'm about to call openai.chat.completions.create() inside a for-loop over 10k items — is that okay?"
+    expected_trigger: true
+    rationale: "Unbounded-loop LLM pattern check = ai-cost-guard critical risk flag."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "We're adding prompt caching — quantify the savings vs the current design."
+    expected_trigger: true
+    rationale: "Prompt caching savings quantification = ai-cost-guard optimization calc."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Before the PR gets merged, verify the LLM spend is approved and logged."
+    expected_trigger: true
+    rationale: "LLM spend approval verification before merge = ai-cost-guard gate."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Run the cost guard on this."
+    expected_trigger: true
+    rationale: "'Cost guard' is this skill's signature term."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Need approval for this LLM call first."
+    expected_trigger: true
+    rationale: "LLM call approval is ai-cost-guard's gate role."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Show me a dashboard of weekly active users and feature adoption rates."
+    expected_trigger: false
+    expected_sibling: analytics
+    rationale: "WAU + feature adoption dashboard = analytics, not LLM cost."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Generate our project's coding standards and ESLint config."
+    expected_trigger: false
+    expected_sibling: guardrails
+    rationale: "Coding standards + ESLint = guardrails, not LLM cost estimation."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Write the tech spec for the new billing subsystem including Section 13 security."
+    expected_trigger: false
+    expected_sibling: tech-specification
+    rationale: "Tech spec authoring = tech-specification, not LLM-specific cost gate."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Generate mock data for our staging database."
+    expected_trigger: false
+    rationale: "Mock data generation = mock-data, unrelated to LLM cost analysis."

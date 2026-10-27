@@ -1,0 +1,151 @@
+skill_name: design-screens
+skill_id: SK-047
+category: infrastructure
+version: 1.0.0
+
+target_description: |
+  Gates 4-5 of the design process: map UX flows per user role (auth, profile, search, notifications, errors), produce user journey maps, and build all production-ready screens with complete interaction coverage (every button, link, exit, error state mapped). Requires /design-tokens to have locked the component library. Produces the full screen inventory + interaction registry + handoff artifacts for /build. Use after /design-tokens completes. Also triggers on: 'Build screens', 'Production screens', 'User journeys', 'Gate 4', 'Gate 5', 'Design handoff', 'All screens for milestone'.
+# Likely sibling collisions:
+#   - design-discovery: earlier phase: DNA + library pick (no flows, no screens yet)
+#   - design-tokens:    earlier phase: tokens.json + core components (not the full screen set)
+#   - do (Phase 1 lead dispatch):      multi-agent orchestrator (not a single-phase full-inventory build)
+#   - build: implementation skill that consumes the handoff, not the skill that produces it
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Build all the production-ready screens with full interaction coverage."
+    expected_trigger: true
+    rationale: "Matches 'build all production-ready screens with complete interaction coverage' verbatim."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Map the UX flows per user role — auth, profile, search, notifications, errors."
+    expected_trigger: true
+    rationale: "Lists the exact five UX flow categories named in the description."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Run Gates 4-5 of the design process now that tokens are locked."
+    expected_trigger: true
+    rationale: "Gates 4-5 + tokens-locked precondition are both verbatim."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Produce the user journey maps for every role."
+    expected_trigger: true
+    rationale: "User journey maps per role is an explicit capability."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Generate the full screen inventory and interaction registry for developer handoff."
+    expected_trigger: true
+    rationale: "Full screen inventory + interaction registry + handoff are the three named artifacts."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Map every button, link, exit, and error state for the whole product."
+    expected_trigger: true
+    rationale: "'Every button, link, exit, error state' is verbatim."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Design every screen the app will ship with, not just drafts — including empty and error states."
+    expected_trigger: true
+    rationale: "Every screen + non-draft + error states = design-screens (vs tokens' 3-4 draft screens)."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Chart the user journeys for each role and then draw every screen in the flow."
+    expected_trigger: true
+    rationale: "Journey maps + every screen in the flow = design-screens."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Hand off a complete UI package so developers can start implementing."
+    expected_trigger: true
+    rationale: "Complete UI handoff package for build = design-screens's output."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Document every click path a user can take — happy, sad, and exit — across all flows."
+    expected_trigger: true
+    rationale: "Every click path + happy/sad/exit = the full interaction coverage design-screens produces."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Tokens are signed off — we need the full screen set before engineering starts."
+    expected_trigger: true
+    rationale: "Post-tokens, full screen set = design-screens (matches 'Use after /design-tokens completes')."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "Engineering keeps asking what the error screens should look like — can we finalize every state?"
+    expected_trigger: true
+    rationale: "Finalizing every screen state incl. errors = design-screens's complete interaction coverage."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "We've got 6 user roles; produce journey maps and the UX flows that come out of them."
+    expected_trigger: true
+    rationale: "Journey maps per role + resulting UX flows = design-screens."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Prepare the design handoff bundle the dev team will implement against."
+    expected_trigger: true
+    rationale: "Design handoff artifacts for implementation = design-screens's named output."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Tokens are locked — time for Gates 4 and 5."
+    expected_trigger: true
+    rationale: "Gates 4-5 after tokens lock = design-screens."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Draw the rest of the screens."
+    expected_trigger: true
+    rationale: "After draft screens from tokens, 'rest of the screens' = design-screens's full inventory."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "We haven't captured the design DNA yet — let's pick colors and a component library first."
+    expected_trigger: false
+    expected_sibling: design-discovery
+    rationale: "DNA + colors + library pick = design-discovery, well before screens."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Author the canonical tokens.json and build the Button/Input/Card variants."
+    expected_trigger: false
+    expected_sibling: design-tokens
+    rationale: "tokens.json + core components = design-tokens (Gate 3)."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Orchestrate the design pipeline — spawn product-director, component-inspector, and a platform specialist in parallel."
+    expected_trigger: false
+    expected_sibling: do
+    rationale: "Multi-agent orchestration = do (Phase 1 lead dispatch), not a single-phase screen build."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Scan dependencies for known CVEs before we deploy."
+    expected_trigger: false
+    rationale: "Dependency CVE scan is a security task, unrelated to screen design."

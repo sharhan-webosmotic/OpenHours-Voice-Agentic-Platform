@@ -1,0 +1,12 @@
+{
+  "validator": "e2e",
+  "milestone": "M01",
+  "generated_at": "2026-06-29T10:00:00Z",
+  "source_commit": "0000000000000000000000000000000000000000",
+  "status": "PASS",
+  "total": 12,
+  "passed": 12,
+  "failed": 0,
+  "skipped": 0,
+  "findings": []
+}

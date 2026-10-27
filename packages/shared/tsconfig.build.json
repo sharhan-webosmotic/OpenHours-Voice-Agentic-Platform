@@ -1,0 +1,10 @@
+{
+  // Emits the shipped build: source only, no tests and no tooling config.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "tsBuildInfoFile": "dist/.tsbuildinfo.build"
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "coverage", "src/**/*.test.ts"]
+}

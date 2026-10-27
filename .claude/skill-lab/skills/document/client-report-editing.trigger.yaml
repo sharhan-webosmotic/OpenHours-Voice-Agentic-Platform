@@ -1,0 +1,150 @@
+skill_name: client-report-editing
+skill_id: SK-166
+category: document
+version: 1.0.0
+
+target_description: |
+  Final editorial pass that turns a completed technical assessment into a client-facing document written like a senior engineer, not like generated text. Use after findings are locked and before delivery, on any DOCX/PDF narrative built from a findings register. Also triggers on 'make this report human', 'the report sounds like AI', 'editorial pass', 'tighten the report', 'client-ready version', 'senior engineer voice'. Do NOT use to change findings, severities or evidence: this is presentation only.
+# Likely sibling collisions:
+#   - docx:              creates/edits the Word document itself (structure, cover page, TOC), not the prose voice
+#   - markdown-creator:  authors new markdown content, not a presentation pass on an already-finished narrative
+#   - workscope:         a pre-engagement scope proposal, not a post-findings editorial pass on a finished report
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Make this report human, it currently sounds like AI."
+    expected_trigger: true
+    rationale: "'make this report human' and 'the report sounds like AI' are named trigger phrases."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Do an editorial pass on the assessment narrative before we send it."
+    expected_trigger: true
+    rationale: "'editorial pass' before delivery is the skill's exact description."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Tighten the report so it reads like a senior engineer wrote it."
+    expected_trigger: true
+    rationale: "'tighten the report' and 'senior engineer voice' are named trigger phrases."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Give me the client-ready version of this DOCX narrative."
+    expected_trigger: true
+    rationale: "'client-ready version' matches the description's own phrase, on a DOCX narrative."
+
+  - id: P05
+    bucket: positive_direct
+    text: "The report needs a senior engineer voice, not generated text."
+    expected_trigger: true
+    rationale: "Restates the skill's core purpose verbatim."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Run the final editorial pass on this completed technical assessment."
+    expected_trigger: true
+    rationale: "Matches 'final editorial pass' on a 'completed technical assessment' directly."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "This narrative reads like a language model wrote it. Rewrite it so it sounds like an experienced consultant."
+    expected_trigger: true
+    rationale: "Same intent as 'sounds like AI', worded around a language model instead."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Polish the client-facing prose without touching any of the findings or severities."
+    expected_trigger: true
+    rationale: "Presentation-only polish, explicitly preserving findings and severities, matches the hard boundary."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "The findings are locked. Now make the write-up sound less robotic before it goes out."
+    expected_trigger: true
+    rationale: "Findings-locked precondition plus a tone pass before delivery."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Strip the AI tells out of this deliverable's prose and make it read naturally."
+    expected_trigger: true
+    rationale: "Removing generated-text tells from a finished deliverable's prose."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "We're about to send this DOCX to the client and the wording is stiff. Fix the tone, not the content."
+    expected_trigger: true
+    rationale: "Pre-delivery tone fix on a DOCX narrative, content untouched."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "Findings review is done and signed off. Last step before delivery is making the narrative read well."
+    expected_trigger: true
+    rationale: "Findings locked, final presentation step before delivery is exactly this skill's slot."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "The client flagged that our last report sounded generated. Do the same cleanup pass on this one before it goes out."
+    expected_trigger: true
+    rationale: "A prior 'sounds like AI' complaint driving a request for the same editorial pass."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "PDF export is ready but the prose needs a final human pass before we send it to the client."
+    expected_trigger: true
+    rationale: "PDF narrative needing a final human-voice pass before client delivery."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Findings are locked, now do the editorial pass."
+    expected_trigger: true
+    rationale: "Assumes the findings-locked precondition and names the editorial pass directly."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "It's ready for delivery, just needs the senior-engineer voice pass first."
+    expected_trigger: true
+    rationale: "Short context-reliant prompt naming the senior-engineer voice pass."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Build a new DOCX from this markdown with a cover page and table of contents."
+    expected_trigger: false
+    expected_sibling: docx
+    rationale: "Document structure and formatting, not a prose voice pass on an already-finished narrative."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Write up a markdown summary of this week's findings."
+    expected_trigger: false
+    expected_sibling: markdown-creator
+    rationale: "Authoring new content from findings, not editing a completed report's prose."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Draft the client scope proposal with milestones and pricing."
+    expected_trigger: false
+    expected_sibling: workscope
+    rationale: "A pre-engagement proposal document, not a post-assessment editorial pass."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Add rate limiting to the login endpoint."
+    expected_trigger: false
+    rationale: "Backend implementation work is unrelated to editing a finished report's prose."

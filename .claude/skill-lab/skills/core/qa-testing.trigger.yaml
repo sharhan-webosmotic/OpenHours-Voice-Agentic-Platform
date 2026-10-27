@@ -1,0 +1,145 @@
+skill_name: qa-testing
+skill_id: SK-007
+category: core
+version: 1.0.0
+
+target_description: |
+  JavaScript/TypeScript test authoring and QA planning: write Jest unit tests, Supertest API integration tests, produce test plans, run QA sign-off, and check coverage: all in Given-When-Then format. Use when writing JS/TS tests, creating test plans, running QA, or checking test coverage. Do NOT use for Python/pytest tests (use python-testing) or browser/Playwright screenshot/visual regression (use e2e-testing). Also triggers on: 'Test feature', 'QA testing', 'Write tests'.
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Write unit tests for the order-total calculator."
+    expected_trigger: true
+    rationale: "Matches 'writing tests' trigger phrase: Jest unit tests are this skill's core."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Create a test plan for the checkout feature."
+    expected_trigger: true
+    rationale: "Matches 'creating test plans' trigger phrase verbatim."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Run QA on the latest branch and report results."
+    expected_trigger: true
+    rationale: "Matches 'running QA' trigger phrase verbatim."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Check test coverage on the payments module."
+    expected_trigger: true
+    rationale: "Matches 'checking test coverage' trigger phrase."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Add Jest tests for the invoice service in Given-When-Then format."
+    expected_trigger: true
+    rationale: "Jest + Given-When-Then are named explicitly in the description."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Write Supertest integration tests for the Node.js REST routes."
+    expected_trigger: true
+    rationale: "Supertest on Node.js is explicitly the JS/TS integration testing capability."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Our code needs better unit-test coverage — can you help?"
+    expected_trigger: true
+    rationale: "Coverage improvement via writing tests is this skill's role."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Draft a QA test plan covering what to verify for the release."
+    expected_trigger: true
+    rationale: "QA test plan for release is the 'create test plans' trigger."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Add test cases for the new pricing logic."
+    expected_trigger: true
+    rationale: "Adding test cases = writing tests."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "I want assertions around edge cases for the discount calculation."
+    expected_trigger: true
+    rationale: "Writing assertions for edge cases is unit-test authoring."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Coverage dipped below 70% after the refactor — investigate and raise it back up."
+    expected_trigger: true
+    rationale: "Coverage investigation + increase requires writing more tests."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "Before Gate 4 sign-off, I need a full QA pass on the checkout flow."
+    expected_trigger: true
+    rationale: "QA pass (Gate 4 is qa-testing's gate) = running QA."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "We're shipping Friday — produce a test plan and make sure the critical paths are covered."
+    expected_trigger: true
+    rationale: "Test plan + coverage of critical paths is this skill's deliverable."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "I added a new Express endpoint; please write Jest+Supertest integration tests for it."
+    expected_trigger: true
+    rationale: "Express + Jest + Supertest pins this to the JS/TS QA skill, not python-testing."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Now run the test suite and report the coverage number."
+    expected_trigger: true
+    rationale: "Running tests + coverage maps directly to qa-testing."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "OK, add tests for the new changes."
+    expected_trigger: true
+    rationale: "Short 'add tests' prompt resolves to qa-testing."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Use Playwright to capture screenshots of the checkout page across Chrome, Firefox, and Safari."
+    expected_trigger: false
+    expected_sibling: e2e-testing
+    rationale: "Browser screenshot capture across browsers is e2e-testing's specific scope."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Run visual regression tests against the deployed web app."
+    expected_trigger: false
+    expected_sibling: e2e-testing
+    rationale: "Visual regression testing of a running webapp is e2e-testing."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Automate a browser to click through the signup form and assert the success page loads."
+    expected_trigger: false
+    expected_sibling: e2e-testing
+    rationale: "Browser automation / click-through is e2e-testing, not unit/integration testing."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Generate the quarterly OKR planning deck."
+    expected_trigger: false
+    rationale: "OKR deck generation is unrelated to testing."
