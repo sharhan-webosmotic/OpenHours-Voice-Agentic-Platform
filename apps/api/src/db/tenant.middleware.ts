@@ -40,26 +40,44 @@ export const tenantMiddleware = (req: Request, res: Response, next: NextFunction
   // writes in two steps cannot leave half of it committed.
   withTenant(identity, async (db) => {
     store.set(req, db);
+
     await new Promise<void>((resolve, reject) => {
-      // The transaction commits when the response is finished; an error rolls it back.
-      res.on('finish', resolve);
-      res.on('close', resolve);
-      next((error: unknown) => {
-        if (error === undefined || error === null) {
-          resolve();
+      const settle = (): void => {
+        // Roll back when the response was not completed, or completed as an error: a
+        // 4xx or 5xx means the handler did not finish its work, and a partially applied
+        // multi-step write is worse than none at all.
+        if (!res.writableEnded || res.statusCode >= 400) {
+          reject(new ResponseNotSuccessful());
           return;
         }
-        // Not stringified: a thrown object would render as "[object Object]" and lose
-        // the detail. The error handler logs the original separately.
-        reject(
-          error instanceof Error
-            ? error
-            : new Error('request failed with a value that is not an Error'),
-        );
-      });
+        resolve();
+      };
+
+      res.once('finish', settle);
+      // 'close' without 'finish' is a client that went away mid-response.
+      res.once('close', settle);
+
+      // No argument: Express treats ANY truthy argument to next() as an error. An
+      // earlier version passed a completion callback here, which Express dutifully
+      // routed to the error handler, turning every tenant-scoped request into a 500.
+      next();
     });
-  }).catch(next);
+  }).catch((error: unknown) => {
+    if (error instanceof ResponseNotSuccessful) {
+      // The rollback was the point, and the response has already been sent.
+      return;
+    }
+    next(error);
+  });
 };
+
+/** Internal signal used to roll the request transaction back. Never reaches a client. */
+class ResponseNotSuccessful extends Error {
+  constructor() {
+    super('response was not successful; tenant transaction rolled back');
+    this.name = 'ResponseNotSuccessful';
+  }
+}
 
 /** The scoped client for this request. Throws if the middleware did not run. */
 export const tenantDb = (req: Request): TenantDb => {

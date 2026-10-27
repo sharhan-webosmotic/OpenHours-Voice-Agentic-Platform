@@ -25,6 +25,7 @@ export default defineConfig({
             NODE_ENV: 'test',
             DATABASE_URL: 'postgresql://test:test@127.0.0.1:1/test',
             LOG_LEVEL: 'silent',
+            JWT_SECRET: 'unit-test-jwt-secret-at-least-32-bytes!!',
           },
         },
       },
@@ -34,6 +35,9 @@ export default defineConfig({
           environment: 'node',
           include: ['tests/**/*.test.ts'],
           globalSetup: ['tests/support/global-setup.ts'],
+          // Runs in the worker before the test file's imports, which is the only point
+          // at which src/config.ts can be pointed at the container.
+          setupFiles: ['tests/support/setup-env.ts'],
           // Container start plus migrate plus the SQL migration.
           testTimeout: 60_000,
           hookTimeout: 180_000,
