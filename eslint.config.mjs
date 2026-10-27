@@ -40,6 +40,15 @@ export default tseslint.config(
       },
       globals: { ...globals.node },
     },
+    rules: {
+      // Express identifies an error handler by its arity, so the 4th parameter must be
+      // declared even when unused. The leading-underscore convention marks it, matching
+      // the `_req` / `_res` usage already throughout the codebase.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
+    },
   },
   {
     // Config and script files are plain ESM, linted without type information.
