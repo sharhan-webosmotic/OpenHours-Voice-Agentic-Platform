@@ -15,12 +15,13 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "db:migrate": "prisma migrate dev",
+    "db:migrate": "prisma migrate deploy",
     "db:sql": "tsx prisma/sql/apply.ts",
     "db:check-policies": "tsx prisma/sql/check-policies.ts",
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
+    "@openhours/shared": "workspace:*",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "argon2": "0.45.1",

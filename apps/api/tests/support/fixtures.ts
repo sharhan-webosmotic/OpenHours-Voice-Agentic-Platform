@@ -316,6 +316,33 @@ export const createOrganisationGraph = async (
     },
   });
 
+  // A platform user plus a support session, so the isolation suite has a row in
+  // support_sessions for both organisations. Without one, every assertion on that table
+  // would pass while proving nothing.
+  const platformUserId = uuidV7();
+  await tx.user.create({
+    data: {
+      id: platformUserId,
+      // NULL: the CHECK constraint requires a platform role to have no organisation.
+      organisationId: null,
+      email: `platform.${label.toLowerCase()}.${suffix}@test.invalid`,
+      passwordHash: 'not-a-real-hash',
+      fullName: `Platform ${label}`,
+      role: Role.INTERNAL_ADMIN,
+    },
+  });
+
+  const supportSessionId = uuidV7();
+  await tx.supportSession.create({
+    data: {
+      id: supportSessionId,
+      organisationId,
+      platformUserId,
+      reason: `Fixture support session for ${label}`,
+      expiresAt: new Date(Date.now() + 3_600_000),
+    },
+  });
+
   return {
     organisationId,
     ids: {
@@ -332,6 +359,7 @@ export const createOrganisationGraph = async (
       doctor_working_hours: workingHoursId,
       doctor_time_off: timeOffId,
       services: serviceId,
+      support_sessions: supportSessionId,
       doctor_services: doctorServiceId,
       patients: patientId,
       appointments: appointmentId,

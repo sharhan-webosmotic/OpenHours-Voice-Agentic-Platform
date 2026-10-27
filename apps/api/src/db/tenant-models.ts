@@ -27,6 +27,7 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   'Prescription',
   'PrescriptionItem',
   'Service',
+  'SupportSession',
   'User',
   'VoiceAgent',
   'WebhookEvent',

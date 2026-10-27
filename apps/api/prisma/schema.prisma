@@ -110,6 +110,7 @@ model Organisation {
   forwardingSchedules ForwardingSchedule[]
   forwardingEvents    ForwardingEvent[]
   webhookEvents       WebhookEvent[]
+  supportSessions     SupportSession[]
 
   @@index([status])
   @@map("organisations")
@@ -140,6 +141,7 @@ model User {
   notifications     Notification[]
   doctorProfile     Doctor?
   assignedFollowUps FollowUp[]
+  supportSessions   SupportSession[]
 
   @@index([organisationId, status])
   @@index([organisationId, role])
@@ -762,4 +764,29 @@ model ForwardingEvent {
 
   @@index([organisationId, occurredAt])
   @@map("forwarding_events")
+}
+
+/// A time-boxed, audited grant letting a platform role see patient fields for ONE
+/// organisation. Without an active session, platform roles read patient data masked.
+///
+/// organisation_id is the TARGET organisation, so the row is covered by the normal
+/// tenant policy: a clinic can see that it was accessed, which is the point of an
+/// auditable grant.
+model SupportSession {
+  id             String    @id @db.Uuid
+  organisationId String    @map("organisation_id") @db.Uuid
+  /// The platform user who opened it. Has no organisation of their own.
+  platformUserId String    @map("platform_user_id") @db.Uuid
+  /// Stated justification. Required: an unexplained unmasking is not auditable.
+  reason         String
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  platformUser User         @relation(fields: [platformUserId], references: [id], onDelete: Restrict)
+
+  @@index([organisationId, expiresAt])
+  @@index([platformUserId, expiresAt])
+  @@map("support_sessions")
 }

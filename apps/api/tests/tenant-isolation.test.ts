@@ -49,6 +49,7 @@ const TENANT_TABLES = [
   'prescription_items',
   'prescriptions',
   'services',
+  'support_sessions',
   'users',
   'voice_agents',
   'webhook_events',
