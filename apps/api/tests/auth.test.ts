@@ -417,6 +417,157 @@ describe('device tokens are confined to forwarding endpoints', () => {
   });
 });
 
+describe('change password', () => {
+  const makeUser = async (): Promise<string> => {
+    const email = `auth.pw.${Date.now()}.${Math.random().toString(36).slice(2, 8)}@test.invalid`;
+    await asPlatform(ownerClient(), async (tx) =>
+      tx.user.create({
+        data: {
+          id: uuidV7(),
+          organisationId: org.organisationId,
+          email,
+          passwordHash: await hashPassword(PASSWORD),
+          fullName: 'Password Changer',
+          role: 'STAFF',
+          status: 'ACTIVE',
+        },
+      }),
+    );
+    return email;
+  };
+
+  it('changes the password and ends every session', async () => {
+    const email = await makeUser();
+    const session = await login(email, PASSWORD);
+    const token = jsonBody<LoginBody>(session).accessToken;
+    const refresh = refreshCookieFrom(session.headers);
+    const newPassword = 'a-different-long-password';
+
+    const changed = await request(app)
+      .post('/api/v1/auth/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: PASSWORD, newPassword });
+
+    expect(changed.status).toBe(204);
+
+    // Every session ends: if the change was prompted by a compromise, leaving the old
+    // sessions alive would defeat it.
+    const afterChange = await request(app)
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', `${REFRESH_COOKIE}=${refresh ?? ''}`);
+    expect(afterChange.status).toBe(401);
+
+    // The new password works and the old one does not.
+    expect((await login(email, newPassword)).status).toBe(200);
+    expect((await login(email, PASSWORD)).status).toBe(401);
+  });
+
+  it('refuses when the current password is wrong', async () => {
+    const email = await makeUser();
+    const token = jsonBody<LoginBody>(await login(email, PASSWORD)).accessToken;
+
+    const response = await request(app)
+      .post('/api/v1/auth/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: WRONG_PASSWORD, newPassword: 'another-long-password-x' });
+
+    expect(response.status).toBe(403);
+    // The old password must still work: a failed change must change nothing.
+    expect((await login(email, PASSWORD)).status).toBe(200);
+  });
+
+  it('refuses a new password below the minimum length', async () => {
+    const email = await makeUser();
+    const token = jsonBody<LoginBody>(await login(email, PASSWORD)).accessToken;
+
+    const response = await request(app)
+      .post('/api/v1/auth/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: PASSWORD, newPassword: 'short' });
+
+    expect(response.status).toBe(400);
+    expect(problemBody(response).errors?.[0]?.field).toBe('body.newPassword');
+  });
+
+  it('rejects an unauthenticated change', async () => {
+    const response = await request(app)
+      .post('/api/v1/auth/change-password')
+      .send({ currentPassword: PASSWORD, newPassword: 'another-long-password-y' });
+
+    expect(response.status).toBe(401);
+  });
+
+  it('clears must_change_password for a temporary password', async () => {
+    const email = `auth.temp.${Date.now()}@test.invalid`;
+    await asPlatform(ownerClient(), async (tx) =>
+      tx.user.create({
+        data: {
+          id: uuidV7(),
+          organisationId: org.organisationId,
+          email,
+          passwordHash: await hashPassword(PASSWORD),
+          fullName: 'Temporary Password User',
+          role: 'STAFF',
+          status: 'ACTIVE',
+          mustChangePassword: true,
+        },
+      }),
+    );
+
+    const session = await login(email, PASSWORD);
+    expect(jsonBody<LoginBody>(session).mustChangePassword).toBe(true);
+
+    await request(app)
+      .post('/api/v1/auth/change-password')
+      .set('Authorization', `Bearer ${jsonBody<LoginBody>(session).accessToken}`)
+      .send({ currentPassword: PASSWORD, newPassword: 'chosen-by-the-user-now' });
+
+    const after = await login(email, 'chosen-by-the-user-now');
+    expect(jsonBody<LoginBody>(after).mustChangePassword).toBe(false);
+  });
+});
+
+describe('logout is idempotent', () => {
+  it('succeeds with no cookie at all', async () => {
+    // Logging out when already logged out is not an error: the goal is reached.
+    expect((await request(app).post('/api/v1/auth/logout')).status).toBe(204);
+  });
+
+  it('succeeds with an unknown token', async () => {
+    const response = await request(app)
+      .post('/api/v1/auth/logout')
+      .set('Cookie', `${REFRESH_COOKIE}=never-existed`);
+
+    expect(response.status).toBe(204);
+  });
+});
+
+describe('/me reflects the token', () => {
+  it('reports the role the token carries', async () => {
+    const token = jsonBody<LoginBody>(await login(ownerEmail, PASSWORD)).accessToken;
+
+    const response = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(jsonBody<MeBody & { role: string }>(response).role).toBe('CLINIC_OWNER');
+  });
+
+  it('rejects a non-bearer Authorization scheme', async () => {
+    const response = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', 'Basic dXNlcjpwYXNz');
+
+    expect(response.status).toBe(401);
+  });
+
+  it('rejects an empty bearer value', async () => {
+    const response = await request(app).get('/api/v1/auth/me').set('Authorization', 'Bearer ');
+
+    expect(response.status).toBe(401);
+  });
+});
+
 describe('login is throttled per email', () => {
   it('returns 429 problem+json once the per-email bucket is spent', async () => {
     // The suite raises the real limits so they do not throttle the tests themselves

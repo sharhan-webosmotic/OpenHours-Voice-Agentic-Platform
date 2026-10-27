@@ -1,4 +1,4 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 
 /**
  * Opaque secret tokens: refresh tokens, device tokens and pairing codes.
@@ -34,14 +34,4 @@ export const generatePairingCode = (): string => {
     code += PAIRING_ALPHABET[(bytes[i] ?? 0) % PAIRING_ALPHABET.length];
   }
   return code;
-};
-
-/** Constant-time comparison, so a hash is never leaked by how long a mismatch takes. */
-export const tokenHashesMatch = (a: string, b: string): boolean => {
-  const left = Buffer.from(a, 'utf8');
-  const right = Buffer.from(b, 'utf8');
-  if (left.length !== right.length) {
-    return false;
-  }
-  return timingSafeEqual(left, right);
 };
