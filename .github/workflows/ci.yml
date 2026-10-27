@@ -75,6 +75,20 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # The database lock is only trustworthy if it is checked. These run against the
+      # postgres service with the real migrations, so a tenant table added without a
+      # policy fails the build rather than shipping readable across organisations.
+      - name: Apply migrations
+        run: pnpm --filter @openhours/api exec prisma migrate deploy
+
+      - name: Apply hand-written SQL (constraints, RLS, roles)
+        run: pnpm --filter @openhours/api db:sql
+        env:
+          APP_USER_PASSWORD: app_user_ci_only
+
+      - name: Row-level security policy coverage
+        run: pnpm --filter @openhours/api db:check-policies
+
       - name: Lint
         run: pnpm lint
 

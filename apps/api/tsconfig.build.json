@@ -12,6 +12,7 @@
     "src/**/*.test.ts",
     "src/test-support/**",
     "prisma/**",
-    "prisma.config.ts"
+    "prisma.config.ts",
+    "tests/**"
   ]
 }

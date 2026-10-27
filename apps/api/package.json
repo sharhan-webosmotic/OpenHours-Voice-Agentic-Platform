@@ -16,6 +16,8 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "db:migrate": "prisma migrate dev",
+    "db:sql": "tsx prisma/sql/apply.ts",
+    "db:check-policies": "tsx prisma/sql/check-policies.ts",
     "db:seed": "tsx prisma/seed.ts"
   },
   "dependencies": {

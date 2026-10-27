@@ -19,6 +19,8 @@
     "openapi": "node scripts/openapi.mjs",
     "openapi:check": "node scripts/openapi-check.mjs",
     "db:migrate": "pnpm --filter @openhours/api db:migrate",
+    "db:sql": "pnpm --filter @openhours/api db:sql",
+    "db:check-policies": "pnpm --filter @openhours/api db:check-policies",
     "db:seed": "pnpm --filter @openhours/api db:seed",
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm openapi:check",
     "prepare": "husky",
