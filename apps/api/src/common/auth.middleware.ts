@@ -40,7 +40,9 @@ export const requireAuth = (req: Request, _res: Response, next: NextFunction): v
 
       runWithContext(
         {
-          requestId: existing.requestId,
+          // Everything already captured stays: dropping it here would silently empty
+          // the ip and user agent on every audited action.
+          ...existing,
           userId: claims.userId,
           role: claims.role,
           ...(claims.organisationId === null ? {} : { organisationId: claims.organisationId }),
@@ -112,7 +114,7 @@ export const requireDevice = (req: Request, _res: Response, next: NextFunction):
 
       runWithContext(
         {
-          requestId: existing.requestId,
+          ...existing,
           organisationId: principal.organisationId,
           deviceId: principal.deviceId,
         },

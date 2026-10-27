@@ -2,6 +2,7 @@ import { logger } from '../../common/logger.js';
 import { ForbiddenError } from '../../common/errors.js';
 import { uuidV7 } from '../../common/uuid.js';
 import { asSystem } from '../../db/tenant-client.js';
+import * as audit from '../audit/audit.service.js';
 import { isPlatformRole, type Role } from '@openhours/shared';
 
 /**
@@ -63,19 +64,20 @@ export const openSupportSession = async (input: {
       },
     });
 
-    // The audit row carries the reason and ids, never any patient field the session
-    // goes on to unmask.
-    await db.auditLog.create({
-      data: {
-        id: uuidV7(),
-        organisationId: input.organisationId,
-        actorUserId: input.actorUserId,
-        actorRole: input.actorRole,
-        action: 'support_session.opened',
-        entityType: 'support_session',
-        entityId: id,
-        metadata: { reason: input.reason, expiresAt: expiresAt.toISOString() },
-      },
+    /**
+     * Through the audit module rather than a direct insert, so this row carries the
+     * request id, ip and user agent like every other entry. An earlier version wrote it
+     * by hand and silently lacked all three, which left no way to tie an unmasking back
+     * to the request that caused it.
+     *
+     * The target organisation is named explicitly: a platform role has none in context.
+     */
+    await audit.record(db, {
+      action: 'support_session.opened',
+      entityType: 'support_session',
+      entityId: id,
+      organisationId: input.organisationId,
+      metadata: { reason: input.reason, expiresAt: expiresAt.toISOString() },
     });
 
     logger.info(

@@ -21,6 +21,7 @@ registerRoute({
   // The session itself holds no patient data, but it governs access to it, so it is
   // flagged: every call must be audited.
   phiSensitive: true,
+  auditAction: 'support_session.opened',
 });
 
 export const supportSessionsRouter = (): Router => {

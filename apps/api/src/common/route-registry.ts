@@ -29,6 +29,12 @@ export type RouteDescriptor = RouteSchemas & {
    * marks the route for review; every route must state it explicitly.
    */
   readonly phiSensitive: boolean;
+  /**
+   * The audit action this route records. REQUIRED in practice for every phiSensitive
+   * route: `phi-routes-are-audited.test.ts` fails the build when one is missing, so a
+   * new PHI endpoint cannot ship without an audit trail.
+   */
+  readonly auditAction?: string;
 };
 
 const routes = new Map<string, RouteDescriptor>();

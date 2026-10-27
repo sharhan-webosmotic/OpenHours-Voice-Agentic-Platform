@@ -2,6 +2,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client.js';
 import { config, type Config } from '../config.js';
 import { logger } from '../common/logger.js';
+import { getContext } from '../common/request-context.js';
 import { uuidV7 } from '../common/uuid.js';
 import { buildTenantExtension } from './tenant-extension.js';
 import { runInScope } from './tenant-scope.js';
@@ -64,13 +65,18 @@ export const asSystem = async <T>(reason: string, fn: (db: TenantDb) => Promise<
     scopedClient.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(`SELECT set_config('app.platform', 'on', true)`);
 
+      // Written directly rather than through the audit module, which imports from here:
+      // routing it through would be a cycle. The fields are kept in step by hand, and
+      // the reason only, never the data the call went on to read.
+      const context = getContext();
       await tx.auditLog.create({
         data: {
           id: uuidV7(),
           action: 'system.scope.used',
           entityType: 'system',
-          // The reason only: never the data the call went on to read.
           metadata: { reason },
+          ...(context?.requestId === undefined ? {} : { requestId: context.requestId }),
+          ...(context?.ipAddress === undefined ? {} : { ipAddress: context.ipAddress }),
         },
       });
 
