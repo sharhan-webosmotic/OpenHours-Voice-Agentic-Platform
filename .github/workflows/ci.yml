@@ -11,6 +11,10 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # corepack must never block waiting for a download confirmation on CI.
+  COREPACK_ENABLE_DOWNLOAD_PROMPT: '0'
+
 jobs:
   verify:
     name: lint, typecheck, test, build
@@ -43,13 +47,18 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
+          # setup-node v5 auto-enables package-manager caching when package.json has a
+          # `packageManager` field, and that cache restore shells out to `pnpm store
+          # path` before pnpm exists, failing with "Unable to locate executable file:
+          # pnpm". pnpm is installed by the next step, so the automatic cache is turned
+          # off and the pnpm store is cached explicitly below instead.
+          package-manager-cache: false
 
-      # pnpm 12 ships bin/pnpm.mjs, which corepack < 0.36 cannot load. The corepack
-      # bundled with Node is older than that, so pin a known-good corepack explicitly
-      # rather than relying on whatever the runner image happens to carry.
-      - name: Enable corepack
+      # pnpm 12 ships bin/pnpm.mjs, which the corepack bundled with Node cannot load
+      # (it looks for bin/pnpm.cjs). Pin a corepack new enough to run it.
+      - name: Install pnpm via corepack
         run: |
-          npm install -g corepack@0.36.0
+          npm install -g --force corepack@0.36.0
           corepack enable
           pnpm --version
 
@@ -92,12 +101,24 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version-file: .nvmrc
+          # See the comment in the verify job.
+          package-manager-cache: false
 
-      - name: Enable corepack
+      - name: Install pnpm via corepack
         run: |
-          npm install -g corepack@0.36.0
+          npm install -g --force corepack@0.36.0
           corepack enable
           pnpm --version
+
+      - name: Resolve pnpm store path
+        id: pnpm-store
+        run: echo "dir=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        with:
+          path: ${{ steps.pnpm-store.outputs.dir }}
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
 
       - name: Install
         run: pnpm install --frozen-lockfile
