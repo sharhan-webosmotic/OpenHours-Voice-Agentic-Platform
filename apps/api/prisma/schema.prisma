@@ -1,0 +1,268 @@
+// OpenHours schema. Conventions, applied to every model:
+//  - UUID v7 primary keys generated in the application (uuidV7()), never by the database,
+//    so an id exists before the row is written and sorts by creation time.
+//  - snake_case in PostgreSQL via @map / @@map; camelCase in TypeScript.
+//  - timestamptz for every instant (@db.Timestamptz). UTC is stored and transmitted.
+//  - organisation_id on every tenant table, and every composite index starts with it,
+//    because every tenant query filters on it first.
+//
+// Tenant-less tables and why (M1-04 requires this list):
+//  - organisations: it IS the tenant. Its primary key is the tenant id. A row-level
+//    security policy is still applied to it in M1-06, keyed on id rather than
+//    organisation_id, so a clinic cannot read another clinic's organisation row.
+//  - users: organisation_id is NULL for the two platform roles and required for clinic
+//    roles (CHECK constraint in M1-06). Platform rows are reachable only with
+//    app.platform = 'on'.
+//  - refresh_tokens: keyed to a user, which may be a platform user with no organisation.
+//    Only the login and refresh paths touch it, always through asSystem, never inside a
+//    tenant-scoped query. Holds no patient data.
+//  - audit_logs: organisation_id is nullable because platform actions have no
+//    organisation. Nullable rows are visible only with app.platform = 'on'.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  SUPER_ADMIN
+  INTERNAL_ADMIN
+  CLINIC_OWNER
+  CLINIC_MANAGER
+  DOCTOR
+  STAFF
+
+  @@map("role")
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  DEACTIVATED
+
+  @@map("user_status")
+}
+
+enum OrganisationStatus {
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+
+  @@map("organisation_status")
+}
+
+enum Provider {
+  SARVAM
+
+  @@map("provider")
+}
+
+enum PhoneKind {
+  CLINIC_LINE
+  AGENT_NUMBER
+
+  @@map("phone_kind")
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+
+  @@map("notification_channel")
+}
+
+model Organisation {
+  id                     String             @id @db.Uuid
+  name                   String
+  /// IANA zone, e.g. Asia/Kolkata. Clinic-local times are derived from this at the edges.
+  timezone               String
+  status                 OrganisationStatus @default(ACTIVE)
+  /// Clinic-level toggles, e.g. recordings_visible_to_staff. Never patient data.
+  settings               Json               @default("{}")
+  recordingRetentionDays Int                @default(90) @map("recording_retention_days")
+  createdAt              DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  users         User[]
+  phoneNumbers  PhoneNumber[]
+  voiceAgents   VoiceAgent[]
+  devices       Device[]
+  pairingCodes  PairingCode[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+
+  @@index([status])
+  @@map("organisations")
+}
+
+model User {
+  id                 String     @id @db.Uuid
+  /// NULL for SUPER_ADMIN and INTERNAL_ADMIN; required for clinic roles (CHECK in M1-06).
+  organisationId     String?    @map("organisation_id") @db.Uuid
+  /// citext, so uniqueness and lookup are case-insensitive without lowering at call sites.
+  email              String     @unique @db.Citext
+  passwordHash       String     @map("password_hash")
+  fullName           String     @map("full_name")
+  role               Role
+  status             UserStatus @default(ACTIVE)
+  /// Set when an administrator issues a temporary password.
+  mustChangePassword Boolean    @default(false) @map("must_change_password")
+  failedLoginCount   Int        @default(0) @map("failed_login_count")
+  /// Lockout expiry. NULL means not locked.
+  lockedUntil        DateTime?  @map("locked_until") @db.Timestamptz(6)
+  lastLoginAt        DateTime?  @map("last_login_at") @db.Timestamptz(6)
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation  Organisation?  @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  refreshTokens RefreshToken[]
+  pairingCodes  PairingCode[]
+  notifications Notification[]
+
+  @@index([organisationId, status])
+  @@index([organisationId, role])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  /// SHA-256 of the opaque token. The token itself is never stored.
+  tokenHash String    @unique @map("token_hash")
+  /// Rotation lineage. Presenting a revoked token revokes the whole family.
+  familyId  String    @map("family_id") @db.Uuid
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([familyId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model PhoneNumber {
+  id             String    @id @db.Uuid
+  organisationId String    @map("organisation_id") @db.Uuid
+  /// E.164. Globally unique for AGENT_NUMBER (partial unique index in M1-06), because an
+  /// inbound call is resolved to an organisation by the number dialled.
+  e164           String
+  kind           PhoneKind
+  label          String?
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  voiceAgents  VoiceAgent[]
+
+  @@unique([organisationId, e164])
+  @@index([organisationId, kind])
+  @@map("phone_numbers")
+}
+
+model VoiceAgent {
+  id              String             @id @db.Uuid
+  organisationId  String             @map("organisation_id") @db.Uuid
+  provider        Provider           @default(SARVAM)
+  /// The provider's agent identifier. Used to resolve a webhook to an organisation.
+  externalAgentId String             @map("external_agent_id")
+  agentNumberId   String?            @map("agent_number_id") @db.Uuid
+  /// Provider-specific agent configuration, validated by a zod schema before write.
+  config          Json               @default("{}")
+  status          OrganisationStatus @default(ACTIVE)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  agentNumber  PhoneNumber? @relation(fields: [agentNumberId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, externalAgentId])
+  @@index([organisationId, status])
+  @@map("voice_agents")
+}
+
+model Device {
+  id             String    @id @db.Uuid
+  organisationId String    @map("organisation_id") @db.Uuid
+  label          String
+  /// SHA-256 of the device token. Scoped to forwarding endpoints only.
+  tokenHash      String    @unique @map("token_hash")
+  lastSeenAt     DateTime? @map("last_seen_at") @db.Timestamptz(6)
+  revokedAt      DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId, revokedAt])
+  @@map("devices")
+}
+
+model PairingCode {
+  id             String    @id @db.Uuid
+  organisationId String    @map("organisation_id") @db.Uuid
+  /// SHA-256 of the 6-character code. Single use, 10-minute lifetime.
+  codeHash       String    @unique @map("code_hash")
+  createdByUserId String   @map("created_by_user_id") @db.Uuid
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt     DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organisation  Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  createdByUser User         @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([organisationId, expiresAt])
+  @@map("pairing_codes")
+}
+
+model Notification {
+  id             String              @id @db.Uuid
+  organisationId String              @map("organisation_id") @db.Uuid
+  /// NULL addresses every user in the organisation.
+  userId         String?             @map("user_id") @db.Uuid
+  channel        NotificationChannel @default(IN_APP)
+  /// Message template key plus id-only parameters. Never patient field values.
+  kind           String
+  payload        Json                @default("{}")
+  readAt         DateTime?           @map("read_at") @db.Timestamptz(6)
+  createdAt      DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organisationId, userId, readAt])
+  @@index([organisationId, createdAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id             String   @id @db.Uuid
+  /// NULL for platform-level actions that belong to no organisation.
+  organisationId String?  @map("organisation_id") @db.Uuid
+  /// NULL when the actor is the system (a job, or a provider webhook).
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  actorRole      Role?    @map("actor_role")
+  action         String
+  entityType     String   @map("entity_type")
+  entityId       String?  @map("entity_id") @db.Uuid
+  /// IDs and changed field NAMES only, never patient field values.
+  metadata       Json     @default("{}")
+  ipAddress      String?  @map("ip_address") @db.Inet
+  userAgent      String?  @map("user_agent")
+  requestId      String?  @map("request_id") @db.Uuid
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organisation Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+
+  @@index([organisationId, createdAt])
+  @@index([organisationId, actorUserId, createdAt])
+  @@index([organisationId, entityType, entityId])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}

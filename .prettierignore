@@ -13,3 +13,7 @@ apps/*/CLAUDE.md
 
 # Built last and not part of the TypeScript workspace.
 apps/android/
+
+# Prisma's generated client (machine-written) and its migration SQL.
+apps/api/src/generated/
+apps/api/prisma/migrations/

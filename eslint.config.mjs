@@ -12,6 +12,8 @@ export default tseslint.config(
       '**/.turbo/**',
       // Claude Code harness scripts, owned by the .claude/ setup and not product code.
       '.claude/**',
+      // Prisma's generated client: machine-written, regenerated on every schema change.
+      '**/src/generated/**',
       // Built last, and not a TypeScript project.
       'apps/android/**',
     ],

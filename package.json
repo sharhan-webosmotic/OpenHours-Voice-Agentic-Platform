@@ -18,10 +18,11 @@
     "format:check": "prettier --check .",
     "openapi": "node scripts/openapi.mjs",
     "openapi:check": "node scripts/openapi-check.mjs",
-    "db:migrate": "node scripts/db-migrate.mjs",
-    "db:seed": "node scripts/db-seed.mjs",
+    "db:migrate": "pnpm --filter @openhours/api db:migrate",
+    "db:seed": "pnpm --filter @openhours/api db:seed",
     "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm openapi:check",
-    "prepare": "husky"
+    "prepare": "husky",
+    "generate": "turbo run generate"
   },
   "devDependencies": {
     "@commitlint/cli": "21.2.4",

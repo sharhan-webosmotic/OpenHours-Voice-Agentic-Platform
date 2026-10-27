@@ -6,5 +6,12 @@
     "tsBuildInfoFile": "dist/.tsbuildinfo.build"
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["dist", "coverage", "src/**/*.test.ts", "src/test-support/**"]
+  "exclude": [
+    "dist",
+    "coverage",
+    "src/**/*.test.ts",
+    "src/test-support/**",
+    "prisma/**",
+    "prisma.config.ts"
+  ]
 }
