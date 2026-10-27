@@ -1,0 +1,152 @@
+skill_name: change-request
+skill_id: SK-010
+category: utility
+version: 1.0.0
+
+target_description: |
+  Handle mid-flight feature additions not in the tech spec. Update spec first, then task tracking. Use when a user asks to add a feature during development. Also triggers on: 'Add new feature', 'Change request'.
+# Likely sibling collisions:
+#   - tech-specification: authors the full 19-section spec from scratch: not a patch
+#   - prd-generation:    product-facing PRD at inception: not mid-development
+#   - brainstorm:        pre-requirements ideation: before any spec exists
+#   - task-planner:      plans work: doesn't update the spec
+#   - feature-delivery:  executes an approved plan: no spec amendment
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "File a change request to add OTP login to the auth flow."
+    expected_trigger: true
+    rationale: "'Change request' verb + mid-development feature addition match directly."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Add a new feature that isn't in the tech spec — please handle the CR properly."
+    expected_trigger: true
+    rationale: "'Feature additions not in the tech spec' is verbatim in the description."
+
+  - id: P03
+    bucket: positive_direct
+    text: "We're mid-flight and need to add exports — update the spec first, then tasks."
+    expected_trigger: true
+    rationale: "'Mid-flight' + 'update spec first, then task tracking' matches exactly."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Client asked for an extra dashboard widget during development. Process it."
+    expected_trigger: true
+    rationale: "'Feature addition during development' = the description's trigger."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Open a CR for the new SSO requirement that came up today."
+    expected_trigger: true
+    rationale: "CR = Change Request; trigger phrase is 'Add new feature, Change request'."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Amend the tech spec to reflect the added notifications module, then update task tracking."
+    expected_trigger: true
+    rationale: "Amend tech spec + update task tracking is the CR two-step in the description."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Something new came up from the client halfway through the sprint — how do we absorb it?"
+    expected_trigger: true
+    rationale: "Mid-sprint client addition = mid-flight feature request, the CR trigger."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "They want us to tack on an audit log feature we didn't originally scope."
+    expected_trigger: true
+    rationale: "Out-of-scope tack-on = feature not in tech spec, a CR."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "The spec needs an amendment because they added a payment-split requirement."
+    expected_trigger: true
+    rationale: "Spec amendment for an added requirement = CR protocol."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "We're halfway done — how do I formally record and integrate this new ask?"
+    expected_trigger: true
+    rationale: "Formal recording + integration of new ask mid-build = change request."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Marketing now wants a referral code flow that wasn't in the original spec. Can you queue it properly?"
+    expected_trigger: true
+    rationale: "Out-of-spec flow requested during development = CR."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "We've been coding for three weeks and the client just requested multi-language support. Need to document this addition."
+    expected_trigger: true
+    rationale: "Mid-development client request requiring documentation = CR."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "PM approved adding a GDPR export button — update the spec, then open the follow-up tasks."
+    expected_trigger: true
+    rationale: "Approved addition + spec-first, tasks-second = CR's exact two-step."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Please track this new requested capability against the existing tech-spec revision history."
+    expected_trigger: true
+    rationale: "Tracking a new capability against tech-spec history is CR's scope."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Log this as a CR."
+    expected_trigger: true
+    rationale: "CR is the skill's acronym: short invocation maps cleanly."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "That's out of scope — process it as a change request."
+    expected_trigger: true
+    rationale: "'Out of scope' + 'change request' is the exact CR trigger phrase."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "We're starting a new project — generate the full 19-section technical specification from scratch."
+    expected_trigger: false
+    expected_sibling: tech-specification
+    rationale: "Greenfield 19-section spec authoring is tech-specification, not a mid-flight amendment."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Before we even decide to build, let's explore the business model and MVP priorities for this idea."
+    expected_trigger: false
+    expected_sibling: brainstorm
+    rationale: "Pre-requirements idea exploration is brainstorm, not a CR."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Draft a stakeholder-facing PRD with user personas and competitive analysis."
+    expected_trigger: false
+    expected_sibling: prd-generation
+    rationale: "PRD authoring at product inception is prd-generation's deliverable."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Set up the CI pipeline to run tests on every pull request."
+    expected_trigger: false
+    rationale: "CI pipeline config is an ops task, not a feature change request."

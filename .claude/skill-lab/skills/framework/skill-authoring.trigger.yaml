@@ -1,0 +1,148 @@
+skill_name: skill-authoring
+skill_id: SK-016
+category: framework
+version: 1.0.0
+
+target_description: |
+  Scaffolds a brand-new framework-compliant skill from scratch: pre-fills standard metadata, assigns a unique skill id, applies allowed-tools from the category matrix, and generates the frontmatter and body template. Use when creating a new skill, bootstrapping a skill template, or converting an ad-hoc workflow into a reusable skill. Do NOT use to diagnose or fix an existing failing skill (use skill-improve), or to validate a skill's correctness (use skill-test). Also triggers on: 'Create skill', 'Author skill', 'Scaffold skill', 'Convert to skill', 'Bootstrap skill'.
+# HIGH collision risk: skill-improve (fix existing), skill-test (validate existing), skill-router (list/route).
+# Distinction: skill-authoring CREATES new from scratch; others operate on an existing skill.
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Scaffold a new framework-compliant skill called lint-report."
+    expected_trigger: true
+    rationale: "'Scaffold a new skill' is the literal trigger phrase from the description."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Create a new skill for database-migration workflows."
+    expected_trigger: true
+    rationale: "'Create a new skill' matches the 'creating a new skill' trigger verbatim."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Author a skill that wraps our deployment checklist."
+    expected_trigger: true
+    rationale: "'Author a skill' is the skill's AUTHORING role."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Bootstrap a skill template — pre-fill the frontmatter with standard metadata and an SK-NNN id."
+    expected_trigger: true
+    rationale: "Bootstrap + pre-fill frontmatter + SK-NNN assignment = exact scaffolding capabilities."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Generate a fresh SKILL.md with Instructions, Examples, and Troubleshooting sections."
+    expected_trigger: true
+    rationale: "Named body sections from the description; generating a fresh SKILL.md is the scaffold output."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Convert my ad-hoc release workflow into a reusable skill."
+    expected_trigger: true
+    rationale: "'Convert an ad-hoc workflow into a reusable skill' is a direct trigger phrase."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "I want to turn this repeatable checklist into a proper skill file from scratch."
+    expected_trigger: true
+    rationale: "'Turn checklist into a proper skill from scratch' = scaffold new."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Build me a skill scaffold with the standard metadata and allowed-tools pre-filled."
+    expected_trigger: true
+    rationale: "Skill scaffold + standard metadata + allowed-tools = skill-authoring output."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Can you register a new skill in the framework and assign it an id from the registry?"
+    expected_trigger: true
+    rationale: "Register new + assign SK-NNN from registry = skill-authoring."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Set up a brand-new skill for handling Stripe webhooks — full template."
+    expected_trigger: true
+    rationale: "Brand-new skill + full template = authoring a new skill."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "We keep running the same five-step incident triage. Package it as a skill so others can use /incident."
+    expected_trigger: true
+    rationale: "Package recurring workflow as a new skill = convert ad-hoc to reusable skill."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "I'd like a reusable /changelog command. Create the skill file with proper frontmatter and metadata."
+    expected_trigger: true
+    rationale: "'Create the skill file with proper frontmatter' = scaffolding a new skill."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Add a new skill called pre-commit-lint to the framework — pick the right category and tools from the matrix."
+    expected_trigger: true
+    rationale: "Add new skill + apply category matrix tools = skill-authoring's role."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "We don't have an observability skill yet — bootstrap one with our standard template."
+    expected_trigger: true
+    rationale: "Bootstrap a new skill with the standard template = authoring."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Now create the skill file."
+    expected_trigger: true
+    rationale: "Short 'create the skill file' = authoring."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "OK, scaffold it."
+    expected_trigger: true
+    rationale: "'Scaffold it' is the distinctive authoring verb."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "My caching-strategy skill is failing the trigger tests — diagnose and fix it."
+    expected_trigger: false
+    expected_sibling: skill-improve
+    rationale: "Failing + diagnose + fix = skill-improve's test-diagnose-fix-retest loop, not authoring."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Run the 7 static checks on debugger/SKILL.md and tell me if it passes."
+    expected_trigger: false
+    expected_sibling: skill-test
+    rationale: "7 static checks + read-only pass/fail verdict = skill-test, not authoring."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Which skill should I invoke for image generation? Show me the skill map."
+    expected_trigger: false
+    expected_sibling: skill-router
+    rationale: "Skill-discovery / 'which skill should I invoke' / show skill map = skill-router."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Run OWASP Top 10 checks on the auth module."
+    expected_trigger: false
+    rationale: "Security audit is audit, unrelated to skill authoring."

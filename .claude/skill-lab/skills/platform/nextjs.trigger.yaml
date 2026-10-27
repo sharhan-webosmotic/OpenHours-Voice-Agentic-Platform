@@ -1,0 +1,145 @@
+skill_name: nextjs
+skill_id: SK-102
+category: platform
+version: 1.0.0
+
+target_description: |
+  Authoritative skill for all Next.js-specific work: App Router, Server and Client Components, 'use client'/'use server', route handlers under app/api, the metadata API and OG images, next/image and next/font, hydration fixes, Suspense streaming, async params, and self-hosting vs Vercel. Use whenever the task touches an app/ directory, a Server/Client Component boundary, Next.js routing, metadata, or deployment. Do NOT use for: framework-agnostic React (use reactjs), shadcn/ui (use shadcn-ui), Playwright tests (use e2e-testing), or non-Next.js deploys (use deployment-planning).
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Review my Server Component / Client Component boundaries in this Next.js app."
+    expected_trigger: true
+    rationale: "RSC boundaries is the first named capability."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Fix the hydration mismatch warning in my Next.js page."
+    expected_trigger: true
+    rationale: "Hydration fixes is explicitly in the description."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Add a route handler under app/api for our webhook endpoint."
+    expected_trigger: true
+    rationale: "Route handlers is a named capability: Next.js-specific."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Set up metadata and OpenGraph tags for all the marketing pages."
+    expected_trigger: true
+    rationale: "metadata/OG is explicitly in the description."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Configure parallel routes for the dashboard's side panel."
+    expected_trigger: true
+    rationale: "Parallel routes is a named capability."
+
+  - id: P06
+    bucket: positive_direct
+    text: "We want to self-host the Next.js app instead of using Vercel — what changes?"
+    expected_trigger: true
+    rationale: "Self-hosting is explicitly named in the description."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "When should I add 'use client' vs 'use server' in this app?"
+    expected_trigger: true
+    rationale: "Directives is a named capability; 'use client'/'use server' are the directives."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Use next/image and next/font to speed up LCP on the landing page."
+    expected_trigger: true
+    rationale: "Image/font optimization: paraphrased with the actual primitives."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Wrap the slow data fetch in <Suspense> with a skeleton fallback."
+    expected_trigger: true
+    rationale: "Suspense is explicitly in the description."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Our async Server Component needs to await params — how do we handle Next 15's new pattern?"
+    expected_trigger: true
+    rationale: "Async patterns (Next 15+) is called out verbatim."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "We just upgraded to Next.js 15 — what breaking changes should I watch for?"
+    expected_trigger: true
+    rationale: "Next 15+ patterns is in scope; project frontend is Next.js."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "The App Router page needs to stream data progressively from three different sources."
+    expected_trigger: true
+    rationale: "App Router + streaming = RSC + Suspense data patterns."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Why am I getting 'Functions cannot be passed directly to Client Components' when I pass a callback?"
+    expected_trigger: true
+    rationale: "Classic RSC/Client boundary error: nextjs domain."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Deploy this Next.js app to a bare Node server behind nginx."
+    expected_trigger: true
+    rationale: "Self-hosting a Next.js app is a named capability."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Now move that fetch into a Server Component."
+    expected_trigger: true
+    rationale: "Server Component refactor: Next.js-specific pattern."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Add the OG image and metadata next."
+    expected_trigger: true
+    rationale: "OG / metadata are Next.js-specific features."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Write a custom hook that debounces a form input in our React app."
+    expected_trigger: false
+    expected_sibling: reactjs
+    rationale: "Custom hook authoring is framework-agnostic React: reactjs skill."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Install the shadcn/ui Dialog and Sheet components."
+    expected_trigger: false
+    expected_sibling: shadcn-ui
+    rationale: "shadcn/ui component management is a separate skill."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Write a Playwright test that takes a screenshot after login."
+    expected_trigger: false
+    expected_sibling: e2e-testing
+    rationale: "Playwright / screenshots are e2e-testing's domain."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Draft a product requirements document for the onboarding flow."
+    expected_trigger: false
+    rationale: "PRD authoring is unrelated to Next.js framework work."

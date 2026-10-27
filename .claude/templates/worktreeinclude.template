@@ -1,0 +1,22 @@
+# .worktreeinclude — files copied into every new isolated worktree.
+#
+# When an agent is dispatched with `isolation: worktree` (see agents/builder.md),
+# the platform creates a fresh git worktree for that run. A worktree only
+# contains tracked files, so anything gitignored (local env files, local
+# secrets, local override config) is missing by default and the isolated
+# builder cannot run or verify its work.
+#
+# List one path per line, gitignore syntax, relative to the project root.
+# Every path listed here is copied from the main working tree into each new
+# worktree at creation time, so isolated builders get the same local config
+# a normal working-tree run would have. Keep this list to local, non-secret
+# config where possible; anything genuinely sensitive still belongs in a
+# managed secret store, not a copied file (see rules/ai-safety-rules.md and
+# secrets-patterns.md (Compliance controls section) for what must never live in a plain file).
+#
+# Copy this file to the project root as `.worktreeinclude` and edit the
+# entries for the project's actual local files. Comments (lines starting
+# with #) and blank lines are ignored.
+
+.env
+.env.local

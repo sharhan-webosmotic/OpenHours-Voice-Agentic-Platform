@@ -1,0 +1,162 @@
+# Trigger Spec Template — auto-trigger test cases for /skill-test trigger
+#
+# Copy this file to: skill-lab/skills/[category]/[skill-name].trigger.yaml
+# Fill in all 20 prompts. Each skill passes if >=18 out of 20 are classified correctly.
+#
+# How "correct" is defined:
+#   expected_trigger: true   -> classifier must return this skill's name
+#   expected_trigger: false  -> classifier must return any skill OTHER than this one,
+#                               OR "none". This catches over-triggering.
+#
+# The classifier sees ONLY each skill's frontmatter `description:` — never skill bodies.
+# So your prompts test how distinctive the description actually is.
+
+skill_name: <skill-name>
+skill_id: SK-<NNN>
+category: <core | gate | review | authoring | team | utility | platform | infrastructure | optimization | reliability | framework | document | meta>
+version: 1.0.0
+
+# Pin the exact description the spec was authored against. If the description
+# is later changed, the runner warns that the spec may need re-review.
+target_description: |
+  <paste the current frontmatter description verbatim>
+
+# Bucket distribution. Total must equal 20. 16 positives + 4 negatives.
+buckets:
+  positive_direct: 6          # Verbs/nouns from the description appear verbatim
+  positive_paraphrase: 4      # Same intent, different wording
+  positive_task_embedded: 4   # Real-world request that implies the skill
+  positive_context_based: 2   # Short prompt assuming prior context ("now run it")
+  negative_sibling: 3         # Tempting for a neighboring skill that overlaps
+  negative_unrelated: 1       # Clearly off-topic — catches catastrophic over-trigger
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "<prompt that uses the description's own verbs>"
+    expected_trigger: true
+    rationale: "<why this prompt maps cleanly to this skill>"
+
+  - id: P02
+    bucket: positive_direct
+    text: "<prompt>"
+    expected_trigger: true
+    rationale: "<why>"
+
+  - id: P03
+    bucket: positive_direct
+    text: "<prompt>"
+    expected_trigger: true
+    rationale: "<why>"
+
+  - id: P04
+    bucket: positive_direct
+    text: "<prompt>"
+    expected_trigger: true
+    rationale: "<why>"
+
+  - id: P05
+    bucket: positive_direct
+    text: "<prompt>"
+    expected_trigger: true
+    rationale: "<why>"
+
+  - id: P06
+    bucket: positive_direct
+    text: "<prompt>"
+    expected_trigger: true
+    rationale: "<why>"
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "<prompt using different words but same intent>"
+    expected_trigger: true
+    rationale: "<why this paraphrase still clearly maps to this skill>"
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "<prompt>"
+    expected_trigger: true
+    rationale: "<why>"
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "<prompt>"
+    expected_trigger: true
+    rationale: "<why>"
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "<prompt>"
+    expected_trigger: true
+    rationale: "<why>"
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "<real-world request where the skill trigger is implied, not stated>"
+    expected_trigger: true
+    rationale: "<why the task implies this skill>"
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "<prompt>"
+    expected_trigger: true
+    rationale: "<why>"
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "<prompt>"
+    expected_trigger: true
+    rationale: "<why>"
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "<prompt>"
+    expected_trigger: true
+    rationale: "<why>"
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "<short prompt that relies on prior session context>"
+    expected_trigger: true
+    rationale: "<why context resolves to this skill>"
+
+  - id: P16
+    bucket: positive_context_based
+    text: "<prompt>"
+    expected_trigger: true
+    rationale: "<why>"
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "<prompt that belongs to a neighboring skill>"
+    expected_trigger: false
+    expected_sibling: <sibling-skill-name>
+    rationale: "<why this belongs to the sibling, not this skill>"
+
+  - id: P18
+    bucket: negative_sibling
+    text: "<prompt>"
+    expected_trigger: false
+    expected_sibling: <sibling-skill-name>
+    rationale: "<why>"
+
+  - id: P19
+    bucket: negative_sibling
+    text: "<prompt>"
+    expected_trigger: false
+    expected_sibling: <sibling-skill-name>
+    rationale: "<why>"
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "<clearly off-topic prompt>"
+    expected_trigger: false
+    rationale: "<why this is clearly a different domain>"

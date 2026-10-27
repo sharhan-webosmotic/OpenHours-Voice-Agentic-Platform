@@ -1,0 +1,1477 @@
+meta:
+  framework_version: 4.32.0
+  last_updated: '2026-10-22'
+  total_skills: 95
+  total_agents: 51
+  specs_written: 6
+  specs_pending: 97
+  trigger_specs_written: 2
+  trigger_specs_pending: 74
+  trigger_passing: 68
+  trigger_failing: 0
+  v3_1_changes:
+    removed:
+    - name: claude-md
+      replaced_by: project-context
+      sk_old: SK-080
+    - name: deployment
+      replaced_by:
+      - deployment-planning
+      - deployment-execution
+      sk_old: SK-008
+    - name: design-system
+      replaced_by:
+      - design-discovery
+      - design-tokens
+      - design-screens
+      sk_old: SK-004
+    id_reassigned:
+    - name: task-planner
+      sk_old: SK-090
+      sk_new: SK-098
+    - name: team-security
+      sk_old: SK-090
+      sk_new: SK-099
+    - name: team-design
+      sk_old: SK-091
+      sk_new: SK-101
+    - name: feature-delivery
+      sk_old: SK-092
+      sk_new: SK-097
+    added_tier1:
+    - name: retrospective
+      sk: SK-013
+    - name: accessibility-audit
+      sk: SK-014
+    - name: milestone-validation
+      sk: SK-015
+    - name: skill-authoring
+      sk: SK-016
+skills:
+- id: SK-100
+  name: do
+  path: .claude/skills/do/
+  category: meta
+  spec:
+  spec_status: pending
+  priority: 1
+  trigger_last_score:
+  trigger_status: draft
+  trigger_spec: skill-lab/skills/meta/do.trigger.yaml
+- id: SK-130
+  name: ask
+  path: .claude/skills/ask/
+  category: meta
+  spec:
+  spec_status: pending
+  priority: 1
+  trigger_last_score:
+  trigger_status: pending
+- id: SK-134
+  name: plan
+  path: .claude/skills/plan/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 1
+  trigger_last_score:
+  trigger_status: pending
+- id: SK-131
+  name: build
+  path: .claude/skills/build/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 1
+  trigger_last_score:
+  trigger_status: pending
+- id: SK-132
+  name: audit
+  path: .claude/skills/audit/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 1
+  trigger_last_score:
+  trigger_status: pending
+- id: SK-133
+  name: ship
+  path: .claude/skills/ship/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 1
+  trigger_last_score:
+  trigger_status: pending
+- id: SK-000
+  name: memory-protocol
+  path: .claude/skills/memory-protocol/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score: 18
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-001
+  name: session-management
+  path: .claude/skills/session-management/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 2
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-23'
+- id: SK-002
+  name: prd-generation
+  path: .claude/skills/prd-generation/
+  category: requirements
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 19
+  trigger_status: passing
+  trigger_last_run: '2026-04-23'
+- id: SK-004
+  name: design-discovery
+  path: .claude/skills/design-discovery/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 3
+  renamed_from: design-system
+  renamed_in: 3.1.0
+  trigger_last_score: 18
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-046
+  name: design-tokens
+  path: .claude/skills/design-tokens/
+  category: infrastructure
+  spec:
+  spec_status: pending
+  priority: 3
+  split_from: design-system
+  split_in: 3.1.0
+  trigger_last_score: 19
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-047
+  name: design-screens
+  path: .claude/skills/design-screens/
+  category: infrastructure
+  spec:
+  spec_status: pending
+  priority: 3
+  split_from: design-system
+  split_in: 3.1.0
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-006
+  name: guardrails
+  path: .claude/skills/guardrails/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score: 18
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-007
+  name: qa-testing
+  path: .claude/skills/qa-testing/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score: 19
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-008
+  name: deployment-planning
+  path: .claude/skills/deployment-planning/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 3
+  renamed_from: deployment
+  renamed_in: 3.1.0
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-23'
+- id: SK-045
+  name: deployment-execution
+  path: .claude/skills/deployment-execution/
+  category: infrastructure
+  spec:
+  spec_status: pending
+  priority: 3
+  split_from: deployment
+  split_in: 3.1.0
+  trigger_last_score: 19
+  trigger_status: passing
+  trigger_last_run: '2026-04-23'
+- id: SK-010
+  name: change-request
+  path: .claude/skills/change-request/
+  category: utility
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score: 19
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-011
+  name: mock-data
+  path: .claude/skills/mock-data/
+  category: utility
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 19
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-012
+  name: project-types
+  path: .claude/skills/project-types/
+  category: utility
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-020
+  name: architecture
+  path: .claude/skills/architecture/
+  category: infrastructure
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-021
+  name: github-ops
+  path: .claude/skills/github-ops/
+  category: infrastructure
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-022
+  name: data-migration
+  path: .claude/skills/data-migration/
+  category: infrastructure
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-023
+  name: mcp-connector
+  path: .claude/skills/mcp-connector/
+  category: infrastructure
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-024
+  name: gate-enforcement
+  path: .claude/skills/gate-enforcement/
+  category: gate
+  spec: skills/gate/gate-enforcement.md
+  spec_status: written
+  priority: 1
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-23'
+- id: SK-031
+  name: caching-strategy
+  path: .claude/skills/caching-strategy/
+  category: optimization
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-23'
+- id: SK-033
+  name: seo
+  path: .claude/skills/seo/
+  category: optimization
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-23'
+- id: SK-034
+  name: i18n
+  path: .claude/skills/i18n/
+  category: optimization
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 19
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-040
+  name: error-handling
+  path: .claude/skills/error-handling/
+  category: reliability
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-23'
+- id: SK-041
+  name: debugger
+  path: .claude/skills/debugger/
+  category: reliability
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score: 19
+  trigger_status: passing
+  trigger_last_run: '2026-04-23'
+- id: SK-042
+  name: audit-logs
+  path: .claude/skills/audit-logs/
+  category: reliability
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-043
+  name: analytics
+  path: .claude/skills/analytics/
+  category: reliability
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-044
+  name: mock-api-server
+  path: .claude/skills/mock-api-server/
+  category: utility
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-147
+  name: docx
+  path: .claude/skills/docx/
+  category: document
+  spec:
+  spec_status: pending
+  priority: 5
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-048
+  name: pdf
+  path: .claude/skills/pdf/
+  category: document
+  spec:
+  spec_status: pending
+  priority: 5
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-049
+  name: markitdown
+  path: .claude/skills/markitdown/
+  category: document
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_status: draft
+- id: SK-051
+  name: image-assets
+  path: .claude/skills/image-assets/
+  category: document
+  spec:
+  spec_status: pending
+  priority: 5
+  trigger_last_score: 18
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-053
+  name: codebase-migration
+  path: .claude/skills/codebase-migration/
+  category: utility
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-060
+  name: milestone-planning
+  path: .claude/skills/milestone-planning/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 2
+  trigger_last_score: 19
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-070
+  name: tech-specification
+  path: .claude/skills/tech-specification/
+  category: core
+  spec: skills/authoring/tech-specification.md
+  spec_status: written
+  priority: 2
+  trigger_last_score: 18
+  trigger_status: passing
+  trigger_last_run: '2026-04-23'
+- id: SK-071
+  name: code-quality
+  path: .claude/skills/code-quality/
+  category: gate
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score: 19
+  trigger_status: passing
+  trigger_last_run: '2026-04-23'
+- id: SK-072
+  name: workscope
+  path: .claude/skills/workscope/
+  category: core
+  spec: skills/authoring/workscope.md
+  spec_status: written
+  priority: 2
+  trigger_last_score: 19
+  trigger_status: passing
+  trigger_last_run: '2026-04-23'
+- id: SK-080
+  name: project-context
+  path: .claude/skills/project-context/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 3
+  renamed_from: claude-md
+  renamed_in: 3.1.0
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-081
+  name: project-audit
+  path: .claude/skills/project-audit/
+  category: quality
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-23'
+- id: SK-083
+  name: python-ai-services
+  path: .claude/skills/python-ai-services/
+  category: platform
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score: 18
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-084
+  name: python-testing
+  path: .claude/skills/python-testing/
+  category: platform
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-085
+  name: python-deployment
+  path: .claude/skills/python-deployment/
+  category: platform
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 18
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-160
+  name: go-testing
+  path: .claude/skills/go-testing/
+  category: platform
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.9.0
+- id: SK-161
+  name: go-deployment
+  path: .claude/skills/go-deployment/
+  category: platform
+  spec:
+  spec_status: pending
+  priority: 4
+  added_in: 4.9.0
+- id: SK-162
+  name: estimation
+  path: .claude/skills/estimation/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 2
+  added_in: 4.13.0
+- id: SK-163
+  name: requirement-finalization
+  path: .claude/skills/requirement-finalization/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 2
+  added_in: 4.14.0
+  note: Reconciles all AI_DOCS/requirements/ sources into planning/requirements-baseline.md via decision cards; runs before workscope on multi-source projects.
+- id: SK-164
+  name: project-brief
+  path: .claude/skills/project-brief/
+  category: sdlc
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.14.0
+  note: Short complexity brief (client or team variant) with a mandatory audience/purpose/length/tone intake gate.
+- id: SK-086
+  name: skill-router
+  path: .claude/skills/skill-router/
+  category: utility
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score: 19
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-087
+  name: reactjs
+  path: .claude/skills/reactjs/
+  category: platform
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score: 19
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-099
+  name: team-security
+  path: .claude/skills/team-security/
+  category: team
+  spec:
+  spec_status: pending
+  priority: 2
+  previous_id: SK-090
+  reassigned_in: 3.1.0
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-23'
+- id: SK-092
+  name: project-stage-detect
+  path: .claude/skills/project-stage-detect/
+  category: utility
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-090
+  name: orchestrator
+  path: .claude/skills/orchestrator/
+  category: meta
+  spec:
+  spec_status: pending
+  priority: 4
+  user_facing: false
+  demoted_in: 3.1.0
+  note: Internal meta-skill only; demoted from user-facing in v3.1
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-097
+  name: feature-delivery
+  path: .claude/skills/feature-delivery/
+  category: utility
+  spec:
+  spec_status: pending
+  priority: 2
+  user_facing: false
+  note: Library skill applied inside /do build phase; demoted from user-facing 2026-06-29 to stop direct triggers bypassing /do and Gate 1.
+  previous_id: SK-092
+  reassigned_in: 3.1.0
+  trigger_last_score: 19
+  trigger_status: passing
+  trigger_last_run: '2026-04-23'
+- id: SK-098
+  name: task-planner
+  path: .claude/skills/task-planner/
+  category: utility
+  spec:
+  spec_status: pending
+  priority: 2
+  previous_id: SK-090
+  reassigned_in: 3.1.0
+  trigger_last_score: 19
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-013
+  name: retrospective
+  path: .claude/skills/retrospective/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 2
+  added_in: 3.1.0
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-014
+  name: accessibility-audit
+  path: .claude/skills/accessibility-audit/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 2
+  added_in: 3.1.0
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-015
+  name: milestone-validation
+  path: .claude/skills/milestone-validation/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 1
+  added_in: 3.1.0
+  note: Gate 4.5 — replaces per-feature heavy validation
+  trigger_last_score: 19
+  trigger_status: passing
+  trigger_last_run: '2026-04-23'
+- id: SK-016
+  name: skill-authoring
+  path: .claude/skills/skill-authoring/
+  category: framework
+  spec:
+  spec_status: pending
+  priority: 2
+  added_in: 3.1.0
+  trigger_last_score: 19
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-093
+  name: skill-test
+  path: .claude/skills/skill-test/
+  category: framework
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-094
+  name: skill-improve
+  path: .claude/skills/skill-improve/
+  category: framework
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-095
+  name: ai-cost-guard
+  path: .claude/skills/ai-cost-guard/
+  category: utility
+  spec:
+  spec_status: pending
+  priority: 2
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-096
+  name: brainstorm
+  path: .claude/skills/brainstorm/
+  category: utility
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-102
+  name: nextjs
+  path: .claude/skills/nextjs/
+  category: platform
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-103
+  name: shadcn-ui
+  path: .claude/skills/shadcn-ui/
+  category: platform
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-105
+  name: image-generation
+  path: .claude/skills/image-generation/
+  category: document
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-106
+  name: markdown-creator
+  path: .claude/skills/markdown-creator/
+  category: document
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-107
+  name: pptx
+  path: .claude/skills/pptx/
+  category: document
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-108
+  name: xlsx
+  path: .claude/skills/xlsx/
+  category: document
+  spec:
+  spec_status: pending
+  priority: 4
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-04-24'
+- id: SK-135
+  name: schedule
+  path: .claude/skills/schedule/
+  category: utility
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score:
+  trigger_status: pending
+  trigger_last_run:
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.0.0
+- id: SK-136
+  name: install-plugin
+  path: .claude/skills/install-plugin/
+  category: meta
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score:
+  trigger_status: pending
+  trigger_last_run:
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.0.0
+- id: SK-138
+  name: skill-curator
+  path: .claude/skills/skill-curator/
+  category: framework
+  spec:
+  spec_status: pending
+  priority: 2
+  trigger_last_score:
+  trigger_status: pending
+  trigger_last_run:
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.0.0
+- id: SK-139
+  name: share-decision
+  path: .claude/skills/share-decision/
+  category: utility
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score:
+  trigger_status: pending
+  trigger_last_run:
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.0.0
+- id: SK-141
+  name: history-query
+  path: .claude/skills/history-query/
+  category: utility
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score:
+  trigger_status: pending
+  trigger_last_run:
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.0.0
+- id: SK-143
+  name: docx-from-markdown
+  path: .claude/skills/docx-from-markdown/
+  category: infrastructure
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_last_score:
+  trigger_status: pending
+  trigger_last_run:
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.0.1
+- id: SK-144
+  name: infra-planning
+  path: .claude/skills/infra-planning/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 2
+  trigger_last_score:
+  trigger_status: pending
+  trigger_last_run:
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.1.3
+- id: SK-146
+  name: infra-cost-guard
+  path: .claude/skills/infra-cost-guard/
+  category: utility
+  spec:
+  spec_status: pending
+  priority: 2
+  trigger_last_score: 20
+  trigger_status: passing
+  trigger_last_run: '2026-06-12'
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.2.0
+- id: SK-149
+  name: design-direction
+  path: .claude/skills/design-direction/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 2
+  trigger_spec: skill-lab/skills/core/design-direction.trigger.yaml
+  trigger_last_score: 18
+  trigger_status: passing
+  trigger_last_run: '2026-06-23'
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.5.0
+- id: SK-150
+  name: e2e-testing
+  path: .claude/skills/e2e-testing/
+  category: reliability
+  spec:
+  spec_status: pending
+  priority: 2
+  trigger_spec: skill-lab/skills/reliability/e2e-testing.trigger.yaml
+  trigger_last_score: 19
+  trigger_status: passing
+  trigger_last_run: '2026-06-23'
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.5.0
+- id: SK-151
+  name: landing-page
+  path: .claude/skills/landing-page/
+  category: core
+  spec:
+  spec_status: pending
+  priority: 2
+  trigger_spec:
+  trigger_last_score:
+  trigger_status: pending
+  trigger_last_run:
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.6.0
+- id: SK-152
+  name: ux-foundation
+  path: .claude/skills/ux-foundation/
+  category: sdlc
+  spec:
+  spec_status: pending
+  priority: 2
+  trigger_spec:
+  trigger_last_score:
+  trigger_status: pending
+  trigger_last_run:
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.9.0
+- id: SK-153
+  name: authz-matrix
+  path: .claude/skills/authz-matrix/
+  category: gate
+  spec:
+  spec_status: pending
+  priority: 2
+  trigger_spec:
+  trigger_last_score:
+  trigger_status: pending
+  trigger_last_run:
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.9.0
+- id: SK-154
+  name: schema-validation
+  path: .claude/skills/schema-validation/
+  category: gate
+  spec:
+  spec_status: pending
+  priority: 2
+  trigger_spec:
+  trigger_last_score:
+  trigger_status: pending
+  trigger_last_run:
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.9.0
+- id: SK-155
+  name: api-conformance
+  path: .claude/skills/api-conformance/
+  category: gate
+  spec:
+  spec_status: pending
+  priority: 2
+  trigger_spec:
+  trigger_last_score:
+  trigger_status: pending
+  trigger_last_run:
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.9.0
+- id: SK-156
+  name: operations
+  path: .claude/skills/operations/
+  category: infrastructure
+  spec:
+  spec_status: pending
+  priority: 2
+  trigger_status: pending
+  invocation_count: 0
+  added_in: 4.9.0
+- id: SK-157
+  name: incident-response
+  path: .claude/skills/incident-response/
+  category: reliability
+  spec:
+  spec_status: pending
+  priority: 2
+  trigger_status: pending
+  invocation_count: 0
+  added_in: 4.9.0
+- id: SK-158
+  name: ui-review
+  path: .claude/skills/ui-review/
+  category: quality
+  spec:
+  spec_status: pending
+  priority: 2
+  trigger_status: pending
+  invocation_count: 0
+  added_in: 4.9.0
+  note: Claude-in-Chrome holistic UI/UX review + fenced remediation. Writes FAIL (blocking via mavs-gate) on a confirmed functional defect, BLOCKING checklist row (DSC id), or approved-journey deviation. Aesthetics stay advisory, and the report's absence never blocks (Playwright owns functional/RBAC/auth).
+- id: SK-165
+  name: assessment-package
+  path: .claude/skills/assessment-package/
+  category: document
+  spec:
+  spec_status: pending
+  priority: 2
+  trigger_spec: skill-lab/skills/document/assessment-package.trigger.yaml
+  trigger_last_score:
+  trigger_status: drafted
+  trigger_last_run:
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.19.0
+  note: Builds the client-ready consulting package (Platform Assessment Report, Prioritized Recommendation Report, Implementation Roadmap, Technical Assessment Workbook) from a locked findings register. Reconciles every total before writing. The deliverable half of code-quality-report.
+- id: SK-166
+  name: client-report-editing
+  path: .claude/skills/client-report-editing/
+  category: document
+  spec:
+  spec_status: pending
+  priority: 3
+  trigger_spec: skill-lab/skills/document/client-report-editing.trigger.yaml
+  trigger_last_score:
+  trigger_status: drafted
+  trigger_last_run:
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.19.0
+  note: Final editorial pass on a completed assessment narrative so it reads like a senior engineer wrote it, not generated text. Presentation only, never changes findings, severities, evidence, paths or line numbers.
+- id: SK-167
+  name: code-quality-report
+  path: .claude/skills/code-quality-report/
+  category: quality
+  spec:
+  spec_status: pending
+  priority: 2
+  trigger_spec: skill-lab/skills/quality/code-quality-report.trigger.yaml
+  trigger_last_score:
+  trigger_status: drafted
+  trigger_last_run:
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.19.0
+  note: SonarQube/SonarCloud-style static analysis fanned out to nine role-split specialist agents, reconciled and graded by evidence (Verified/Indicated/Not Verifiable). The analysis half of assessment-package.
+- id: SK-168
+  name: flow-prototypes
+  path: .claude/skills/flow-prototypes/
+  category: sdlc
+  spec:
+  spec_status: pending
+  priority: 1
+  trigger_spec: skill-lab/skills/sdlc/flow-prototypes.trigger.yaml
+  trigger_last_score:
+  trigger_status: drafted
+  trigger_last_run:
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.20.0
+  note: Pre-implementation flow validation gate (Gate FLOW). Triages features into Tier S/Tier F, generates 3 clickable HTML journey variants per Tier F flow across genuinely different interaction models, judges them with ux-advisor and principal-designer against the ux-brief Role/JTBD table, and records the operator's approved or waived pick before any flow-tagged task may start. Implements PLAN-flow-validation.md Part 2.
+- id: SK-169
+  name: deep-security-audit
+  path: .claude/skills/deep-security-audit/
+  category: quality
+  spec:
+  spec_status: pending
+  priority: 1
+  trigger_spec:
+  trigger_last_score:
+  trigger_status: drafted
+  trigger_last_run:
+  last_invoked:
+  invocation_count: 0
+  added_in: 4.29.0
+  note: Wrapper over the vendored cloudflare/security-audit-skill (vendor/cloudflare-security-audit, MIT, pinned c1c8a8c). Six-phase coverage-led audit with adversarial verification, source-only in ADF, sec-hunter (Sonnet) and sec-verifier (session model) agents, win32 validator overlay, reports gitignored, committed AI_DOCS/audit/security-summary.md feeds /audit check 13. Offered at merges, sensitive features, milestone close and first production release.
+agents:
+- name: ux-advisor
+  path: .claude/agents/ux-advisor.md
+  tier: quality
+  spec:
+  spec_status: pending
+  priority: 3
+- name: principal-designer
+  path: .claude/agents/principal-designer.md
+  tier: quality
+  spec:
+  spec_status: pending
+  priority: 2
+- name: solutions-architect
+  path: .claude/agents/solutions-architect.md
+  tier: leadership
+  spec: agents/leadership/solutions-architect.md
+  spec_status: written
+  priority: 2
+- name: product-director
+  path: .claude/agents/product-director.md
+  tier: leadership
+  spec: agents/leadership/product-director.md
+  spec_status: written
+  priority: 2
+- name: engineering-lead
+  path: .claude/agents/engineering-lead.md
+  tier: leadership
+  spec:
+  spec_status: pending
+  priority: 2
+- name: qa-lead
+  path: .claude/agents/qa-lead.md
+  tier: leadership
+  spec:
+  spec_status: pending
+  priority: 2
+- name: data-architect
+  path: .claude/agents/data-architect.md
+  tier: leadership
+  spec:
+  spec_status: pending
+  priority: 2
+- name: sre-reliability
+  path: .claude/agents/sre-reliability.md
+  tier: leadership
+  spec:
+  spec_status: pending
+  priority: 2
+- name: compliance-officer
+  path: .claude/agents/compliance-officer.md
+  tier: leadership
+  spec:
+  spec_status: pending
+  priority: 2
+- name: code-reviewer
+  path: .claude/agents/code-reviewer.md
+  tier: specialists
+  spec: agents/specialists/code-reviewer.md
+  spec_status: written
+  priority: 2
+- name: security-auditor
+  path: .claude/agents/security-auditor.md
+  tier: specialists
+  spec: agents/specialists/security-auditor.md
+  spec_status: written
+  priority: 2
+- name: api-validator
+  path: .claude/agents/api-validator.md
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+- name: test-writer
+  path: .claude/agents/test-writer.md
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+- name: component-inspector
+  path: .claude/agents/component-inspector.md
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+- name: react-specialist
+  path: .claude/agents/react-specialist.md
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+- name: nextjs-specialist
+  path: .claude/agents/nextjs-specialist.md
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+- name: angular-specialist
+  path: .claude/agents/angular-specialist.md
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+- name: vue-specialist
+  path: .claude/agents/vue-specialist.md
+  skill_id: AG-058
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.23.0
+- name: nodejs-specialist
+  path: .claude/agents/nodejs-specialist.md
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+- name: go-specialist
+  path: .claude/agents/go-specialist.md
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.9.0
+- name: nestjs-specialist
+  path: .claude/agents/nestjs-specialist.md
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+- name: fastapi-specialist
+  path: .claude/agents/fastapi-specialist.md
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+- name: flutter-specialist
+  path: .claude/agents/flutter-specialist.md
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+- name: react-native-specialist
+  path: .claude/agents/react-native-specialist.md
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+- name: business-strategist
+  path: .claude/agents/business-strategist.md
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+- name: skill-curator
+  path: .claude/agents/skill-curator.md
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 2
+  added_in: 4.0.0
+- name: cq-bugs-reliability
+  path: .claude/agents/cq-bugs-reliability.md
+  skill_id: AG-044
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.19.0
+  note: Spawned by code-quality-report. Runtime errors, null/undefined mishandling, race conditions, resource leaks, exception-handling defects. Read-only.
+- name: cq-complexity
+  path: .claude/agents/cq-complexity.md
+  skill_id: AG-045
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.19.0
+  note: Spawned by code-quality-report. Cyclomatic/cognitive complexity, nesting depth, oversized units, long parameter lists, coupling, god objects. Read-only.
+- name: cq-configuration
+  path: .claude/agents/cq-configuration.md
+  skill_id: AG-046
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.19.0
+  note: Spawned by code-quality-report. Build/type/lint/framework config, security headers, CI/CD, container and infra files, secrets handling. Read-only.
+- name: cq-dead-code
+  path: .claude/agents/cq-dead-code.md
+  skill_id: AG-047
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.19.0
+  note: Spawned by code-quality-report. Orphan files, unused exports, unreachable routes/branches, commented-out code, unused dependencies. Read-only.
+- name: cq-dependencies
+  path: .claude/agents/cq-dependencies.md
+  skill_id: AG-048
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.19.0
+  note: Spawned by code-quality-report. Manifest/lockfile review for outdated, unused, duplicated, risky, or wrongly-scoped dependencies. Read-only.
+- name: cq-duplication
+  path: .claude/agents/cq-duplication.md
+  skill_id: AG-049
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.19.0
+  note: Spawned by code-quality-report. Duplicated logic, forked components, drifted copies of a business rule, hand-copied SQL, repeated constants. Read-only.
+- name: cq-security-hotspots
+  path: .claude/agents/cq-security-hotspots.md
+  skill_id: AG-050
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.19.0
+  note: Spawned by code-quality-report. Security-sensitive code requiring human review, judged for actual exploitability. Distinct from vulnerability detection. Read-only.
+- name: cq-security-vulns
+  path: .claude/agents/cq-security-vulns.md
+  skill_id: AG-051
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.19.0
+  note: Spawned by code-quality-report. Injection, XSS, CSRF, SSRF, path traversal, unsafe deserialization, hardcoded secrets, weak crypto, broken authn/authz. Read-only.
+- name: cq-test-quality
+  path: .claude/agents/cq-test-quality.md
+  skill_id: AG-052
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.19.0
+  note: Spawned by code-quality-report. Reviews existing tests for weak assertions, meaningless tests, flaky risk, missing edge/error paths. Read-only.
+- name: ap-data-reconciler
+  path: .claude/agents/ap-data-reconciler.md
+  skill_id: AG-053
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.19.0
+  note: Spawned by assessment-package. Validates a findings register against every stated summary figure, recomputes totals, runs integrity checks, produces a discrepancy register. Read-only.
+- name: ap-recommendation-architect
+  path: .claude/agents/ap-recommendation-architect.md
+  skill_id: AG-054
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.19.0
+  note: Spawned by assessment-package. Converts findings into 20-40 actionable recommendations with priority, effort, dependencies, deferral risk. Read-only.
+- name: ap-risk-synthesist
+  path: .claude/agents/ap-risk-synthesist.md
+  skill_id: AG-055
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.19.0
+  note: Spawned by assessment-package. Collapses a findings register into 8-12 risk themes, each citing technical and business impact plus supporting finding IDs. Read-only.
+- name: ap-roadmap-planner
+  path: .claude/agents/ap-roadmap-planner.md
+  skill_id: AG-056
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.19.0
+  note: Spawned by assessment-package. Sequences recommendations into phases by dependency rather than severity, with exit criteria and a blockers section. Read-only.
+- name: report-editor
+  path: .claude/agents/report-editor.md
+  skill_id: AG-057
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.19.0
+  note: Senior technical editor for client-facing assessment deliverables. Rewrites completed report narrative in a senior-engineer voice. Never changes findings, severities, evidence, paths, or line numbers.
+- name: explorer
+  path: .claude/agents/explorer.md
+  skill_id: AG-036
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.11.0
+  note: catalog row backfilled 2026-08-20
+- name: Explore
+  path: .claude/agents/Explore.md
+  skill_id: AG-059
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.28.0
+  note: Project-level override of the built-in Explore agent, read-only fan-out search on Haiku.
+- name: sec-hunter
+  path: .claude/agents/sec-hunter.md
+  skill_id: AG-060
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 2
+  added_in: 4.29.0
+  note: deep-security-audit reconnaissance, hunter and coverage-critic worker. Read-only, source-only, Sonnet.
+- name: sec-verifier
+  path: .claude/agents/sec-verifier.md
+  skill_id: AG-061
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 2
+  added_in: 4.29.0
+  note: deep-security-audit adversarial verifier (Phase 3 candidates, Phase 5 records). Read-only, session model.
+- name: frontend-lead
+  path: .claude/agents/frontend-lead.md
+  skill_id: AG-037
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 2
+  added_in: 4.11.0
+  note: catalog row backfilled 2026-08-20
+- name: backend-lead
+  path: .claude/agents/backend-lead.md
+  skill_id: AG-038
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 2
+  added_in: 4.11.0
+  note: catalog row backfilled 2026-08-20
+- name: quality-lead
+  path: .claude/agents/quality-lead.md
+  skill_id: AG-039
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 2
+  added_in: 4.11.0
+  note: catalog row backfilled 2026-08-20
+- name: design-lead
+  path: .claude/agents/design-lead.md
+  skill_id: AG-040
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 2
+  added_in: 4.11.0
+  note: catalog row backfilled 2026-08-20
+- name: research-lead
+  path: .claude/agents/research-lead.md
+  skill_id: AG-041
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.11.0
+  note: catalog row backfilled 2026-08-20
+- name: learning-curator
+  path: .claude/agents/learning-curator.md
+  skill_id: AG-042
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 3
+  added_in: 4.11.0
+  note: catalog row backfilled 2026-08-20
+- name: builder
+  path: .claude/agents/builder.md
+  skill_id: AG-043
+  tier: specialists
+  spec:
+  spec_status: pending
+  priority: 2
+  added_in: 4.11.0
+  note: catalog row backfilled 2026-08-20

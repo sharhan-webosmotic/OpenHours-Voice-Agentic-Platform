@@ -1,0 +1,148 @@
+skill_name: skill-improve
+skill_id: SK-094
+category: framework
+version: 1.0.0
+
+target_description: |
+  REPAIR LOOP for an EXISTING failing skill or agent file: full test-diagnose-fix-retest cycle. Runs /skill-test static + category + trigger checks, diagnoses failures, proposes targeted fixes (including frontmatter description rewrites for trigger misses), applies them, retests, and reports verdict. Use when a skill is broken, failing static/behavioral/auto-trigger tests, or needs iterative repair. Max 2 failed fix attempts before escalating. Do NOT use for scaffolding a brand-new skill, use skill-authoring instead. Do NOT use for read-only validation without fixing, use skill-test instead.
+# HIGH collision risk: skill-test (validate only), skill-authoring (create new), skill-router (route).
+# Distinction: skill-improve applies FIXES in a loop; skill-test is read-only verdict; skill-authoring creates from scratch.
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "My caching-strategy skill is failing trigger tests — run the test-diagnose-fix-retest loop."
+    expected_trigger: true
+    rationale: "Failing + test-diagnose-fix-retest loop = skill-improve's exact signature."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Fix the seo skill — it's failing static checks."
+    expected_trigger: true
+    rationale: "Fix a failing skill = skill-improve's repair role."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Diagnose and repair the debugger skill's trigger misses by rewriting its description."
+    expected_trigger: true
+    rationale: "Diagnose + repair + description rewrite for trigger misses = exact skill-improve behaviors."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Run the full skill improvement cycle on error-handling: test, diagnose, fix, retest."
+    expected_trigger: true
+    rationale: "'Full skill improvement cycle: test/diagnose/fix/retest' is literal trigger."
+
+  - id: P05
+    bucket: positive_direct
+    text: "The team-security skill broke after my edits — iterate fix attempts until it passes or escalate."
+    expected_trigger: true
+    rationale: "Iterate fix attempts + escalate after max attempts = skill-improve's loop."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Propose and apply targeted fixes for the project-audit skill's category rubric failures."
+    expected_trigger: true
+    rationale: "'Propose and apply targeted fixes' for category rubric failures = skill-improve."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "The gate-enforcement skill is broken — get it passing again."
+    expected_trigger: true
+    rationale: "Broken skill + get it passing again = skill-improve repair loop."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Why is my prd-generation skill scoring 14/20 on triggers? Fix whatever's wrong."
+    expected_trigger: true
+    rationale: "Investigate + fix trigger-score failure = skill-improve."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Loop on this skill until it passes all checks or hits the escalation limit."
+    expected_trigger: true
+    rationale: "Loop until passes / escalate = skill-improve's max-2-attempts loop."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Rewrite the failing skill's frontmatter description to fix its routing misses, then re-run tests."
+    expected_trigger: true
+    rationale: "Rewrite description for trigger misses + retest = skill-improve fix pattern."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "I got a red verdict from /skill-test on memory-protocol. Take it and make it green."
+    expected_trigger: true
+    rationale: "Red verdict → make green = skill-improve's job (skill-test only reports)."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "The changelog in skill-test output shows 3 failing prompts for workscope — kick off the repair workflow."
+    expected_trigger: true
+    rationale: "Failing prompts → repair workflow = skill-improve."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Audit found the deployment-execution skill mis-routing 5 prompts to session-management. Fix it end-to-end."
+    expected_trigger: true
+    rationale: "Mis-routing diagnosis + end-to-end fix = skill-improve."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "My new skill passes static but fails the spec mode — take it through diagnose/fix/retest till it passes."
+    expected_trigger: true
+    rationale: "Diagnose/fix/retest cycle on an existing failing skill = skill-improve."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Now fix-loop it."
+    expected_trigger: true
+    rationale: "'Fix-loop it' is skill-improve's distinctive verb phrase."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "OK, run the repair loop on that skill."
+    expected_trigger: true
+    rationale: "Repair loop = skill-improve."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Just run the 7 static checks and show me the verdict — don't change anything."
+    expected_trigger: false
+    expected_sibling: skill-test
+    rationale: "Read-only verdict without fixing = skill-test, not skill-improve's fix loop."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Scaffold a brand-new skill called data-migration with the standard template."
+    expected_trigger: false
+    expected_sibling: skill-authoring
+    rationale: "Scaffold brand-new = skill-authoring, not repair."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Produce the audit dashboard showing how many skills have trigger_status: passing."
+    expected_trigger: false
+    expected_sibling: skill-test
+    rationale: "Audit coverage dashboard = skill-test's 'audit' mode, not skill-improve."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Create a product requirements document for checkout flow."
+    expected_trigger: false
+    rationale: "PRD authoring = prd-generation, unrelated to skill repair."

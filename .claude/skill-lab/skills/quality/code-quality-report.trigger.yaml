@@ -1,0 +1,150 @@
+skill_name: code-quality-report
+skill_id: SK-167
+category: quality
+version: 1.0.0
+
+target_description: |
+  Run a full SonarQube/SonarCloud-style static code analysis of a repository and produce a client-ready Markdown report (bugs, vulnerabilities, security hotspots, code smells, duplication, testing, complexity, dependencies, configuration, quality gate). Fans out to nine role-split specialist agents, reconciles their contradictions, and grades every finding by evidence. Use ONLY when a code quality run, code audit, static analysis, or SonarQube-style review is explicitly requested. Also triggers on: 'sonarqube analysis', 'sonarcloud report', 'static analysis', 'code quality run', 'code audit', 'quality gate', 'analyse the whole codebase for issues'.
+# Likely sibling collisions:
+#   - audit:          pre-ship secrets/CVE/a11y/OWASP verification gate, not a full SonarQube-style code report
+#   - code-quality:    the 17-point pre-coding/pre-merge SonarQube SIMULATION checklist, not the many-agent full analysis
+#   - project-audit:   checks project status against the plan and gates, not a repository-wide static code analysis
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Run a SonarQube analysis on this repo."
+    expected_trigger: true
+    rationale: "'sonarqube analysis' is a named trigger phrase."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Give me a SonarCloud-style report for the whole codebase."
+    expected_trigger: true
+    rationale: "'sonarcloud report' is a named trigger phrase."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Do a static analysis and grade every finding by evidence."
+    expected_trigger: true
+    rationale: "'static analysis' plus the skill's evidence-grading behavior, stated directly."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Kick off a code quality run across the repository."
+    expected_trigger: true
+    rationale: "'code quality run' is a named trigger phrase."
+
+  - id: P05
+    bucket: positive_direct
+    text: "We need a full code audit: bugs, vulnerabilities, security hotspots, duplication, complexity."
+    expected_trigger: true
+    rationale: "'code audit' plus the exact category list from the description."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Analyse the whole codebase for issues and produce a quality gate report."
+    expected_trigger: true
+    rationale: "'analyse the whole codebase for issues' and 'quality gate' are named trigger phrases."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Fan out a nine-agent review of this repo covering bugs, security, complexity, and dependencies, then reconcile it into one report."
+    expected_trigger: true
+    rationale: "Describes the nine role-split specialist agents and reconciliation mechanism directly."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "I want a SonarQube-equivalent breakdown of this repo's code smells and vulnerabilities."
+    expected_trigger: true
+    rationale: "Same intent as a SonarQube/SonarCloud report, worded as 'equivalent'."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Scan the entire repository for defects across every quality dimension and produce a client-ready Markdown report."
+    expected_trigger: true
+    rationale: "Repository-wide, all-dimension scan producing a client-ready Markdown report matches the output format."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Give me an evidence-graded static analysis, not just a mechanical linter dump."
+    expected_trigger: true
+    rationale: "Emphasizes the evidence-grading (Verified/Indicated/Not Verifiable) that distinguishes this skill."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Before we start the engagement, we need a baseline quality picture of the client's existing codebase."
+    expected_trigger: true
+    rationale: "A pre-engagement baseline quality analysis implies the full SonarQube-style run."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "The client asked for a SonarCloud-style deliverable on their platform before we quote the rebuild."
+    expected_trigger: true
+    rationale: "Client-requested SonarCloud-style deliverable, the explicit trigger condition."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "We're doing a technical due diligence pass on this repo. Cover bugs, security, duplication, complexity, and dependencies."
+    expected_trigger: true
+    rationale: "Due diligence across the full category list this skill covers."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Run the full nine-specialist quality sweep on this codebase and grade each finding Verified or Indicated."
+    expected_trigger: true
+    rationale: "Names the nine-specialist fan-out and the exact evidence grades."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Repo access is confirmed, kick off the quality run."
+    expected_trigger: true
+    rationale: "Short prompt relying on prior context that a code quality run was being set up."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "We're ready for the static analysis pass now."
+    expected_trigger: true
+    rationale: "Assumes prior context and names the static analysis pass directly."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Run the pre-ship security and secrets check before we deploy."
+    expected_trigger: false
+    expected_sibling: audit
+    rationale: "A pre-ship secrets/CVE/a11y/OWASP verification gate, not the full multi-agent SonarQube-style report."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Run the 17-point pre-coding quality checklist before this task starts."
+    expected_trigger: false
+    expected_sibling: code-quality
+    rationale: "The lightweight 17-point pre-coding SonarQube simulation, not the many-agent full analysis."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Do a project audit to check where we are against the plan and gates."
+    expected_trigger: false
+    expected_sibling: project-audit
+    rationale: "Checks project status against the plan and gate verdicts, not a static code analysis."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Set up multi-language support with RTL layout for the settings page."
+    expected_trigger: false
+    rationale: "Internationalization work is unrelated to running a static code quality analysis."

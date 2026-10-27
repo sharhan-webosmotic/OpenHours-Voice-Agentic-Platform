@@ -1,0 +1,151 @@
+skill_name: debugger
+skill_id: SK-041
+category: reliability
+version: 1.0.0
+
+target_description: |
+  Trace issues across code, design, mock data, build, and runtime layers. Use when debugging, investigating errors, or figuring out why something is broken or not working. Also triggers on: 'Fix'.
+# Likely sibling collisions:
+#   - error-handling:        IMPLEMENT error boundaries/logging: debugger only DIAGNOSES
+#   - deployment-execution:  mid-deploy diagnosis: narrow scope
+#   - project-audit:         broad repo scan: not a targeted trace
+#   - build:    hands-on coding inc. bug fixes
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Debug why the login page is throwing a 500 error."
+    expected_trigger: true
+    rationale: "Direct 'debug why' trigger."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Investigate why the build is failing after our latest merge."
+    expected_trigger: true
+    rationale: "Matches 'investigating errors' + build layer from description."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Figure out why the user avatar isn't rendering on mobile."
+    expected_trigger: true
+    rationale: "Matches 'figuring out why something is broken or not working' verbatim."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Trace the issue — the API returns data but the frontend shows empty."
+    expected_trigger: true
+    rationale: "'Trace the issue' across frontend + API = debugger's cross-layer scope."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Something's broken in the checkout flow — dig into it."
+    expected_trigger: true
+    rationale: "'Something's broken, dig in' = debugger."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Investigate this runtime error across code, build, and mock data."
+    expected_trigger: true
+    rationale: "Cross-layer runtime investigation = debugger's exact scope."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Our staging environment is misbehaving — find the root cause."
+    expected_trigger: true
+    rationale: "Root-cause investigation on misbehavior = debugger."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "The CI pipeline intermittently fails — help me figure out what's going on."
+    expected_trigger: true
+    rationale: "Intermittent CI failure investigation = debugger."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Something is silently swallowing our API errors in production — track it down."
+    expected_trigger: true
+    rationale: "Track down silently-swallowed errors = debugger investigation."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Why is the search returning stale results after we clear the cache?"
+    expected_trigger: true
+    rationale: "'Why is X happening' = debugger."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Users report the profile page is blank — diagnose whether it's the API, state, or render."
+    expected_trigger: true
+    rationale: "Multi-layer diagnosis (API / state / render) = debugger."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "The tests pass locally but fail in CI — trace why."
+    expected_trigger: true
+    rationale: "Local-vs-CI divergence tracing = debugger."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "We deployed and now a random 10% of requests return 502 — investigate what changed."
+    expected_trigger: true
+    rationale: "Post-deploy partial failure investigation = debugger (not deployment-execution, which is live-deploy)."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Form submit silently fails — find out whether it's validation, network, or state."
+    expected_trigger: true
+    rationale: "Multi-layer silent-failure investigation = debugger."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Figure out what's broken."
+    expected_trigger: true
+    rationale: "Matches 'figuring out why something is broken' trigger."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Trace this issue."
+    expected_trigger: true
+    rationale: "Direct signature phrase."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Set up React error boundaries and global error handling with structured logging."
+    expected_trigger: false
+    expected_sibling: error-handling
+    rationale: "Setting up error boundaries + structured logging = IMPLEMENTING error handling, not debugging."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "We're mid-deploy and step 4 failed — continue or rollback?"
+    expected_trigger: false
+    expected_sibling: deployment-execution
+    rationale: "Mid-deploy step-level go/no-go = deployment-execution, not debugger."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Scan the entire codebase for ghost features and API contract violations."
+    expected_trigger: false
+    expected_sibling: project-audit
+    rationale: "Broad repo scan for ghost features = project-audit."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Create a PRD for the referral program."
+    expected_trigger: false
+    rationale: "PRD = prd-generation, unrelated."

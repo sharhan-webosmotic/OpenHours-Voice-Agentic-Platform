@@ -1,0 +1,151 @@
+skill_name: brainstorm
+skill_id: SK-096
+category: utility
+version: 1.0.0
+
+target_description: |
+  Pre-requirements ideation skill. Explore an idea from multiple angles before committing to workscope. Covers business model, customer segmentation, revenue models, hosting cost-at-scale, MVP prioritization, and competitive positioning. Use before workscope when answering 'should we build this and how?
+# Likely sibling collisions:
+#   - workscope:         client-facing scope: comes AFTER brainstorm, decision already made
+#   - prd-generation:    stakeholder PRD: AFTER an idea is validated
+#   - tech-specification: engineering spec: far downstream
+#   - change-request:    mid-flight feature additions: during development, not pre-req
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Help me brainstorm whether we should build this product."
+    expected_trigger: true
+    rationale: "Direct 'brainstorm' verb plus the 'should we build this?' framing from the description."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Let's explore this idea from multiple angles before we commit to scope."
+    expected_trigger: true
+    rationale: "'Explore an idea from multiple angles before committing to workscope' is verbatim in the description."
+
+  - id: P03
+    bucket: positive_direct
+    text: "I want to think through the business model and revenue options for this app."
+    expected_trigger: true
+    rationale: "Business model and revenue models are named capabilities in the description."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Can we do a customer segmentation and competitive positioning exercise on this concept?"
+    expected_trigger: true
+    rationale: "Customer segmentation and competitive positioning are listed capabilities."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Run a pre-requirements ideation session on the new product idea."
+    expected_trigger: true
+    rationale: "'Pre-requirements ideation' is the description's opening phrase."
+
+  - id: P06
+    bucket: positive_direct
+    text: "What should the MVP priorities look like, and how does hosting cost scale?"
+    expected_trigger: true
+    rationale: "MVP prioritization and hosting cost-at-scale are both named in the description."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Before we decide to build this, I want to pressure-test the idea."
+    expected_trigger: true
+    rationale: "'Pressure-test the idea before deciding to build' = 'should we build this?' in plain language."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Who are the target customers and how would we actually make money on this?"
+    expected_trigger: true
+    rationale: "Customer segmentation + revenue models expressed informally."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "I have a rough product idea — can we poke at it from a few angles first?"
+    expected_trigger: true
+    rationale: "Classic multi-angle idea exploration: brainstorm's stated purpose."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Let's stress-test the monetization and scaling assumptions for this concept."
+    expected_trigger: true
+    rationale: "Monetization = revenue models; scaling assumptions = cost-at-scale. Both are described capabilities."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "My founder and I have been arguing about whether to pivot to a subscription model — can you help us think it through?"
+    expected_trigger: true
+    rationale: "Subscription model debate is a revenue-model ideation: core to brainstorm."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "We have a feature idea but we're not sure if it's worth building. Thoughts?"
+    expected_trigger: true
+    rationale: "'Not sure if it's worth building' is the brainstorm-signature uncertainty."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Compare our concept against the three main competitors and tell me where we'd sit."
+    expected_trigger: true
+    rationale: "Competitive positioning is an explicitly named capability."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "I want to explore whether this fintech idea makes sense before I write anything down."
+    expected_trigger: true
+    rationale: "Exploring an idea before documenting is the pre-requirements / pre-workscope phase."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Let's do an ideation pass on this."
+    expected_trigger: true
+    rationale: "'Ideation pass' maps to 'pre-requirements ideation skill' in the description."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Before we lock the scope, brainstorm this with me."
+    expected_trigger: true
+    rationale: "Literal 'brainstorm' verb + 'before we lock the scope' = pre-workscope position."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "The idea is validated — draft the client-facing scope document with 32 discovery questions."
+    expected_trigger: false
+    expected_sibling: workscope
+    rationale: "'Validated idea' + 'client-facing scope' + 32 discovery questions = workscope's exact job."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Create a PRD with user personas and competitive analysis for the stakeholders."
+    expected_trigger: false
+    expected_sibling: prd-generation
+    rationale: "PRD authoring for stakeholders is prd-generation's specific deliverable."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "The client wants to add a loyalty rewards module mid-sprint — handle the change."
+    expected_trigger: false
+    expected_sibling: change-request
+    rationale: "Mid-flight feature addition during development is change-request's domain, not pre-req ideation."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Deploy the current build to the staging environment."
+    expected_trigger: false
+    rationale: "Deployment task: clearly an infrastructure/ops concern, unrelated to ideation."

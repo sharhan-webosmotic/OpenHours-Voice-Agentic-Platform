@@ -1,0 +1,150 @@
+skill_name: image-assets
+skill_id: SK-051
+category: document
+version: 1.0.0
+
+target_description: |
+  Optimize images for web: compression, WebP/AVIF conversion, lazy loading, responsive srcset. Use when optimizing images, compressing assets, or adding lazy loading. Also triggers on: 'Hero', 'Banner', 'Icon', 'Logo'.
+# Likely sibling collisions:
+#   - image-generation: creates NEW images (not optimize existing): hard carve-out
+#   - seo:              share-preview image tangential
+#   - caching-strategy: CDN overlap for asset delivery
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Optimize the hero images on the landing page."
+    expected_trigger: true
+    rationale: "'Optimize images' is the primary trigger phrase."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Convert these PNGs to WebP and AVIF."
+    expected_trigger: true
+    rationale: "WebP/AVIF conversion is a named capability."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Compress the image assets in /public to reduce page weight."
+    expected_trigger: true
+    rationale: "'Compressing assets' is in the description verbatim."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Add lazy loading to all below-the-fold images."
+    expected_trigger: true
+    rationale: "Lazy loading is a named capability verbatim."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Generate responsive srcset variants for the product photos."
+    expected_trigger: true
+    rationale: "Responsive srcset is a named capability verbatim."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Run the full image optimization pass: compression, WebP, srcset, lazy-load."
+    expected_trigger: true
+    rationale: "Whole-bundle match against every named capability."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Our LCP score is tanked by heavy JPEGs — shrink them and serve modern formats."
+    expected_trigger: true
+    rationale: "Shrink + modern formats = compression + WebP/AVIF conversion."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Make images load only when they scroll into view."
+    expected_trigger: true
+    rationale: "Load-on-scroll = lazy loading."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Serve different image sizes depending on device width."
+    expected_trigger: true
+    rationale: "Device-width variants = responsive srcset."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Reduce the file size of every asset in /assets/img without quality loss."
+    expected_trigger: true
+    rationale: "File-size reduction = compression of existing images."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Lighthouse flagged the images as the biggest performance hit on the product page — can you address it?"
+    expected_trigger: true
+    rationale: "Lighthouse image perf hit = image optimization work."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "Our marketing site CDN bill is huge and it's mostly image bytes."
+    expected_trigger: true
+    rationale: "Reducing image bytes = compression + modern-format conversion."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Before launch, make sure hero banners don't block first paint."
+    expected_trigger: true
+    rationale: "Hero banner paint-blocking is solved via optimization + lazy strategies."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Product cards are 2MB each on mobile — fix that."
+    expected_trigger: true
+    rationale: "2MB product-card images = compression + responsive variants."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Now optimize the images."
+    expected_trigger: true
+    rationale: "Direct 'optimize images' trigger."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Add lazy loading everywhere."
+    expected_trigger: true
+    rationale: "Direct lazy-loading trigger."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Generate a new logo and favicon for the project using Claude's native image generation."
+    expected_trigger: false
+    expected_sibling: image-generation
+    rationale: "Generating new logos/favicons = image-generation, not optimizing existing assets."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Create a hero illustration for the marketing homepage."
+    expected_trigger: false
+    expected_sibling: image-generation
+    rationale: "Creating a new illustration = image-generation (new asset, not optimization)."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Add Open Graph preview tags so shared links show nice cards on Slack."
+    expected_trigger: false
+    expected_sibling: seo
+    rationale: "OG meta tags = seo; no image processing involved."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Refactor the auth middleware to use JWT refresh tokens."
+    expected_trigger: false
+    rationale: "Auth/JWT refactor = build/security, unrelated to images."

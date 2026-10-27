@@ -1,0 +1,145 @@
+skill_name: python-ai-services
+skill_id: SK-083
+category: platform
+version: 1.0.0
+
+target_description: |
+  Implement AI service patterns for LLM providers, RAG pipelines, embeddings, vector stores, and agent orchestration. Enforces the BaseLLMProvider/BaseVectorStore/BaseEmbeddingProvider ABC patterns, async provider contracts, and the src/integrations + src/services layered design. Use when adding a new LLM provider, building RAG pipelines, implementing embedding services, extending agent orchestration, or integrating vector databases. Also triggers on: 'Anthropic integration', 'OpenAI integration', 'Gemini integration', 'Milvus', 'Add AI feature', 'Implement RAG', 'Voice pipeline', 'STT', 'TTS', 'MCP server', 'Tool registry'.
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Add a new LLM provider for Mistral using the BaseLLMProvider ABC."
+    expected_trigger: true
+    rationale: "Matches 'adding a new LLM provider' and BaseLLMProvider ABC pattern verbatim."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Build a RAG pipeline over our documentation corpus."
+    expected_trigger: true
+    rationale: "Matches 'building RAG pipelines' directly."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Implement an embedding service using the BaseEmbeddingProvider contract."
+    expected_trigger: true
+    rationale: "Matches 'implementing embedding services' and the BaseEmbeddingProvider ABC."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Integrate Milvus as a new vector store backend."
+    expected_trigger: true
+    rationale: "Vector database integration is an explicit capability."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Extend our agent orchestration layer with a new tool-calling flow."
+    expected_trigger: true
+    rationale: "Matches 'extending agent orchestration' verbatim."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Wire up the BaseVectorStore ABC for Qdrant."
+    expected_trigger: true
+    rationale: "BaseVectorStore ABC is one of the three ABCs this skill enforces."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Swap our embeddings backend from OpenAI to a self-hosted model."
+    expected_trigger: true
+    rationale: "Embedding service implementation is this skill's scope."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Add retrieval-augmented generation over the support ticket archive."
+    expected_trigger: true
+    rationale: "Retrieval-augmented generation is RAG: paraphrased."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Hook up Gemini so it uses the same async provider contract."
+    expected_trigger: true
+    rationale: "New model provider under the async provider contract = python-ai-services."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "We need a multi-step agent that can call tools and track state."
+    expected_trigger: true
+    rationale: "Multi-step agent with tool-calling = agent orchestration."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Sales wants an AI assistant that searches our PDFs — please implement the indexing and retrieval."
+    expected_trigger: true
+    rationale: "Indexing + retrieval over documents = RAG pipeline implementation."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "We're adding Voyage embeddings alongside OpenAI — follow the same ABC."
+    expected_trigger: true
+    rationale: "New embedding provider under BaseEmbeddingProvider ABC."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Add a Milvus-backed retriever so the chat agent can pull context chunks."
+    expected_trigger: true
+    rationale: "Vector store + agent retrieval layer = python-ai-services."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Build the orchestration loop so Claude can call our internal tools in sequence."
+    expected_trigger: true
+    rationale: "Agent orchestration with tool-calling is explicit in the description."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Now add the provider integration under src/integrations."
+    expected_trigger: true
+    rationale: "src/integrations is the layered location called out in the description."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Let's plug that into the RAG pipeline next."
+    expected_trigger: true
+    rationale: "RAG pipeline extension = this skill."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Add a new FastAPI CRUD endpoint for the workspaces resource."
+    expected_trigger: false
+    expected_sibling: build
+    rationale: "Plain CRUD FastAPI endpoint belongs to python-backend, no AI-service patterns."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Mock the LLM provider in pytest and test retry behavior on 429s."
+    expected_trigger: false
+    expected_sibling: python-testing
+    rationale: "Mocking a provider in pytest is python-testing, not implementing the provider."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Write the Dockerfile and uvicorn config so the AI server can scale."
+    expected_trigger: false
+    expected_sibling: python-deployment
+    rationale: "Dockerfile + uvicorn config for the AI server is python-deployment."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Design the onboarding screens in Figma for the mobile app."
+    expected_trigger: false
+    rationale: "Mobile screen design is unrelated to Python AI services."

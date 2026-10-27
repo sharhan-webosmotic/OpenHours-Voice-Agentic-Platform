@@ -1,0 +1,145 @@
+skill_name: retrospective
+skill_id: SK-013
+category: core
+version: 1.0.0
+
+target_description: |
+  Run a post-milestone retrospective to capture what went well, what went wrong, and what to change. Produces a structured retro doc in AI_DOCS/retrospectives/ that feeds into future brainstorm sessions as prior-art warnings. Use at milestone close, after a production incident, or when lessons learned would prevent a future mistake. Also triggers on: 'Postmortem', 'Post-mortem', 'After action review', 'Milestone review'.
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Run a retrospective for the milestone we just closed."
+    expected_trigger: true
+    rationale: "Direct 'run a retrospective' phrase; post-milestone retro is the description's exact use case."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Do a post-mortem on yesterday's production incident."
+    expected_trigger: true
+    rationale: "Post-mortem after production incident is explicitly listed as a trigger."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Capture what went well and what went wrong in M2."
+    expected_trigger: true
+    rationale: "Matches description verbatim: 'what went well, what went wrong'."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Write up the lessons learned from this sprint."
+    expected_trigger: true
+    rationale: "Lessons learned is a named trigger for this skill."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Produce a retro doc for milestone 3."
+    expected_trigger: true
+    rationale: "Retro doc output in AI_DOCS/retrospectives/ is this skill's produced artifact."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Let's do an after action review on the release."
+    expected_trigger: true
+    rationale: "After action review is listed as a trigger synonym."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Capture the things we'd do differently next time."
+    expected_trigger: true
+    rationale: "'What to change' paraphrased as 'do differently next time'."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Document the good and bad of the last iteration so the next team avoids our mistakes."
+    expected_trigger: true
+    rationale: "Good/bad + avoid-future-mistakes = retrospective + prior-art-warning role."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Reflect on the sprint and note what we want to carry forward."
+    expected_trigger: true
+    rationale: "Sprint reflection + carry-forward insights = retrospective output."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Summarize wins, misses, and action items from the milestone close."
+    expected_trigger: true
+    rationale: "Wins/misses/actions is the canonical retrospective structure."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "We just shipped M2 — before moving on, write up what we learned."
+    expected_trigger: true
+    rationale: "Shipped milestone + write up learnings = classic milestone-close retro trigger."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "Yesterday's outage cost us 40 minutes of downtime; document the takeaways."
+    expected_trigger: true
+    rationale: "Post-incident documentation of takeaways is the after-incident retro use case."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Before we start brainstorming the next phase, record what tripped us up last time."
+    expected_trigger: true
+    rationale: "Pre-brainstorm recording of prior issues = retrospective feeding into brainstorm."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "The team keeps repeating the same estimation error — let's formally note it so future teams don't."
+    expected_trigger: true
+    rationale: "Formally noting recurring errors for future prevention = retro's prior-art warning purpose."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Milestone is done. Time for the retro."
+    expected_trigger: true
+    rationale: "Explicit 'time for the retro' after milestone close matches skill purpose."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Now do the post-mortem."
+    expected_trigger: true
+    rationale: "Short 'do the post-mortem' prompt resolves to retrospective."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Scan the codebase for ghost features, API contract violations, and dead code."
+    expected_trigger: false
+    expected_sibling: project-audit
+    rationale: "Codebase-wide audit for ghost features / contract violations is project-audit, not retrospective."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Audit the whole project for architectural drift and tech debt."
+    expected_trigger: false
+    expected_sibling: project-audit
+    rationale: "Broad architectural/tech-debt audit is project-audit scope, not post-milestone retro."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Produce a full project health report covering code, tests, and docs coverage."
+    expected_trigger: false
+    expected_sibling: project-audit
+    rationale: "Full project health scan is project-audit's wider deliverable, distinct from a milestone retro."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Generate mock user data for the staging environment."
+    expected_trigger: false
+    rationale: "Mock data generation is unrelated to retrospectives."

@@ -1,0 +1,145 @@
+skill_name: pptx
+skill_id: SK-107
+category: document
+version: 1.0.0
+
+target_description: |
+  Use this skill any time a .pptx file is involved: creating slide decks, pitch decks, presentations, reading/parsing/extracting text from .pptx files, editing or updating existing presentations, combining or splitting slide files, working with templates, layouts, speaker notes, or comments. Also triggers on: 'Create presentation', 'Create slides', 'Create deck', 'Edit pptx', 'PowerPoint'.
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Create a pitch deck as a .pptx file with 10 slides."
+    expected_trigger: true
+    rationale: "Pitch deck + .pptx both appear verbatim in the description."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Build a slide deck for tomorrow's investor meeting."
+    expected_trigger: true
+    rationale: "Slide deck is the direct named capability."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Edit this existing PowerPoint presentation to update slide 4."
+    expected_trigger: true
+    rationale: "Editing existing presentations is in the description."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Extract the text from this .pptx for translation."
+    expected_trigger: true
+    rationale: "Reading/parsing/extracting text from .pptx is named."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Add speaker notes to every slide in this deck."
+    expected_trigger: true
+    rationale: "Speaker notes is an explicit named capability."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Combine these two .pptx files into a single presentation."
+    expected_trigger: true
+    rationale: "Combining slide files is directly in the description."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Put together a PowerPoint for the Monday kickoff."
+    expected_trigger: true
+    rationale: "PowerPoint file = .pptx, same domain."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Split this 40-slide deck into three shorter files by section."
+    expected_trigger: true
+    rationale: "Splitting slide files is explicitly named."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Apply the company master template to this existing slide deck."
+    expected_trigger: true
+    rationale: "Templates/layouts is named capability."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Leave comments on slides 2, 5, and 8 for the designer to address."
+    expected_trigger: true
+    rationale: "Comments on slides is explicitly in-scope."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "We need a 12-slide sales presentation in PowerPoint format for the Thursday pitch."
+    expected_trigger: true
+    rationale: "Sales presentation in PowerPoint = pptx creation."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "Swap the title slide logo across every .pptx in the campaign folder."
+    expected_trigger: true
+    rationale: "Batch-editing .pptx files = updating existing presentations."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Turn this outline into a visually polished deck with layouts and speaker notes."
+    expected_trigger: true
+    rationale: "Slide deck with layouts + speaker notes = pptx."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Parse slide titles and bullet text from all .pptx files in /decks/ for inventory."
+    expected_trigger: true
+    rationale: "Parsing text from .pptx files is named."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Now add the speaker notes under each slide."
+    expected_trigger: true
+    rationale: "Speaker notes scoped to slides = pptx."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Merge these two decks into the final presentation."
+    expected_trigger: true
+    rationale: "Merging decks = combining .pptx files."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Create a Word document with a table of contents and executive summary."
+    expected_trigger: false
+    expected_sibling: docx
+    rationale: "Word document belongs to docx, not pptx."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Build a spreadsheet that calculates the sales forecast per region."
+    expected_trigger: false
+    expected_sibling: xlsx
+    rationale: "Spreadsheet with calculations is xlsx, not pptx."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "OCR these scanned PDFs and extract the text into a file."
+    expected_trigger: false
+    expected_sibling: pdf
+    rationale: "OCR on scanned PDFs belongs to the pdf skill."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Write unit tests for the authentication middleware."
+    expected_trigger: false
+    rationale: "Unit tests for auth middleware is unrelated to presentations."

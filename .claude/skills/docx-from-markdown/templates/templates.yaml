@@ -1,0 +1,88 @@
+# Template registry for /docx-from-markdown
+#
+# When the user asks for a DOCX (workscope, proposal, inquiry response,
+# timeline, brief), the skill reads this file and ASKS which output format
+# to use. Both formats render markdown INTO a prebuilt WebOsmotic template
+# derived from the official master (templates/webosmotic-master.docx), so
+# every output carries the same chrome and content styling. The only
+# difference between the two formats is the branded cover page.
+#
+# Templates are GENERATED, not hand-edited. To refresh them after the
+# master changes, replace webosmotic-master.docx and run:
+#   python scripts/build_wo_templates.py
+
+default_prompt: >
+  Which output format should I use for this document?
+  (1) WebOsmotic template  (branded cover page: logo, title block, dark band
+      with Presented to / Presented By and date, then auto-updating Table of
+      Contents, then content) — use for any client-facing document: workscope,
+      proposal, inquiry response, timeline.
+  (2) Clean formatted document  (no cover page: the document opens on the
+      Table of Contents. Identical WebOsmotic styling and chrome: watermark,
+      header banner, copyright footer, brand headings, tables, bullets) —
+      use for internal docs and quick drafts.
+
+master: webosmotic-master.docx   # pristine copy of "Sample document formate.docx"
+
+templates:
+  - id: webosmotic
+    name: WebOsmotic Template (branded cover page)
+    file: wo-cover-template.docx
+    mode: cover                   # md_to_docx.py --mode cover
+    use_for: [workscope, budget proposal, commercial proposal, inquiry response,
+              timeline, scope document, any client deliverable]
+    cover_fields:                 # frontmatter keys the cover consumes
+      title: required             # replaces "[Workscope & Budget Proposal]" (41pt bold 434343)
+      subtitle: optional          # replaces "Subtext [optional]" (16pt italic 555555)
+      presented_to: optional      # after "Presented to" (also accepts `recipient`)
+      presented_by: "WebOsmotic Private Limited"   # default if omitted
+      date: auto                  # replaces "[Today]"; auto "4th June 2026" style
+      validity_days: 30           # "This proposal is valid for N days..."
+    cli: >
+      python scripts/md_to_docx.py <src.md> <out.docx> --mode cover
+
+  - id: clean
+    name: Clean Formatted Document (starts at Table of Contents)
+    file: wo-plain-template.docx
+    mode: plain                   # md_to_docx.py --mode plain (default)
+    use_for: [internal doc, quick draft, technical note, working paper]
+    cover_fields: {}              # no cover page; frontmatter title is unused
+    cli: >
+      python scripts/md_to_docx.py <src.md> <out.docx> --mode plain
+
+# Shared chrome and style facts (both templates, from the master):
+shared:
+  chrome:
+    watermark: faint WebOsmotic LOGO centered on every page after page 1
+    header: top banner shapes + logo + "16+ years of Innovative Excellence"
+    footer: '"© <year> WebOsmotic. All rights reserved." + page number'
+    first_page: titlePg — page 1 has no header/footer (cover or TOC page)
+    toc: real Word TOC field (\h \o "1-2") + <w:updateFields w:val="true"/>
+         so Word refreshes it automatically on open; entry titles are
+         pre-rendered at generation time so the page never looks empty
+  style_facts:
+    fonts: Calibri ONLY (builder rewrites all Arial refs incl. theme;
+           exceptions are Symbol bullets and Consolas code blocks)
+    page: US Letter, 0.5in margins all sides
+    body: Calibri 11pt, color 44515E
+    bold_label: color 0F2A43
+    h1: Calibri 15pt bold 0F2A43
+    h2: Calibri 12pt bold 2E75B6
+    h3: Calibri 11pt bold 0F2A43 (added by the builder)
+    link: 0563C1 underline
+    bullets: List Paragraph style + brand Symbol bullet numbering
+    table: full-width pct, hairline C9D4DF grid, header fill 0F2A43
+           with white bold 10pt text, body cells 44515E 10pt
+    footer_year: stamped to the current year at generation time
+                 (footer text + dc:creator, which the footer SDT binds to)
+  rules:
+    - Final output must contain ZERO yellow highlights and ZERO [bracketed] placeholders.
+    - A workscope body follows the workscope skill's template for its
+      variant (BALLPARK-TEMPLATE.md or WORKSCOPE-TEMPLATE.md). Fixed company
+      copy comes from references/workscope-template.md.
+    - Do not edit wo-cover-template.docx / wo-plain-template.docx by hand;
+      regenerate via scripts/build_wo_templates.py.
+
+# Retired (v2 registry): webosmotic-workscope-template.docx (old 13-section
+# fill-in flow) and webosmotic-letterhead.docx (old 4.3MB letterhead). Both
+# replaced by the two generated templates above as of v3.0.0.

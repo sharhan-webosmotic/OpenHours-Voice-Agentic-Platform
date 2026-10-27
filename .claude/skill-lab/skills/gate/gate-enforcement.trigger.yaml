@@ -1,0 +1,150 @@
+skill_name: gate-enforcement
+skill_id: SK-024
+category: gate
+version: 1.0.0
+
+target_description: |
+  Validate gate conditions and produce a PASS/FAIL verdict that authorizes or blocks phase transitions (Gate 0 through Gate 5). Use when asking 'has the gate passed?', 'can we move on to the next phase?', 'what's the gate status?', or when a phase-transition approval verdict is needed. For merely detecting which SDLC phase the project is currently in (no verdict), use project-stage-detect instead. Also triggers on: 'Check gate', 'Ready to proceed', 'Gate report'.
+# Likely sibling collisions:
+#   - milestone-validation: runs full-suite validation AT milestone close: overlaps with "gate"
+#   - code-quality:         Gate 1.5 check: a specific gate, but this skill enforces all of them
+#   - project-audit:        broad codebase scan: "finding issues" overlaps with gate checks
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Check if Gate 2 has been passed before we move on."
+    expected_trigger: true
+    rationale: "Gate number + 'passed' check = gate-enforcement's exact purpose."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Validate gate conditions before the next phase transition."
+    expected_trigger: true
+    rationale: "Matches 'validate project gate conditions before allowing phase transitions' verbatim."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Run the gate-enforcement check for Gate 3."
+    expected_trigger: true
+    rationale: "Direct skill name invocation."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Are we allowed to proceed to the next phase yet?"
+    expected_trigger: true
+    rationale: "Phase-transition authorization = core gate-enforcement question."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Verify Gate 0 through Gate 5 conditions."
+    expected_trigger: true
+    rationale: "Gate 0-5 range is the skill's explicit scope from description."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Did we pass the gate for this phase?"
+    expected_trigger: true
+    rationale: "Matches 'checking if a gate is passed' trigger."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Can we move to implementation, or is something blocking us?"
+    expected_trigger: true
+    rationale: "Phase-gate readiness check expressed in user language."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Tell me whether the design phase is signed off so we can start coding."
+    expected_trigger: true
+    rationale: "Design-phase sign-off = Gate 3 enforcement."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Are we green-lit to start the next stage?"
+    expected_trigger: true
+    rationale: "Green-lit to next stage = gate pass check."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Check if we have the required approvals to leave the discovery phase."
+    expected_trigger: true
+    rationale: "Required approvals before phase exit = gate-enforcement."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "The workscope is done — confirm Gate 1 has passed before we start tech spec."
+    expected_trigger: true
+    rationale: "Confirming Gate 1 before next phase = gate-enforcement."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "Before devs start coding, make sure every required gate has a green verdict."
+    expected_trigger: true
+    rationale: "Checking all required gates pre-implementation = gate-enforcement."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "We need to know which gate conditions are still unmet so we can close them out."
+    expected_trigger: true
+    rationale: "Identifying unmet gate conditions = gate-enforcement output."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Give me the current gate status across the project."
+    expected_trigger: true
+    rationale: "Gate status report = gate-enforcement."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Check the gate."
+    expected_trigger: true
+    rationale: "Bare 'check the gate': unambiguously this skill."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Are we at the next phase yet?"
+    expected_trigger: true
+    rationale: "Phase-readiness check."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Run the full-suite milestone validation with code quality, security review, QA coverage, accessibility, and bundle-size checks."
+    expected_trigger: false
+    expected_sibling: milestone-validation
+    rationale: "Full-suite milestone validation with that specific bundle = milestone-validation, not generic gate-enforcement."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Run the 17-point SonarQube checklist on this module."
+    expected_trigger: false
+    expected_sibling: code-quality
+    rationale: "17-point SonarQube checklist = code-quality (Gate 1.5 specifically), not generic gate check."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Scan the codebase for ghost features and API contract drift."
+    expected_trigger: false
+    expected_sibling: project-audit
+    rationale: "Ghost features + API contract drift scan = project-audit."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Generate a PRD for the onboarding flow."
+    expected_trigger: false
+    rationale: "PRD generation = prd-generation, unrelated to gate checks."

@@ -1,0 +1,151 @@
+skill_name: design-discovery
+skill_id: SK-004
+category: core
+version: 1.0.0
+
+target_description: |
+  Design discovery phase: capture Design DNA (brand mood, colors, typography, audience, density), conduct stakeholder interviews, and lock the frontend stack + component library. Produces AI_DOCS/design/design-dna.md and confirms chosen component library. Use at project start after tech-spec is approved, before any tokens or screens are designed. Pairs with /design-tokens (next) and /design-screens (final). Also triggers on: 'Start design', 'Choose component library', 'Frontend stack confirmation', 'Pick design direction'.
+# Likely sibling collisions:
+#   - design-tokens:   next phase: tokens.json + core components (NOT discovery)
+#   - design-screens:  later phase: full screen inventory + UX flows (NOT discovery)
+#   - do (Phase 1 lead dispatch):     multi-agent orchestrator for design pipeline (not single-phase discovery)
+#   - design-research: competitor/market research only (narrower than discovery)
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Kick off design discovery for this project."
+    expected_trigger: true
+    rationale: "Matches 'Design discovery phase' verbatim: the skill's opening phrase."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Capture the Design DNA — brand mood, colors, typography, audience, density."
+    expected_trigger: true
+    rationale: "Lists the exact five Design DNA dimensions named in the description."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Run stakeholder interviews to figure out the brand mood before we start designing."
+    expected_trigger: true
+    rationale: "Stakeholder interviews + brand mood are both explicit capabilities."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Lock the frontend stack and component library for this app."
+    expected_trigger: true
+    rationale: "'Lock the frontend stack + component library' is verbatim in the description."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Produce the design-dna.md document for this new product."
+    expected_trigger: true
+    rationale: "Producing AI_DOCS/design/design-dna.md is the named artifact."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Start the discovery phase now that tech-spec is approved."
+    expected_trigger: true
+    rationale: "Matches 'Use at project start after tech-spec is approved' trigger phrase."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "I need to figure out the visual personality and pick a UI framework before we design anything."
+    expected_trigger: true
+    rationale: "Visual personality = brand mood; UI framework = component library selection. Both are discovery."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Let's interview the founders to set the design direction and typography voice."
+    expected_trigger: true
+    rationale: "Stakeholder interviews to establish design direction and typography = design-discovery."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Decide on the brand tone and confirm whether we're using shadcn or MUI."
+    expected_trigger: true
+    rationale: "Brand tone + component library selection both fall under discovery."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Establish the target audience profile and information density for the UI."
+    expected_trigger: true
+    rationale: "Audience + density are two of the five Design DNA dimensions."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "We just finished the tech spec — what's the next step to start the design work?"
+    expected_trigger: true
+    rationale: "Right after tech-spec, the next step is discovery per the description."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "Before we can ship tokens, we need to settle on mood, colors, and the component lib."
+    expected_trigger: true
+    rationale: "Settling mood/colors/component-lib is the discovery phase, prerequisite to tokens."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "The stakeholders are split on whether the app should feel corporate or playful — help us align."
+    expected_trigger: true
+    rationale: "Aligning stakeholders on brand mood is exactly what discovery does."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "We haven't chosen a component library yet — can we do that formally with documented rationale?"
+    expected_trigger: true
+    rationale: "Formal component-library selection with rationale is a design-discovery deliverable."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "OK, tech-spec is signed off — move to the next phase."
+    expected_trigger: true
+    rationale: "Phase after tech-spec is design-discovery per the description's ordering."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Start capturing the DNA."
+    expected_trigger: true
+    rationale: "'Capturing the DNA' is discovery's signature phrase."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Build the production tokens.json and the core Button/Input/Card components."
+    expected_trigger: false
+    expected_sibling: design-tokens
+    rationale: "tokens.json + core components = design-tokens (Gate 3), not discovery."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Map every user flow and build the full production screen inventory with interaction coverage."
+    expected_trigger: false
+    expected_sibling: design-screens
+    rationale: "Full screen inventory + UX flows + interactions = design-screens (Gates 4-5)."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Orchestrate the design pipeline with product-director, component-inspector, and platform specialist in parallel."
+    expected_trigger: false
+    expected_sibling: do
+    rationale: "Multi-agent orchestration of the design pipeline = do (Phase 1 lead dispatch), not a single-phase skill."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Run the OWASP Top 10 audit on the auth module."
+    expected_trigger: false
+    rationale: "Security audit is unrelated to design discovery."

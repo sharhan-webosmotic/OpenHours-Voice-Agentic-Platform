@@ -1,0 +1,565 @@
+{
+  "//": "App Development Framework (ADF) \u2014 Project-level Claude Code settings",
+  "//note": "This file is committed to git. Personal overrides go in .claude/settings.local.json (gitignored).",
+  "//version": "4.10.0 context optimization + skill consolidation (101->96 skills): compressed the 22 heaviest skill descriptions to <=600 chars (5 were over the 1024-char guide limit); added rules/README.md as the single on-demand rule load index (Tier 0 always-on, Tier 1 when engineering, Tier 2 on domain match), now referenced by CLAUDE.md + CLAUDE.template.md instead of restating the table; de-duped the two CLAUDE files; merged 5 overlapping skills (security-audit->audit, developer-workflow->build, webapp-testing->e2e-testing, find-skills->skill-router, frd-generation->prd-generation) with unique capability and reference files relocated to the targets first, recorded in docs/skill-deprecations.md and resolved by the alias table so old-name invocations still work; reconciled all version stamps to 4.10.0. 4.9.0 tech-stack coverage + Go/Desktop backed: TECH-OPTIONS.md gained full decision menus (auth/identity, API style REST/tRPC/GraphQL/gRPC, ORM, BaaS, async/queue, serverless/edge, desktop, additional backend languages Spring/.NET/Laravel/Rails/Elixir, specialized services); Go is a real backend option now (new rules/go-rules.md + go-specialist agent AG-035 + a full go-backend/go-testing/go-deployment skill cluster SK-159/160/161 mirroring the Python cluster, go-testing emits the MAVS go-test.json report; registered in catalog/REGISTRY/router, total_skills 101, total_agents 25); Desktop is a real target (new rules/desktop-rules.md, Electron/Tauri security + signed-update patterns); tech-stack-selection-rules 1.3.0 widens Rule 5 to the full menu; templates/stack.md gained api_style/auth_provider/orm/baas/queue/desktop keys. 4.8.1 MCP skill wiring + responsive enforcement + style hook: 17 more skills wired to MCP (mcp_integrations + MCP Acceleration sections); frontend-rules all-device responsive made a BLOCKING acceptance bar verified via playwright MCP; component-inspector 1.2.0 + code-reviewer 1.2.0 validate responsive + writing-style; new advisory PostToolUse style-check.sh flags em/en-dashes in Markdown. 4.8.0 MCP enforcement: enableAllProjectMcpServers=true auto-trusts the project .mcp.json that mcp-connector generates (free stack-matched servers load promptless; credentialed servers gated + ${ENV_VAR}-only per rules/mcp-rules.md). upgrade.sh always-on [mcp-sync] step seeds/tops-up .mcp.json for existing projects via scripts/migrate-mcp.sh. 4.6.0 ship gate + Gate 1 routing: new PreToolUse[Bash] hook enforce-ship-gate.sh blocks production deploy commands (vercel/netlify --prod, wrangler/fly deploy, npm|pnpm|yarn run deploy|release|ship) unless AI_DOCS/audit/audit-report.md Verdict PASS AND gate-status.md Gate 5 PASSED (escape ADF_SHIP_OVERRIDE=on, log it in decision-log). enforce-do-routing.sh v6 also blocks a DOING task coexisting with Gate 1 PENDING/FAILED on non-POC projects (escape ADF_BYPASS=on). 4.2.0 \u2014 infra cost gate: new PreToolUse[Bash] hook infra-cost-gate.sh blocks terraform/tofu/pulumi/cdk apply, CloudFormation stack mutations, and aws/gcloud/az instance/db/cluster creation unless AI_DOCS/memory/infra-cost-approvals.md has an APPROVED entry dated today (UTC); pairs with /infra-cost-guard (SK-146); escape ADF_INFRA_APPROVED=on. 4.1.2 \u2014 hook hardening: enforce-anchors/enforce-chunk-scope self-parse stdin JSON (jq optional via hooks/json-field.sh sed fallback); blocking wrappers fail open on infra errors and pass through only exit 2; upgrade.sh now syncs the whole hooks section from this template on every run. 4.1.1: AI_DOCS/planning/ is the canonical planning dir (reverses the 4.0.1 planning/->plans/ rename); setup.sh/upgrade.sh migrate plans/ back to planning/. 4.0.1: adds AI_DOCS/quality/ scaffold; expands settings drift-check to SessionStart/SubagentStart/SubagentStop; adds explicit Read(./AI_DOCS/**) allow + Read(./.env*) deny rules. 4.0.0: cross-platform desktop notifications via hooks/notify.sh.",
+  "telemetry": {
+    "//": "Local-only event stream. Nothing leaves the machine. See docs/telemetry.md.",
+    "enabled": true
+  },
+  "plansDirectory": "./AI_DOCS/planning",
+  "skillListingBudgetFraction": 0.05,
+  "//mcp": "Enforce free MCP servers: auto-trust the project-root .mcp.json that mcp-connector (SK-023) generates, so stack-matched free servers (Playwright, fetch, sequential-thinking, context7, etc.) load without a per-server prompt. Governed by rules/mcp-rules.md. Credentialed servers only enter .mcp.json after approval with ${ENV_VAR} refs (never literals).",
+  "enableAllProjectMcpServers": true,
+  "//remoteControl": "Security posture (v4.12.1): Remote Control is disabled framework-wide. disableRemoteControl:true turns off claude.ai/code, `claude remote-control`, the --remote-control/--rc flags, auto-start, and the in-session toggle, so it covers new sessions and any already-open one that re-reads settings. Enforced on every pull by upgrade.sh [remote-control-lock], which forces the value back to true even if a project set it false. A single project that genuinely needs Remote Control sets `disableRemoteControl: false` in .claude/settings.local.json (gitignored personal override): Claude Code merges local over project, so it wins at runtime, and the lock never touches settings.local.json.",
+  "disableRemoteControl": true,
+  "//plugins": "Native Claude Code plugins (v4.24.0). diagram-design (cathrynlavery/diagram-design, MIT) is the framework's ONLY diagram generator: 45 types (architecture, IT current-state, flowchart, sequence, state machine, ER, swimlane, journey, deployment, Gantt, Sankey and more) as self-contained HTML + inline SVG, with SVG/PNG export and draw.io / Mermaid / Excalidraw import. It is installed from its own marketplace, not vendored into skills/, and autoUpdate:true refreshes it in the background after session start, so upstream fixes arrive without an ADF release. Claude Code honors these two keys in a project's .claude/settings.json only after the folder is trusted. upgrade.sh [settings-sync] adds the entries to existing projects without overwriting anything a project set. To pin a version or opt out, set the entry in .claude/settings.local.json (wins at runtime).",
+  "extraKnownMarketplaces": {
+    "diagram-design": {
+      "source": {
+        "source": "github",
+        "repo": "cathrynlavery/diagram-design"
+      },
+      "autoUpdate": true
+    }
+  },
+  "enabledPlugins": {
+    "diagram-design@diagram-design": true
+  },
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Read(./AI_DOCS/**)",
+      "Glob",
+      "Grep",
+      "Agent(Explore)",
+      "Agent(Plan)",
+      "Bash(npm run *)",
+      "Bash(npm install *)",
+      "Bash(npm ci)",
+      "Bash(npm test *)",
+      "Bash(npm create *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(pip install *)",
+      "Bash(python *)",
+      "Bash(python .claude/skills/*)",
+      "Bash(python3 .claude/skills/*)",
+      "Bash(python .claude/scripts/*)",
+      "Bash(python3 .claude/scripts/*)",
+      "Bash(python .claude/state/db.py *)",
+      "Bash(python3 .claude/state/db.py *)",
+      "Bash(python .claude/cron/scheduler.py *)",
+      "Bash(python3 .claude/cron/scheduler.py *)",
+      "Bash(uv *)",
+      "Bash(git status)",
+      "Bash(git log *)",
+      "Bash(git diff *)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git merge *)",
+      "Bash(git tag *)",
+      "Bash(git stash *)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "Bash(ls *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(mv *)",
+      "Bash(cat *)",
+      "Bash(echo *)",
+      "Bash(which *)",
+      "Bash(pwd)",
+      "Bash(cd *)",
+      "Bash(next dev*)",
+      "Bash(next build*)",
+      "Bash(next start*)",
+      "Bash(next lint*)",
+      "Bash(next info*)",
+      "Bash(nest *)",
+      "Bash(prisma *)",
+      "Bash(flutter *)",
+      "Bash(bash *)",
+      "Bash(pwsh *)",
+      "Bash(powershell *)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:npmjs.com)",
+      "WebFetch(domain:docs.nestjs.com)",
+      "WebFetch(domain:nextjs.org)",
+      "WebFetch(domain:reactnative.dev)",
+      "WebFetch(domain:tailwindcss.com)",
+      "WebFetch(domain:ui.shadcn.com)",
+      "WebFetch(domain:docs.python.org)",
+      "WebFetch(domain:fastapi.tiangolo.com)",
+      "Bash(rm -f AI_DOCS/.temp/*)",
+      "Bash(rm -rf AI_DOCS/.temp/*)",
+      "Bash(pnpm *)",
+      "Bash(git checkout -b *)",
+      "Bash(docker compose *)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push origin main*)",
+      "Bash(git reset --hard*)",
+      "Bash(rm -rf *)",
+      "Bash(pnpm prisma migrate reset*)",
+      "Bash(pnpm prisma migrate deploy*)",
+      "Bash(pnpm prisma db push*)",
+      "Bash(psql *)",
+      "Bash(curl * | sh*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard.mjs\""
+          }
+        ]
+      },
+      {
+        "//": "SINGLE-AI_DOCS: Force exactly one AI_DOCS at the project root. Blocks any Write/Edit/Bash that would create a nested AI_DOCS inside app code. Opt out: ADF_ALLOW_NESTED_AIDOCS=on.",
+        "matcher": "Edit|Write|MultiEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; [ -f .claude/hooks/enforce-single-aidocs.sh ] || exit 0; bash .claude/hooks/enforce-single-aidocs.sh; RC=$?; [ \"$RC\" -eq 2 ] && exit 2; exit 0'"
+          }
+        ]
+      },
+      {
+        "//": "GUARD: Block edits to locked API contract (dedicated script, D-022/D-088: never a whole-file LOCKED grep)",
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; bash .claude/hooks/enforce-api-contract-lock.sh"
+          }
+        ]
+      },
+      {
+        "//": "SHELL-LOCK (Track H): Block edits to the locked app-shell (src/components/layout/** + registry 'Locked app-shell (frozen)' components) once gate-status.md shows 'SHELL LOCKED'. Keeps the polished chrome from drifting so feature work composes from it (design-to-code fidelity). Route changes through /change-request. Escape: ADF_SHELL_UNLOCK=on + a recorded line in decision-log.md. Fails open outside ADF projects.",
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; [ -f .claude/hooks/enforce-shell-lock.sh ] || exit 0; bash .claude/hooks/enforce-shell-lock.sh; RC=$?; [ \"$RC\" -eq 2 ] && exit 2; exit 0'"
+          }
+        ]
+      },
+      {
+        "//": "ARTIFACT-LOCK (MAVS Wave 2): Freeze database-schema.md and authz-matrix.yaml after Gate 1 (gate-status.md markers 'SCHEMA LOCKED' / 'AUTHZ MATRIX LOCKED'), so code is validated against a stable schema + RBAC contract. Route changes through /change-request. Escape: ADF_SCHEMA_UNLOCK / ADF_AUTHZ_UNLOCK =on + a recorded line in decision-log.md. Fails open outside ADF projects.",
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; [ -f .claude/hooks/enforce-artifact-lock.sh ] || exit 0; bash .claude/hooks/enforce-artifact-lock.sh; RC=$?; [ \"$RC\" -eq 2 ] && exit 2; exit 0'"
+          }
+        ]
+      },
+      {
+        "//": "DESIGN-GATE (Track G): Block color/tokens/design-system writes until Gate UX-1 (UX Structure Validated) passes, enforcing grayscale-first Requirement->UX->UI. Only active when AI_DOCS/design/ux-brief.md exists (the gated pipeline is in use); POC/legacy projects unaffected. Escape: ADF_DESIGN_UNLOCK=on + a recorded line in decision-log.md. Fails open outside ADF projects.",
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; [ -f .claude/hooks/design-gate.sh ] || exit 0; bash .claude/hooks/design-gate.sh; RC=$?; [ \"$RC\" -eq 2 ] && exit 2; exit 0'"
+          }
+        ]
+      },
+      {
+        "//": "GIT-SAFETY: Block destructive git commands \u2014 require explicit user confirmation",
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; [ -f .claude/hooks/git-safety.sh ] || exit 0; bash .claude/hooks/git-safety.sh; RC=$?; [ \"$RC\" -eq 2 ] && exit 2; exit 0'"
+          }
+        ]
+      },
+      {
+        "//": "INFRA-COST-GATE (v4.2): Block cost-incurring infra provisioning commands (terraform/tofu apply|destroy, pulumi up, cdk deploy, CloudFormation stack mutations, aws/gcloud/az create commands) unless AI_DOCS/memory/infra-cost-approvals.md has an APPROVED entry dated today (UTC). Pairs with /infra-cost-guard (SK-146). Escape: ADF_INFRA_APPROVED=on (log the override in decision-log.md). Fails open outside ADF projects.",
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; [ -f .claude/hooks/infra-cost-gate.sh ] || exit 0; bash .claude/hooks/infra-cost-gate.sh; RC=$?; [ \"$RC\" -eq 2 ] && exit 2; exit 0'"
+          }
+        ]
+      },
+      {
+        "//": "SHIP-GATE (v4.6): Block production deploy commands (vercel --prod, netlify deploy --prod, wrangler [pages] deploy, fly|flyctl deploy, npm|pnpm|yarn run deploy|release|ship) unless AI_DOCS/audit/audit-report.md shows Verdict PASS AND AI_DOCS/memory/gate-status.md shows Gate 5 PASSED. Mechanical backstop for the /ship pre-flight. POC projects (planning_depth: poc) and preview/dev deploys are not gated. Escape: ADF_SHIP_OVERRIDE=on (log the override in decision-log.md). Fails open outside ADF projects.",
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; [ -f .claude/hooks/enforce-ship-gate.sh ] || exit 0; bash .claude/hooks/enforce-ship-gate.sh; RC=$?; [ \"$RC\" -eq 2 ] && exit 2; exit 0'"
+          }
+        ]
+      },
+      {
+        "//": "ANCHOR-ENFORCE (Issue 3, v3.1): Block edits when active-task's critical anchors are unread. Advisory for non-critical anchors.",
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; [ -f .claude/hooks/enforce-anchors.sh ] || exit 0; bash .claude/hooks/enforce-anchors.sh; RC=$?; [ \"$RC\" -eq 2 ] && exit 2; exit 0'"
+          }
+        ]
+      },
+      {
+        "//": "CHUNK-SCOPE (v3.3): When a complex task has a PENDING chunk, block edits to files outside that chunk's '## Files Affected' list. Keeps per-chunk context tight and prevents drift. Escape: CHUNK_SCOPE_ENFORCE=off or add the file to Files Affected and retry.",
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; [ -f .claude/hooks/enforce-chunk-scope.sh ] || exit 0; bash .claude/hooks/enforce-chunk-scope.sh; RC=$?; [ \"$RC\" -eq 2 ] && exit 2; exit 0'"
+          }
+        ]
+      },
+      {
+        "//": "DO-ROUTING (v4): Block app-code Edit/Write when no active task exists in task-ledger.md or the active milestone capsule. Forces routing through /do unless ADF_BYPASS=on. Allowlists: AI_DOCS/ (including planning/, quality/), .claude/, root README/CHANGELOG/LICENSE/etc.",
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; [ -f .claude/hooks/enforce-do-routing.sh ] || exit 0; bash .claude/hooks/enforce-do-routing.sh; RC=$?; [ \"$RC\" -eq 2 ] && exit 2; exit 0'"
+          }
+        ]
+      },
+      {
+        "//": "COMPONENT-REUSE (v4.5): Block creating a NEW component file whose role already exists at a different path (a fork). Reuse-first per component-reuse-rules.md. Escape: ADF_ALLOW_DUP_COMPONENT=on.",
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; [ -f .claude/hooks/enforce-component-reuse.sh ] || exit 0; bash .claude/hooks/enforce-component-reuse.sh; RC=$?; [ \"$RC\" -eq 2 ] && exit 2; exit 0'"
+          }
+        ]
+      },
+      {
+        "//": "MAVS-GATE (MAVS Wave 1): Block merging a milestone branch until the machine-checked reports under AI_DOCS/quality/mavs/*.json are clean (no FAIL, no STALE-vs-HEAD, no missing REQUIRED report). Replaces the old self-attested 'Verdict: PASS' string check. Non-POC only. Escape: ADF_SKIP_MAVS=on + a logged decision-log entry. See docs/mavs-report-schema.md.",
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; [ -f .claude/hooks/mavs-gate.sh ] || exit 0; bash .claude/hooks/mavs-gate.sh; RC=$?; [ \"$RC\" -eq 2 ] && exit 2; exit 0'"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; [ -f .claude/hooks/enforce-flow-gate.sh ] || exit 0; bash .claude/hooks/enforce-flow-gate.sh; RC=$?; [ \"$RC\" -eq 2 ] && exit 2; exit 0'"
+          }
+        ],
+        "matcher": "Edit|Write|MultiEdit",
+        "//": "FLOW-GATE: Block app-code Edit/Write when the DOING task carries a flow: tag whose row in AI_DOCS/design/flow-validation-plan.md is not approved/waived (Gate FLOW, PLAN-flow-validation). Escape ADF_FLOW_GATE_BYPASS=on + same-day decision-log entry."
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "//": "USER-PROMPT-LOG (v3.3): Persist every user prompt (scrubbed) to AI_DOCS/memory/user-prompts.log. Last 3 entries injected by pre-compact.sh so the user's raw words survive context compaction. Silent hook.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; bash .claude/hooks/user-prompt-log.sh 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "//": "TASK-ROUTER (v3.3): If the prompt smells like a task (Fix/Build/Add/Implement/\u2026) AND INDEX.md has no active plan, emit a short nudge to run /task-planner first. Silent when a plan is already active or the prompt invoked a slash-command.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; bash .claude/hooks/task-router.sh 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "//": "SESSION-STATE-REFRESHER (v3.6): Every 15 user prompts without a session-state.md write, emit a short reminder to update it. Counter auto-resets when session-state.md mtime changes. Silent most turns.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; bash .claude/hooks/session-state-refresher.sh 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "//": "COMPACTION-SNAPSHOT (v3.2): Mechanical safety net \u2014 dumps active session state (phase, task, gates, security findings, recent skills) to stdout so the compacted context retains working memory even if Claude forgot to update session-state.md. Also writes AI_DOCS/memory/compaction-snapshot.md as audit. Hard-capped at ~2 KB.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; bash .claude/hooks/pre-compact.sh 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/format.mjs\""
+          }
+        ]
+      },
+      {
+        "//": "AUTO-FORMAT + LINT (v4.32.0 merged): run Prettier, then ESLint --fix, on edited TypeScript/JavaScript/CSS files. Each tool runs only when node_modules/.bin/<tool> exists, and the hook always exits 0.",
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; FILE_PATH=$(bash .claude/hooks/json-field.sh file_path 2>/dev/null); if [[ \"$FILE_PATH\" =~ \\.(ts|tsx|js|jsx|vue|css|scss|json)$ ]] && command -v npx &>/dev/null; then if [ -f node_modules/.bin/prettier ] 2>/dev/null; then npx prettier --write \"$FILE_PATH\" 2>/dev/null; fi; if [[ \"$FILE_PATH\" =~ \\.(ts|tsx|js|jsx|vue)$ ]] && [ -f node_modules/.bin/eslint ] 2>/dev/null; then npx eslint --fix \"$FILE_PATH\" 2>/dev/null; fi; if [[ \"$FILE_PATH\" =~ \\.(css|scss)$ ]] && [ -f node_modules/.bin/stylelint ] 2>/dev/null; then npx stylelint --fix \"$FILE_PATH\" 2>/dev/null; fi; fi; if [[ \"$FILE_PATH\" =~ \\.py$ ]] && command -v ruff &>/dev/null; then ruff check --fix -q \"$FILE_PATH\" 2>/dev/null; fi; exit 0'"
+          }
+        ]
+      },
+      {
+        "//": "STYLE-CHECK (v4.8.1): Advisory writing-style check on edited Markdown. Flags em/en-dashes (writing-style-rules.md). Non-blocking, always exits 0.",
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; [ -f .claude/hooks/style-check.sh ] || exit 0; bash .claude/hooks/style-check.sh || true'"
+          }
+        ]
+      },
+      {
+        "//": "MARK-READ (Issue 3): After a Read, append the path to session-reads.log so enforce-anchors can verify.",
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; FILE=$(bash .claude/hooks/json-field.sh file_path 2>/dev/null); if [ -n \"$FILE\" ]; then mkdir -p AI_DOCS/memory; printf \"%s\\n\" \"$FILE\" >> AI_DOCS/memory/session-reads.log; fi; exit 0'"
+          }
+        ]
+      },
+      {
+        "//": "SKILL-INVOKE TELEMETRY (M01:T-14): record each Skill invocation to metrics.jsonl so the retro + skill-curator can count which skills ran. Reads tool_input.skill on stdin. Fail-open.",
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; [ -f .claude/hooks/log-skill-invoke.sh ] || exit 0; bash .claude/hooks/log-skill-invoke.sh || true'"
+          }
+        ]
+      },
+      {
+        "//": "POST-CHUNK-REVIEW-DETECT (v3.4): When a chunk file's Status flips to DONE, queue a pending code-review entry in AI_DOCS/memory/pending-reviews.jsonl. Surfaced by session-start.sh on the next session. Silent.",
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; bash .claude/hooks/post-chunk-review-detect.sh 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "//": "MILESTONE-AUDIT-DETECT (v3.5): When gate-status.md records a PHASE-GATE APPROVED, queue an entry in AI_DOCS/memory/milestone-audit-queue.jsonl. Surfaced by session-start.sh. Prompts /project-audit.",
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; bash .claude/hooks/milestone-audit-detect.sh 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "//": "MILESTONE-ORDER-CHECK (v4.5): On a milestones/*/tasks.md edit, fail if a feature that consumes an entity is planned in an earlier milestone than its producer (dashboard-before-data). Same milestone is allowed. Backstop for data-dependency ordering.",
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; [ -f .claude/hooks/milestone-order-check.sh ] || exit 0; bash .claude/hooks/milestone-order-check.sh; RC=$?; [ \"$RC\" -eq 2 ] && exit 2; exit 0'"
+          }
+        ]
+      },
+      {
+        "//": "VERTICAL-SLICE-CHECK (v4.5): On a milestones/*/tasks.md edit, fail if a DONE feature that produces an entity has no seed data (vertical-slice layer 4). Opt out per row with seed:na.",
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; [ -f .claude/hooks/vertical-slice-check.sh ] || exit 0; bash .claude/hooks/vertical-slice-check.sh; RC=$?; [ \"$RC\" -eq 2 ] && exit 2; exit 0'"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "//": "VERIFY: uncommitted-work check (whole tree, escalating) + milestone-branch match",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; bash .claude/hooks/uncommitted-work-check.sh"
+          }
+        ]
+      },
+      {
+        "//": "MEMORY-CURATOR (v3.4): Daily (24h-rate-limited) advisory check of memory file thresholds. Writes AI_DOCS/memory/curator-suggestions.md only if thresholds are breached. session-start.sh surfaces the file. Never auto-modifies.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; bash .claude/hooks/memory-curator.sh 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "//": "SESSION-END (Issue 6): Write per-project memory pointer for next session resume. Wired to SessionEnd, not Stop: Stop fires after every response, so the pointer, the shared-memory sync, and the session_end event used to run once per turn.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; bash .claude/hooks/session-end.sh 2>/dev/null || true",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "//": "CLEANUP: Reset session-reads.log when a session starts, so anchor reads are tracked per session. This used to run on Stop, which fires after every response, so a critical anchor had to be re-read on every turn.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; rm -f AI_DOCS/memory/session-reads.log 2>/dev/null; exit 0'"
+          }
+        ]
+      },
+      {
+        "//": "VERSION-CHECK (v3.1): Detect framework drift from pulls done outside .claude/ (IDE git UI, etc.) and auto-run upgrade.sh --auto. Runs first so the session always starts on the correct version.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; bash .claude/hooks/version-check.sh 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "//": "DRIFT-DETECTOR (v3.5): 24h-rate-limited scan of code routes vs api-contract.md and spec acceptance criteria vs tests. Writes AI_DOCS/quality/drift-report.md only when drift found. Runs before session-start.sh so the banner can surface findings.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; bash .claude/hooks/drift-detector.sh 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "//": "CONTEXT: Show session state, gate status, recovery notice",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; bash .claude/hooks/session-start.sh 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "//": "GAP-DETECT: Auto-detect missing docs on session start",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; bash .claude/hooks/detect-gaps.sh 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "//": "CRON-TICK (v4.0): Check for due scheduled tasks on session start. Rate-limited to once per 50 minutes. Injects '## Scheduled Tasks Due' block if any jobs are overdue.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; bash .claude/hooks/cron-tick.sh 2>/dev/null || true"
+          }
+        ]
+      },
+      {
+        "//": "ADF-INTERFACE: Show single-interface reminder \u2014 only /do",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; echo \"\"; echo \"=== ADF v4 ===\"; echo \"  Single interface: /do\"; echo \"  /do <what you want> \u2014 plans, builds, audits, ships\"; echo \"  /do status  /do audit  /do ship  /do checkpoint\"; echo \"=== /ADF v4 ===\"; exit 0'"
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "//": "AUDIT: Log every agent invocation",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; bash .claude/hooks/log-agent.sh start 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "//": "AUDIT: Log agent completion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; bash .claude/hooks/log-agent.sh stop 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "//": "NOTIFY (v3.8): Cross-platform desktop notification when Claude needs the user's attention. Uses hooks/notify.sh which dispatches to Windows (toast via BurntToast) / macOS (osascript) / Linux (notify-send). Opt out: ADF_NOTIFY_DISABLED=1.",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; bash .claude/hooks/notify.sh 2>/dev/null || true"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash -c 'cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null; [ -f .claude/hooks/post-compact-pointer.sh ] || exit 0; bash .claude/hooks/post-compact-pointer.sh; exit 0'"
+          }
+        ],
+        "//": "POST-COMPACT-POINTER (advisory): after compaction, print the active milestone/task pointer and remind that paths-scoped rules reload only on a matching Read."
+      }
+    ]
+  },
+  "excludedFiles": [
+    ".env",
+    ".env.local",
+    ".env.staging",
+    ".env.production",
+    "*.pem",
+    "*.key",
+    "*.cert",
+    "*.p12",
+    ".git/**",
+    "node_modules/**",
+    "dist/**",
+    "build/**",
+    ".next/**",
+    "coverage/**",
+    ".claude/skills/**/node_modules/**",
+    "AI_DOCS/audit/**",
+    "AI_DOCS/memory/session-reads.log",
+    "AI_DOCS/memory/user-prompts.log"
+  ]
+}

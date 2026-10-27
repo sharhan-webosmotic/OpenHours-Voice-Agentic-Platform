@@ -1,0 +1,14 @@
+name: github-actions
+version: 1.0.0
+description: "GitHub Actions CI/CD integration — adds a skill to generate and manage workflow files"
+author: WebOsmotic Private Limited
+compatibility: "ADF 4.x"
+
+provides:
+  skills: [github-ci]
+  hooks: []
+  agents: []
+  rules: []
+
+requires:
+  env: [GITHUB_TOKEN]

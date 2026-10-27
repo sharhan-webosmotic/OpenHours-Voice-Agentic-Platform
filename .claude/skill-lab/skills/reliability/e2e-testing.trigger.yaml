@@ -1,0 +1,150 @@
+skill_name: e2e-testing
+skill_id: SK-150
+category: reliability
+version: 1.0.0
+
+target_description: |
+  Full-milestone end-to-end testing with REAL authentication: seed-data logins, mock MFA/OTP/email (Mailhog + TEST_MODE), auth-state reuse, and test-data isolation, across web (Playwright) and native mobile (Detox / Flutter integration). Reads test users from AI_DOCS/quality/test-fixtures.md and the milestone's critical flows from AI_DOCS/quality/e2e-suite.md. Use at milestone close (called by milestone-validation) or to author/run authenticated E2E. Triggers on: 'E2E with login', 'test the milestone end to end', 'MFA test', 'OTP test', 'seed login test', 'mobile E2E', 'Detox', 'Flutter integration test'.
+# Likely sibling collisions:
+#   - e2e-testing: low-level Playwright screenshots / browser automation / visual regression (NO auth, MFA, or seed)
+#   - qa-testing:     Jest unit + Supertest API + test plans in Given-When-Then (not browser auth E2E)
+#   - mock-data:      generates the seed data / fixtures (e2e CONSUMES them, does not produce them)
+
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Write an E2E test that logs in with a seeded user and runs the checkout flow."
+    expected_trigger: true
+    rationale: "E2E with login plus seed-data logins are the headline capability."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Automate the MFA login flow and pull the OTP from a mock mailbox."
+    expected_trigger: true
+    rationale: "MFA test plus mock OTP/email is explicitly named."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Test the whole milestone end to end with real authentication."
+    expected_trigger: true
+    rationale: "'test the milestone end to end' plus REAL authentication is verbatim."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Set up Detox E2E for the React Native app's login and order flow."
+    expected_trigger: true
+    rationale: "Detox native mobile E2E is a named trigger."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Run the milestone's E2E suite from test-fixtures.md and reuse the auth state."
+    expected_trigger: true
+    rationale: "e2e-suite, test-fixtures, and auth-state reuse are all named."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Add a Flutter integration test that signs in and verifies the dashboard."
+    expected_trigger: true
+    rationale: "Flutter integration test is a named trigger for the native lane."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Our app needs 2FA to log in, automate a full user journey that gets past it without a real phone."
+    expected_trigger: true
+    rationale: "Mock MFA/OTP plus an authenticated journey is the skill, not a real device."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Log in once and reuse the session across the whole browser suite so we don't re-auth every test."
+    expected_trigger: true
+    rationale: "Auth-state reuse is the exact capability."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Drive the signed-in flows on both web and the mobile app for this release."
+    expected_trigger: true
+    rationale: "Authenticated flows on web and native at milestone close."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Reset the test data between runs and sign in as the seeded admin to exercise the admin journeys."
+    expected_trigger: true
+    rationale: "Test-data isolation plus seed-data login are both named."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "Milestone 3 is feature-complete, run the full signed-in critical flows before we merge to develop."
+    expected_trigger: true
+    rationale: "Milestone-close authenticated E2E is exactly this skill (called by milestone-validation)."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "Email verification is blocking our automated tests, intercept the link and continue the flow."
+    expected_trigger: true
+    rationale: "Mock email verification in an automated flow is a named capability."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "We keep hardcoding test credentials, wire the tests to the seeded users instead."
+    expected_trigger: true
+    rationale: "Seed-data logins from test-fixtures.md replace hardcoded creds."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Prove the login, create-order, and see-it-in-list journey works on iOS too."
+    expected_trigger: true
+    rationale: "Native mobile authenticated E2E lane."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "Now run the milestone E2E."
+    expected_trigger: true
+    rationale: "Milestone E2E at close resolves to e2e-testing."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Get past the OTP screen and finish the journey."
+    expected_trigger: true
+    rationale: "Mock OTP plus authenticated journey is the skill's domain."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Capture a screenshot of the dashboard and diff it against yesterday's baseline."
+    expected_trigger: false
+    expected_sibling: e2e-testing
+    rationale: "Screenshot and visual regression with no auth is e2e-testing."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Write Jest unit tests for the pricing utils and check coverage."
+    expected_trigger: false
+    expected_sibling: qa-testing
+    rationale: "Unit tests and coverage are qa-testing, not authenticated browser E2E."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Generate realistic seed data with 50 users and 200 orders."
+    expected_trigger: false
+    expected_sibling: mock-data
+    rationale: "Generating seed data is mock-data. e2e-testing consumes fixtures, it does not create them."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Add a Redis cache layer for the product listing API."
+    expected_trigger: false
+    rationale: "Caching work is unrelated to end-to-end authenticated testing."

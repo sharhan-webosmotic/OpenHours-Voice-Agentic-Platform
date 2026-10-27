@@ -1,0 +1,145 @@
+skill_name: orchestrator
+skill_id: SK-090
+category: meta
+version: 1.0.0
+
+target_description: |
+  INTERNAL meta-skill invoked as a dispatch primitive: coordinate multi-step workflows by directly invoking a sequence of sub-skills and subagents (dispatch, fan-out, chain). Not user-facing; called by /do and team-security. Use only when the user asks to run the orchestration primitive itself, extend it, or document its internal dispatch behavior. Do NOT use for meta-discovery questions like 'which skill handles X' (use skill-router), or to ship or build end-to-end (use do).
+buckets:
+  positive_direct: 6
+  positive_paraphrase: 4
+  positive_task_embedded: 4
+  positive_context_based: 2
+  negative_sibling: 3
+  negative_unrelated: 1
+
+prompts:
+
+  # ----- Positive: direct phrasings (6) -----
+  - id: P01
+    bucket: positive_direct
+    text: "Invoke the internal orchestrator primitive to dispatch this workflow."
+    expected_trigger: true
+    rationale: "Direct invocation of the internal orchestrator primitive matches description verbatim."
+
+  - id: P02
+    bucket: positive_direct
+    text: "Run the orchestrator meta-skill to fan out to the sub-skill chain."
+    expected_trigger: true
+    rationale: "Orchestrator meta-skill running fan-out chain is the described dispatch primitive."
+
+  - id: P03
+    bucket: positive_direct
+    text: "Directly call the orchestrator to dispatch subagent chains for this workflow."
+    expected_trigger: true
+    rationale: "Directly call orchestrator + dispatch subagent chains is the primitive's sole job."
+
+  - id: P04
+    bucket: positive_direct
+    text: "Invoke the internal workflow dispatch primitive that team-* skills wrap."
+    expected_trigger: true
+    rationale: "Internal workflow dispatch primitive wrapped by team-* = orchestrator."
+
+  - id: P05
+    bucket: positive_direct
+    text: "Run the orchestrator to sequence the skill dispatches on this chain spec."
+    expected_trigger: true
+    rationale: "Orchestrator sequencing skill dispatches matches description wording."
+
+  - id: P06
+    bucket: positive_direct
+    text: "Fire the orchestration primitive that /do and team-security both call into."
+    expected_trigger: true
+    rationale: "Firing the orchestration primitive called by team-* is this skill's role."
+
+  # ----- Positive: paraphrases (4) -----
+  - id: P07
+    bucket: positive_paraphrase
+    text: "Execute the internal dispatcher that chains skill and agent calls together."
+    expected_trigger: true
+    rationale: "Executing internal dispatcher that chains skills/agents paraphrases the primitive."
+
+  - id: P08
+    bucket: positive_paraphrase
+    text: "Run the low-level coordinator that sequences or parallelizes skill invocations."
+    expected_trigger: true
+    rationale: "Low-level sequencer/parallelizer of skill invocations is orchestrator's role."
+
+  - id: P09
+    bucket: positive_paraphrase
+    text: "Invoke the shared multi-step workflow engine that team-* orchestrators share."
+    expected_trigger: true
+    rationale: "Shared multi-step engine shared by team-* = orchestrator primitive."
+
+  - id: P10
+    bucket: positive_paraphrase
+    text: "Trigger the meta-skill that fans out work to multiple sub-skills and collects results."
+    expected_trigger: true
+    rationale: "Meta-skill fanning out and collecting results is the orchestrator primitive."
+
+  # ----- Positive: task-embedded (4) -----
+  - id: P11
+    bucket: positive_task_embedded
+    text: "I'm extending /do internally; directly invoke its underlying dispatch primitive so I can trace the chain."
+    expected_trigger: true
+    rationale: "Direct invocation of /do's underlying dispatch primitive = orchestrator."
+
+  - id: P12
+    bucket: positive_task_embedded
+    text: "Inside this new team-* wrapper, invoke the internal orchestration primitive to dispatch the sub-skills."
+    expected_trigger: true
+    rationale: "Invoking internal orchestration primitive inside a team-* wrapper = orchestrator."
+
+  - id: P13
+    bucket: positive_task_embedded
+    text: "Document the internal orchestrator primitive's dispatch behavior: how it chains code-quality, audit, and gate-enforcement for a release."
+    expected_trigger: true
+    rationale: "Documenting orchestrator's internal dispatch behavior is a sanctioned orchestrator use case."
+
+  - id: P14
+    bucket: positive_task_embedded
+    text: "Trace the internal workflow dispatcher's handoffs between skills and subagents on my next invocation."
+    expected_trigger: true
+    rationale: "Tracing internal workflow dispatcher handoffs = direct orchestrator interaction."
+
+  # ----- Positive: context-based (2) -----
+  - id: P15
+    bucket: positive_context_based
+    text: "OK, directly invoke the internal orchestration primitive for this chain."
+    expected_trigger: true
+    rationale: "Direct invocation of internal orchestration primitive is a legitimate trigger."
+
+  - id: P16
+    bucket: positive_context_based
+    text: "Now fire the internal dispatcher meta-skill on the pending workflow spec."
+    expected_trigger: true
+    rationale: "Firing internal dispatcher meta-skill on a workflow spec resolves to orchestrator."
+
+  # ----- Negative: sibling confusion (3) -----
+  - id: P17
+    bucket: negative_sibling
+    text: "Build this feature end-to-end — spec through tests and review."
+    expected_trigger: false
+    expected_sibling: do
+    rationale: "End-to-end feature delivery is do (Phase 1 lead dispatch); description explicitly redirects there."
+
+  - id: P18
+    bucket: negative_sibling
+    text: "Run the pre-release checks and ship it."
+    expected_trigger: false
+    expected_sibling: do
+    rationale: "Pre-release/shipping workflow is do (Phase 3 plus gate-enforcement Gate 5); description explicitly redirects there."
+
+  - id: P19
+    bucket: negative_sibling
+    text: "Which skill should I use to coordinate a multi-step workflow?"
+    expected_trigger: false
+    expected_sibling: skill-router
+    rationale: "'Which skill should I use' is a meta-discovery question: skill-router, not orchestrator."
+
+  # ----- Negative: unrelated (1) -----
+  - id: P20
+    bucket: negative_unrelated
+    text: "Write a poem about autumn leaves."
+    expected_trigger: false
+    rationale: "Creative writing is unrelated to internal workflow orchestration."
