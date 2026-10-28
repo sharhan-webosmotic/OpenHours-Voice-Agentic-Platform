@@ -1,3 +1,4 @@
+import type { Role } from '@openhours/shared';
 import type { TenantDb } from '../../db/tenant-client.js';
 import { uuidV7 } from '../../common/uuid.js';
 
@@ -13,7 +14,17 @@ export type AuthUser = {
   readonly organisationId: string | null;
   readonly email: string;
   readonly passwordHash: string;
-  readonly role: string;
+  /**
+   * The database enum, not a string. Declaring it `string` here is what let the token
+   * signer accept an unconstrained role, and narrowing the signer for review finding I13
+   * turned that into a compile error rather than a silent widening.
+   *
+   * This is also the guard against the other half of I13, a value added to the schema's
+   * `Role` enum without a matching row in the matrix: Prisma's generated union would then
+   * be wider than the shared `Role`, and this assignment would not compile. So the two
+   * cannot drift apart unnoticed, and no runtime test is needed to say so.
+   */
+  readonly role: Role;
   readonly status: string;
   readonly mustChangePassword: boolean;
   readonly failedLoginCount: number;

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Role } from '@openhours/shared';
-import { ForbiddenError } from './errors.js';
+import { ForbiddenError, UnauthorizedError } from './errors.js';
+import { runWithContext } from './request-context.js';
 import {
   MASKED_PATIENT_FIELDS,
+  currentPrincipal,
   maskPatientFields,
   requirePermission,
   scopeFilter,
@@ -14,6 +16,43 @@ const principal = (role: Role, organisationId: string | undefined = 'org-1'): Pr
   userId: 'usr-1',
   role,
   organisationId,
+});
+
+describe('currentPrincipal', () => {
+  const context = { requestId: 'req-1' };
+
+  it('reads the actor from the request context', () => {
+    runWithContext({ ...context, userId: 'usr-1', role: 'DOCTOR', organisationId: 'org-1' }, () => {
+      expect(currentPrincipal()).toEqual({
+        userId: 'usr-1',
+        role: 'DOCTOR',
+        organisationId: 'org-1',
+      });
+    });
+  });
+
+  /**
+   * The role used to be cast with `as Role`, asserting something nothing had verified, so
+   * an unrecognised value reached the matrix and threw a TypeError there. Review finding
+   * I13. The token verifier refuses such a claim first, so reaching this is a bug rather
+   * than an attack, and it must fail closed.
+   */
+  it('refuses a role the matrix does not list instead of casting it', () => {
+    runWithContext({ ...context, userId: 'usr-1', role: 'ADMIN', organisationId: 'org-1' }, () => {
+      expect(() => currentPrincipal()).toThrow(UnauthorizedError);
+    });
+  });
+
+  it('does not name the role to the client', () => {
+    runWithContext({ ...context, userId: 'usr-1', role: 'ADMIN' }, () => {
+      try {
+        currentPrincipal();
+        expect.unreachable('should have thrown');
+      } catch (error) {
+        expect((error as UnauthorizedError).detail).toBe('Authentication is required.');
+      }
+    });
+  });
 });
 
 describe('requirePermission', () => {

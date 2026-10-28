@@ -1,4 +1,5 @@
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
+import { isRole, type Role } from '@openhours/shared';
 import { config } from '../../config.js';
 import { UnauthorizedError } from '../../common/errors.js';
 
@@ -18,7 +19,12 @@ export type AccessTokenClaims = {
   readonly userId: string;
   /** NULL for the two platform roles, which belong to no organisation. */
   readonly organisationId: string | null;
-  readonly role: string;
+  /**
+   * One of the six roles, checked against the matrix at verification time rather than
+   * carried as an arbitrary string. Narrowing it here is what stops an unrecognised role
+   * reaching the permission matrix.
+   */
+  readonly role: Role;
 };
 
 const secret = (): Uint8Array => new TextEncoder().encode(config.JWT_SECRET);
@@ -52,8 +58,19 @@ export const verifyAccessToken = async (token: string): Promise<AccessTokenClaim
 
     const { sub, org, role } = payload;
 
-    if (typeof sub !== 'string' || typeof role !== 'string') {
+    if (typeof sub !== 'string') {
       throw new Error('missing claims');
+    }
+    /**
+     * The role must be one the matrix knows, not merely a string.
+     *
+     * Only our own signing key can mint a token and `signAccessToken` takes the role from
+     * a database enum, so this needs the JWT secret to exploit and the practical risk is
+     * low. It is still the difference between denying an unknown role and throwing on it.
+     * Review finding I13.
+     */
+    if (!isRole(role)) {
+      throw new Error('invalid role claim');
     }
     if (org !== null && typeof org !== 'string') {
       throw new Error('invalid org claim');

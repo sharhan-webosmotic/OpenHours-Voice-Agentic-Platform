@@ -19,6 +19,7 @@ export {
   SCOPES,
   isPermitted,
   isPlatformRole,
+  isRole,
   permissionScope,
   type Action,
   type Grant,

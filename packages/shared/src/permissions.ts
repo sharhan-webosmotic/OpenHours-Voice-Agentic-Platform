@@ -20,6 +20,16 @@ export const ROLES = [
 
 export type Role = (typeof ROLES)[number];
 
+/**
+ * Whether a value is one of the six roles.
+ *
+ * Exists so nothing has to cast a string into `Role` on trust. The API's request context
+ * holds `role` as a string, because it is read from a token claim, and an unchecked
+ * `as Role` there is what let an unrecognised role reach the matrix.
+ */
+export const isRole = (value: unknown): value is Role =>
+  typeof value === 'string' && (ROLES as readonly string[]).includes(value);
+
 export const RESOURCES = [
   'platform_users',
   'organisations',
@@ -245,8 +255,27 @@ export const isPlatformRole = (role: Role): boolean => PLATFORM_ROLES.includes(r
  * truthiness would treat "own appointments" as "all appointments", which is the exact
  * mistake this type makes impossible to ignore.
  */
-export const permissionScope = (role: Role, resource: Resource, action: Action): Scope | false =>
-  PERMISSIONS[resource][role][action];
+export const permissionScope = (role: Role, resource: Resource, action: Action): Scope | false => {
+  /**
+   * Default deny for a role the matrix does not list, rather than indexing `undefined`.
+   *
+   * The types say this cannot happen, and the types were not enough: `role` originates in
+   * a JWT claim, and an unrecognised value used to throw
+   * `TypeError: Cannot read properties of undefined` instead of denying. So the
+   * "anything not listed is denied" property held for resources and actions but not for
+   * roles, and a Role added to the database enum without a matrix row would have become a
+   * 500 on every request by that role rather than a clean 403. Review finding I13.
+   *
+   * The token verifier now refuses such a claim outright, so this is the second line
+   * rather than the first. It also covers the other callers of the matrix, including the
+   * web apps' menu filtering, which do not go through that verifier.
+   */
+  if (!isRole(role)) {
+    return false;
+  }
+
+  return PERMISSIONS[resource][role][action];
+};
 
 /** Whether the action is permitted at all, ignoring how far it reaches. */
 export const isPermitted = (role: Role, resource: Resource, action: Action): boolean =>

@@ -81,6 +81,23 @@ describe('verifyAccessToken claim shape', () => {
     await expect(verifyAccessToken(token)).rejects.toBeInstanceOf(UnauthorizedError);
   });
 
+  it('refuses a validly signed token whose role is not in the matrix', async () => {
+    /**
+     * The claim used to be accepted as any string, cast to Role downstream, and then used
+     * to index the matrix, where an unknown value threw a TypeError rather than denying.
+     * Review finding I13. A role the matrix does not list is refused here instead.
+     */
+    const token = await signRaw({ org: 'org-1', role: 'ADMIN' }, { subject: 'usr-1' });
+
+    await expect(verifyAccessToken(token)).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it('refuses a role that differs only by case, because the matrix is exact', async () => {
+    const token = await signRaw({ org: 'org-1', role: 'clinic_owner' }, { subject: 'usr-1' });
+
+    await expect(verifyAccessToken(token)).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
   it('refuses a role claim that is not a string', async () => {
     const token = await signRaw({ org: 'org-1', role: 42 }, { subject: 'usr-1' });
 

@@ -1,3 +1,4 @@
+import type { Role } from '@openhours/shared';
 import { config } from '../../config.js';
 import { logger } from '../../common/logger.js';
 import { ForbiddenError, UnauthorizedError, ValidationError } from '../../common/errors.js';
@@ -32,7 +33,7 @@ export type LoginResult = {
   readonly user: {
     readonly id: string;
     readonly organisationId: string | null;
-    readonly role: string;
+    readonly role: Role;
   };
 };
 
@@ -45,7 +46,7 @@ const refreshTtl = (): Date =>
 
 const issueTokens = async (
   db: Parameters<Parameters<typeof asSystem>[1]>[0],
-  user: { id: string; organisationId: string | null; role: string },
+  user: { id: string; organisationId: string | null; role: Role },
   familyId: string,
 ): Promise<{ accessToken: string; refreshToken: string; expiresAt: Date }> => {
   const accessToken = await signAccessToken({

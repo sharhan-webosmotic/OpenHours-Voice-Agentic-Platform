@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ACTIONS,
   PERMISSIONS,
   RESOURCES,
   ROLES,
   isPermitted,
   isPlatformRole,
+  isRole,
   permissionScope,
   type Grant,
   type Resource,
@@ -280,5 +282,29 @@ describe('invariants that must hold whatever the table says', () => {
 
   it('identifies exactly the two platform roles', () => {
     expect(ROLES.filter((role) => isPlatformRole(role))).toEqual(['SUPER_ADMIN', 'INTERNAL_ADMIN']);
+  });
+
+  /**
+   * Default deny has to hold for roles as it does for resources and actions.
+   *
+   * An unknown role used to throw `TypeError: Cannot read properties of undefined`,
+   * which means a Role added to the database enum without a matrix row would have been a
+   * 500 on every request by that role rather than a clean 403. Review finding I13.
+   */
+  it('denies a role the matrix does not list, rather than throwing', () => {
+    for (const resource of RESOURCES) {
+      for (const action of ACTIONS) {
+        expect(permissionScope('ADMIN' as Role, resource, action)).toBe(false);
+      }
+    }
+  });
+
+  it('recognises exactly the six roles and nothing else', () => {
+    for (const role of ROLES) {
+      expect(isRole(role)).toBe(true);
+    }
+    for (const value of ['ADMIN', 'clinic_owner', '', 'Role', 42, null, undefined, {}]) {
+      expect(isRole(value)).toBe(false);
+    }
   });
 });
