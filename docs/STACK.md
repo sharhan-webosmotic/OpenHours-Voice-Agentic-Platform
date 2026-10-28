@@ -139,6 +139,32 @@ Consequences for the implementation:
   default but silent, so the client extension still throws when there is no tenant context, to
   turn a silent empty result into a visible error.
 
+### The request transaction commits before the response is sent (M1-12 fix, 2026-10-28)
+
+`tenantMiddleware` keeps ONE interactive transaction open for the whole request, so a
+handler that writes in two steps cannot leave half of it committed. That design once ended
+the transaction on the response's `finish` event, which put `COMMIT` **after** the client
+already held its 201. Two consequences, both observed: a client that wrote and immediately
+read back took a different pooled connection and did not see its own row, and a `COMMIT`
+that failed could no longer change a response that had gone out.
+
+**The fix buffers the response.** The handler's bytes are collected in the middleware and
+sent only once `COMMIT` has resolved. Three rules follow from that, and they are
+constraints on every route, not implementation detail:
+
+1. **No route may stream a response.** A progressive response would be withheld until the
+   handler ended it, and a large one would accumulate in memory. Every handler ends with a
+   single `res.json()` today, and the middleware throws rather than silently drop bytes if
+   it is handed a chunk type it cannot buffer.
+2. **Call recordings and other large media are served as presigned S3 URLs**, never proxied
+   or streamed through the API. The API returns a URL; the bytes never enter a request
+   transaction.
+3. **The longer-term fix is per-operation transactions**, not a request-wide one. A service
+   that opens a transaction around its own unit of work, commits it, and then lets the
+   controller write the response needs no buffer and no streaming ban. That is a larger
+   change to every repository signature, so it is deferred rather than done; until it
+   lands, the buffer is what keeps the commit ahead of the response.
+
 ### Three Prisma 7 breaking changes that shape the code
 
 1. **`url` is no longer allowed in the `datasource` block** (fails validation with P1012).
