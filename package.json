@@ -23,7 +23,7 @@
     "db:sql": "pnpm --filter @openhours/api db:sql",
     "db:check-policies": "pnpm --filter @openhours/api db:check-policies",
     "db:seed": "pnpm --filter @openhours/api db:seed",
-    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm openapi:check",
+    "check": "pnpm generate && pnpm typecheck && pnpm lint && pnpm test && pnpm openapi:check",
     "prepare": "husky",
     "generate": "turbo run generate"
   },

@@ -16,7 +16,7 @@ ask for the ticket text. Work only on the ticket I name, and do not start other 
 - `docs/` ADRs, STACK.md, runbook. Per-app rules live in each app's own `CLAUDE.md`
 
 ## Commands (run from repo root)
-- `pnpm dev` | `pnpm check` (typecheck + lint + test + openapi drift; MUST pass before you say "done")
+- `pnpm dev` | `pnpm check` (generate + typecheck + lint + test + openapi drift; MUST pass before you say "done")
 - `pnpm test` | `pnpm typecheck` | `pnpm lint` | `pnpm openapi` | `pnpm db:migrate` | `pnpm db:seed`
 
 ## How to work on every task

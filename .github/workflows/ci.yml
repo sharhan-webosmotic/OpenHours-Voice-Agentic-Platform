@@ -75,6 +75,14 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # `apps/api/src/generated/` is git-ignored, so a fresh checkout has no Prisma
+      # client. `pnpm lint` is `eslint .` at the root rather than a Turbo task, so it
+      # does not inherit the `generate` dependency that typecheck, test and build have.
+      # Without this step the typed lint rules see PrismaClient as an unresolved type
+      # and `no-unsafe-*` fires on every call through it.
+      - name: Generate the Prisma client
+        run: pnpm generate
+
       # The database lock is only trustworthy if it is checked. These run against the
       # postgres service with the real migrations, so a tenant table added without a
       # policy fails the build rather than shipping readable across organisations.
