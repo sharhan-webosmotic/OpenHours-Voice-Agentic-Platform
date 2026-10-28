@@ -307,8 +307,18 @@ describe('access tokens', () => {
   it('rejects a TAMPERED token', async () => {
     const session = await login(ownerEmail, PASSWORD);
     const token = jsonBody<LoginBody>(session).accessToken;
-    // Flip the last character of the signature.
-    const tampered = token.slice(0, -1) + (token.endsWith('A') ? 'B' : 'A');
+    const [header, payload, signature] = token.split('.');
+    if (header === undefined || payload === undefined || signature === undefined) {
+      throw new Error('access token is not a three-part JWS');
+    }
+    // Flip the FIRST character of the signature, not the last. A 32-byte HMAC
+    // encodes to 43 base64url characters, so the final character carries only
+    // four significant bits and two padding bits: flipping it can decode to the
+    // same signature bytes, which made this test pass a valid token one run in
+    // sixteen. The first character carries all six, so the bytes always move.
+    const flipped = (signature.startsWith('A') ? 'B' : 'A') + signature.slice(1);
+    expect(Buffer.from(flipped, 'base64url')).not.toEqual(Buffer.from(signature, 'base64url'));
+    const tampered = `${header}.${payload}.${flipped}`;
 
     const response = await request(app)
       .get('/api/v1/auth/me')
