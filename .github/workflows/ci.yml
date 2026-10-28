@@ -75,13 +75,18 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      # `apps/api/src/generated/` is git-ignored, so a fresh checkout has no Prisma
-      # client. `pnpm lint` is `eslint .` at the root rather than a Turbo task, so it
-      # does not inherit the `generate` dependency that typecheck, test and build have.
-      # Without this step the typed lint rules see PrismaClient as an unresolved type
-      # and `no-unsafe-*` fires on every call through it.
-      - name: Generate the Prisma client
-        run: pnpm generate
+      # `pnpm lint` is `eslint .` at the root rather than a Turbo task, so it inherits
+      # none of the `^build` and `generate` prerequisites that typecheck, test and build
+      # declare in turbo.json. Two of its inputs are git-ignored and therefore absent on
+      # a fresh checkout: `apps/api/src/generated/` (the Prisma client) and
+      # `packages/shared/dist/` (the .d.ts that `@openhours/shared` exports). Without
+      # both, the typed rules resolve PrismaClient and @openhours/shared to error types
+      # and `no-unsafe-*` fires on every file that touches either.
+      #
+      # `build` dependsOn `generate`, so this one step produces both. It also IS the
+      # production build gate, which is why there is no separate build step at the end.
+      - name: Build (generates the Prisma client and the workspace .d.ts files)
+        run: pnpm build
 
       # The database lock is only trustworthy if it is checked. These run against the
       # postgres service with the real migrations, so a tenant table added without a
@@ -124,9 +129,6 @@ jobs:
 
       - name: OpenAPI drift
         run: pnpm openapi:check
-
-      - name: Build
-        run: pnpm build
 
   audit:
     name: dependency audit
