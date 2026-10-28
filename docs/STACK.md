@@ -153,3 +153,36 @@ Consequences for the implementation:
    need `allowBuilds` entries in `pnpm-workspace.yaml`. Testcontainers' optional
    Docker-over-SSH extras (`ssh2`, `cpu-features`, `protobufjs`) are explicitly **denied** there
    instead, since the local Docker socket is used.
+
+## Creating a migration (M1-13, resolved 2026-10-28)
+
+**`prisma migrate dev` must not be used on this project.** It compares the database
+against migration history, and the hand-written SQL in `apps/api/prisma/sql` (policies,
+roles, constraints, grants) is not in that history. Prisma therefore reports drift and
+offers to RESET the database. Accepting that drops every policy and role, and on a shared
+database it drops the data.
+
+Use instead:
+
+```sh
+pnpm db:migrate:create <snake_case_name>   # writes the migration, touches no database
+pnpm db:migrate                            # prisma migrate deploy, applies it
+pnpm db:sql                                # re-applies the hand-written SQL
+pnpm db:check-policies                     # fails if a tenant table lost its policy
+```
+
+`db:migrate:create` takes the diff between the MIGRATIONS directory and the schema, using
+a throwaway Testcontainers PostgreSQL as the shadow database. Nothing persistent is read
+or written, so it is safe to run against a working dev environment. Prisma 7 has no
+`--shadow-database-url` flag: the shadow database is read from `prisma.config.ts`, which
+picks it up from `SHADOW_DATABASE_URL`, and the script sets that to its container.
+
+Verified 2026-10-28 both ways: with the schema unchanged it reports "No schema changes to
+migrate", and with a column added it emitted the correct `ALTER TABLE` without touching a
+real database. The same check confirms the hand-written `support_sessions` migration is
+correct, since a diff from the migrations to the schema reports no difference.
+
+**A new tenant table needs one more step.** Add a file to `prisma/sql/` that re-runs the
+policy loop, because `apply.ts` does not re-run a file it has already recorded.
+`pnpm db:check-policies` fails until that exists, which is the guard rather than a
+convention.
