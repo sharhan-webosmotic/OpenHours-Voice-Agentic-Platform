@@ -30,12 +30,26 @@ export const setup = async (project: TestProject): Promise<void> => {
 
   const ownerUrl = container.getConnectionUri();
 
+  /**
+   * stdio is piped to keep a normal run quiet, but the output is re-thrown on failure.
+   * Swallowing it meant a migration that failed on a CI runner surfaced only as an
+   * opaque non-zero exit, with the actual SQL error sitting unread in a buffer.
+   */
   const run = (args: readonly string[]): void => {
-    execFileSync('pnpm', ['exec', ...args], {
-      cwd: apiRoot,
-      env: { ...process.env, DATABASE_URL: ownerUrl, APP_USER_PASSWORD },
-      stdio: 'pipe',
-    });
+    try {
+      execFileSync('pnpm', ['exec', ...args], {
+        cwd: apiRoot,
+        env: { ...process.env, DATABASE_URL: ownerUrl, APP_USER_PASSWORD },
+        stdio: 'pipe',
+      });
+    } catch (error) {
+      const failure = error as { stdout?: Buffer; stderr?: Buffer };
+      const detail = [failure.stdout?.toString(), failure.stderr?.toString()]
+        .filter((part) => part !== undefined && part.length > 0)
+        .join('\n');
+      // cause keeps the original error, including its exit status, reachable.
+      throw new Error(`pnpm exec ${args.join(' ')} failed:\n${detail}`, { cause: error });
+    }
   };
 
   run(['prisma', 'migrate', 'deploy']);
