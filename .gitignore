@@ -11,34 +11,12 @@ coverage/
 .DS_Store
 *.log
 
-# ─── ADF framework runtime (.claude/) ───────────────────────────────
-# The framework itself stays tracked and reviewed (see SETUP.md). Only its
-# generated and per-machine files are ignored.
+# ─── Claude Code setup (.claude/) ───────────────────────────────────
+# The setup itself stays tracked and reviewed (see SETUP.md). Only
+# per-machine files are ignored; settings.local.json is listed above.
 .claude/settings.json.backup
 .claude/settings.json.backup.*
 .claude/settings.local.json.backup*
-.claude/skill-lab/results/
-.claude/cron/jobs.json
-.claude/.cron-last-tick
-.claude/worktrees/
-.claude/plugins/user/*
-!.claude/plugins/user/.gitkeep
-.claude/state/*.db
-.claude/.adf-version.previous
-__pycache__/
-*.pyc
-scheduled_tasks.lock
-
-# ─── AI_DOCS runtime (auto-written, never commit) ───────────────────
-AI_DOCS/memory/.prompt-counter
-AI_DOCS/memory/compaction-snapshot.md
-AI_DOCS/memory/metrics.jsonl
-AI_DOCS/memory/figma-snapshots/Screens/
-AI_DOCS/audit/agent-log.md
-AI_DOCS/*.txt
-AI_DOCS/*.py
-AI_DOCS/design/samples/
-AI_DOCS/design/src/
 
 # Prisma's generated client: machine-written TypeScript, rebuilt by `pnpm generate`,
 # which the build, typecheck and test tasks depend on.

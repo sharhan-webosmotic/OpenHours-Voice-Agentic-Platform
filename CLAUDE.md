@@ -54,6 +54,7 @@ ask for the ticket text. Work only on the ticket I name, and do not start other 
 - Web code: `frontend-react-standards` · visual/UX work: `ui-design-system`
 - Speed and scale: `performance-optimisation` · Sarvam, webhooks, jobs: `sarvam-voice-integration`
 - Android (last phase only): `android-kotlin-forwarding` · deploy and operations: `release-readiness`
+- Crossing module boundaries, new data flow or provider, ADRs: `system-design`
 - Reviewing a diff (use in a fresh session): `code-review-checklist`
 
 ## Not in scope without written approval
