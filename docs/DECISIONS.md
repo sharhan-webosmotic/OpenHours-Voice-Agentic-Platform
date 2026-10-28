@@ -30,10 +30,16 @@ cookie, ever.
 **Why:** an injected script can read anything in browser storage, so a token that is
 readable by JavaScript is a token that leaves with the first XSS.
 
-**Code does not match yet.** `apps/api/src/modules/auth/auth.routes.ts` sets
-`sameSite: 'lax'`, and `tests/auth.test.ts` asserts `SameSite=Lax`. The comment beside it
-reasons from origin rather than site. Resolve before the sign-in work: see the note at the
-bottom of this file.
+**Why `Strict` is free here:** SameSite is evaluated on the registrable domain, not the
+origin. The dashboard, the admin console and the API deploy as subdomains of one domain, so
+they are same-site despite being different origins, and the cookie is only ever needed by a
+same-site `fetch` to the refresh endpoint, never by a top-level navigation. `Lax` relaxes
+exactly the case this cookie does not use, so it gave away protection for nothing.
+
+**Moving the dashboard to a different registrable domain is a NEW decision, not an edit to
+this one.** It would make the two cross-site, and then neither `Strict` nor `Lax` sends the
+cookie on a `fetch`: only `SameSite=None` works cross-site, which is a materially weaker
+position and needs deciding on its own terms rather than being absorbed as a tweak here.
 
 ---
 
@@ -115,19 +121,13 @@ contains that per transaction; it does not remove it.
 
 ---
 
-## Open, and blocking the sign-in work
+## What no automated test currently covers
 
-**D-002's `SameSite` value.** The decision says `Strict`, the code says `Lax`, and the
-choice depends on a deployment fact not yet settled: `SameSite` is scoped to the
-registrable domain, not the origin.
+**That the refresh cookie is actually sent.** The suite drives the app with supertest, which
+sends no `Origin` header, so `SameSite` is never evaluated and 478 passing tests say nothing
+about whether a browser would attach the cookie. D-002 is therefore correct by reasoning and
+unproven by execution.
 
-- If the dashboard and the API are subdomains of one domain (`app.openhours.in` and
-  `api.openhours.in`), they are **same-site**, `Strict` works, and the code should change to
-  `Strict`.
-- If they are different domains (a dashboard on a hosting provider's domain, say), they are
-  **cross-site**, and `Lax` does not work either: `Lax` sends the cookie on a top-level
-  navigation, not on the `fetch` that calls the refresh endpoint. Only `SameSite=None` works
-  cross-site, which is a weaker position and would need the decision revisited.
-
-No test can see this. The suite drives the app with supertest, which sends no `Origin`
-header, so `SameSite` is never exercised. It needs a browser against the deployed pair.
+Closing that is in the sign-in feature's scope: a Playwright test that signs in, lets the
+access token expire, and proves the session survives because the refresh cookie was sent.
+Until it is green, treat the cookie arrangement as reasoned rather than verified.
