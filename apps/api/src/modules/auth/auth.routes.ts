@@ -29,10 +29,23 @@ export const REFRESH_COOKIE = 'openhours_refresh';
 const refreshCookieOptions = (expiresAt: Date): CookieOptions => ({
   httpOnly: true,
   secure: config.COOKIE_SECURE,
-  // Lax, not Strict: the dashboard is a separate origin and a Strict cookie would not be
-  // sent on a top-level navigation back into the app. Not None, which would let any site
-  // trigger a refresh.
-  sameSite: 'lax',
+  /**
+   * Strict, and it costs nothing here.
+   *
+   * SameSite is evaluated on the REGISTRABLE DOMAIN, not the origin. The dashboard, the
+   * admin console and the API deploy as subdomains of one domain, so they are same-site
+   * even though they are different origins. An earlier version set `lax` reasoning from
+   * origin, which gave away protection for no benefit.
+   *
+   * The cookie is only ever needed by a same-site `fetch` to the refresh endpoint, never
+   * by a top-level navigation, so `lax` bought nothing: `lax` relaxes exactly the case
+   * this cookie does not use. Not `none`, which would let any site trigger a refresh.
+   *
+   * Moving the dashboard to a DIFFERENT registrable domain would make these cross-site,
+   * and then neither `strict` nor `lax` sends the cookie on a fetch: it would force
+   * `none`. That is a new decision, not an edit to this one. See docs/DECISIONS.md D-002.
+   */
+  sameSite: 'strict',
   // Scoped to the auth routes, so the cookie is not attached to every API call.
   path: '/api/v1/auth',
   expires: expiresAt,

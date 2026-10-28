@@ -4,6 +4,12 @@ Multi-tenant SaaS for clinics: an AI voice receptionist (Sarvam) plus dashboards
 It stores patient health data. Treat every change as production code in a regulated domain.
 Quality beats speed: a slower correct change is always better than a fast risky one.
 
+**Read `docs/DECISIONS.md` first, every session.** It holds the settled choices that bind
+every change: the working method, token storage, the temporary-password flow, the Sarvam
+agent and webhook arrangement, the response-buffering constraint, and what must land before
+the voice work. A change that contradicts one is a change to the decision, not a code review
+comment.
+
 Tickets and prompts live in docs/ROADMAP.md, which is git-ignored and local to the
 machine planning the work. It is never committed, so a fresh clone will not have it:
 ask for the ticket text. Work only on the ticket I name, and do not start other tickets.
@@ -13,14 +19,14 @@ ask for the ticket text. Work only on the ticket I name, and do not start other 
 - `apps/clinic-web` React dashboard for clinics. `apps/admin-web` React internal admin console
 - `apps/android` call-forwarding app only (no patient data on device). BUILT LAST: do not start it until the API, admin-web and clinic-web are complete and signed off. Ignore it for all earlier work, except that the API's device-pairing and forwarding endpoints exist.
 - `packages/shared` zod schemas, enums, permission matrix. `packages/api-client` generated from OpenAPI
-- `docs/` ADRs, STACK.md, runbook. Per-app rules live in each app's own `CLAUDE.md`
+- `docs/` DECISIONS.md (binding choices), ADRs, STACK.md, runbook. Per-app rules live in each app's own `CLAUDE.md`
 
 ## Commands (run from repo root)
 - `pnpm dev` | `pnpm check` (build + typecheck + lint + test + openapi drift; MUST pass before you say "done")
 - `pnpm test` | `pnpm typecheck` | `pnpm lint` | `pnpm openapi` | `pnpm db:migrate` | `pnpm db:seed`
 
 ## How to work on every task
-1. Read the relevant skill(s) below, then PLAN: files to touch, tests to add, risks. Wait for approval on anything that changes schema, auth, permissions or tenancy.
+1. Read `docs/DECISIONS.md` and the relevant skill(s) below, then PLAN: files to touch, tests to add, risks. Wait for approval on anything that changes schema, auth, permissions or tenancy.
 2. Make the smallest change that solves the task. No drive-by refactors, no unrelated formatting.
 3. Write tests in the same change. Run `pnpm check`. Report failures verbatim; never claim success you did not observe.
 4. If a requirement, provider behaviour (Sarvam) or clinical rule is unclear, ask. Do not guess or invent API shapes.
@@ -54,6 +60,7 @@ ask for the ticket text. Work only on the ticket I name, and do not start other 
 - Web code: `frontend-react-standards` · visual/UX work: `ui-design-system`
 - Speed and scale: `performance-optimisation` · Sarvam, webhooks, jobs: `sarvam-voice-integration`
 - Android (last phase only): `android-kotlin-forwarding` · deploy and operations: `release-readiness`
+- Crossing module boundaries, new data flow or provider, ADRs: `system-design`
 - Reviewing a diff (use in a fresh session): `code-review-checklist`
 
 ## Not in scope without written approval

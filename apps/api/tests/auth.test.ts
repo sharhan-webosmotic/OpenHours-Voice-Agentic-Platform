@@ -106,7 +106,7 @@ describe('login', () => {
 
     const setCookie = String(response.headers['set-cookie']);
     expect(setCookie).toContain('HttpOnly');
-    expect(setCookie).toContain('SameSite=Lax');
+    expect(setCookie).toContain('SameSite=Strict');
     // The refresh token must never be readable by browser JavaScript, and must not be
     // echoed into the response body alongside the access token.
     expect(JSON.stringify(jsonBody<LoginBody>(response))).not.toContain(

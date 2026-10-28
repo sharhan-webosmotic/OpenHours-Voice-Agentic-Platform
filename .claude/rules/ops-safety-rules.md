@@ -24,7 +24,7 @@ These rules protect you from surprise costs, unintended deployments, and externa
 These are local, reversible, and free:
 - Writing/editing source code files (`src/`, `app/`, `lib/`, `components/`)
 - Writing test files
-- Writing docs and specs (`AI_DOCS/`)
+- Writing docs and specs (`docs/`)
 - Running local dev server (`npm run dev`, `python main.py`)
 - Running local tests (`npm test`, `pytest`)
 - Git operations (status, diff, log, add, commit, branch, checkout, stash)
@@ -133,7 +133,8 @@ Do you want to proceed? (yes / no)
    | Staging / production mutation | deploy, migration, scale, DNS, secret change, `terraform apply`, registry push | **Human-approved** (show the command, get explicit confirmation) |
    | Rollback decision | any rollback in staging/prod | **Human-approved** (the AI may recommend and prepare, the human decides) |
 
-   The line: read freely, mutate shared environments only with a human in the loop. `deployment-execution` and `operations` follow these tiers.
+   The line: read freely, mutate shared environments only with a human in the loop. The
+   `release-readiness` skill follows these tiers.
 
 ---
 
