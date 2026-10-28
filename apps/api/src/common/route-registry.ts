@@ -22,13 +22,29 @@ export type RouteDescriptor = RouteSchemas & {
   /** Path as registered on the router, e.g. `/api/v1/patients/:id`. */
   readonly path: string;
   readonly summary: string;
-  /** Permission required, from the shared matrix. Omitted for public routes. */
+  /**
+   * The matrix cell this route enforces, as `resource:action`, or omitted.
+   *
+   * ENFORCED, not descriptive. Four routes once declared a permission that nothing
+   * checked, and two of them named a resource (`self`, `device`) that is not in the
+   * matrix at all, so a reviewer could read a plausible string as a control that did not
+   * exist. `tests/declared-permissions-are-enforced.test.ts` now fails unless the value
+   * is a real matrix cell AND a real request proves that every granting role reaches the
+   * route and every denied role gets a 403. Omit it when the route's control is something
+   * other than the matrix, and say in a comment what that control is.
+   */
   readonly permission?: string;
   /**
    * Whether the route reads or writes patient data. Drives the audit requirement and
    * marks the route for review; every route must state it explicitly.
    */
   readonly phiSensitive: boolean;
+  /**
+   * The audit action this route records. REQUIRED in practice for every phiSensitive
+   * route: `phi-routes-are-audited.test.ts` fails the build when one is missing, so a
+   * new PHI endpoint cannot ship without an audit trail.
+   */
+  readonly auditAction?: string;
 };
 
 const routes = new Map<string, RouteDescriptor>();

@@ -77,11 +77,19 @@ describe('CORS allow-list', () => {
   });
 });
 
+/** The minimum a valid environment needs, so each test varies only what it is about. */
+const REQUIRED_ENV = {
+  DATABASE_URL: 'postgresql://t:t@127.0.0.1:1/t',
+  JWT_SECRET: 'config-test-jwt-secret-at-least-32-bytes',
+} as const;
+
 describe('config refuses a wildcard origin with credentials', () => {
-  const base = {
-    DATABASE_URL: 'postgresql://t:t@127.0.0.1:1/t',
-    CORS_ALLOWED_ORIGINS: '*',
-  };
+  const base = { ...REQUIRED_ENV, CORS_ALLOWED_ORIGINS: '*' };
+
+  it('requires a JWT secret of at least 32 bytes', () => {
+    // A shorter key makes the HS256 signature the weakest part of the system.
+    expect(() => parseConfig({ ...REQUIRED_ENV, JWT_SECRET: 'too-short' })).toThrow(/JWT_SECRET/);
+  });
 
   it('throws when credentials are enabled', () => {
     expect(() => parseConfig({ ...base, CORS_ALLOW_CREDENTIALS: 'true' })).toThrow(
@@ -99,22 +107,17 @@ describe('config refuses a wildcard origin with credentials', () => {
 
 describe('trust proxy', () => {
   it('defaults to false', () => {
-    const config = parseConfig({ DATABASE_URL: 'postgresql://t:t@127.0.0.1:1/t' });
+    const config = parseConfig(REQUIRED_ENV);
 
     expect(config.TRUST_PROXY).toBe(false);
   });
 
   it('refuses "true", which would let any client spoof its address', () => {
-    expect(() =>
-      parseConfig({ DATABASE_URL: 'postgresql://t:t@127.0.0.1:1/t', TRUST_PROXY: 'true' }),
-    ).toThrow(/never "true"/);
+    expect(() => parseConfig({ ...REQUIRED_ENV, TRUST_PROXY: 'true' })).toThrow(/never "true"/);
   });
 
   it('accepts a hop count', () => {
-    const config = parseConfig({
-      DATABASE_URL: 'postgresql://t:t@127.0.0.1:1/t',
-      TRUST_PROXY: '2',
-    });
+    const config = parseConfig({ ...REQUIRED_ENV, TRUST_PROXY: '2' });
 
     expect(config.TRUST_PROXY).toBe(2);
   });

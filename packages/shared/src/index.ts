@@ -9,3 +9,21 @@
 
 /** Semantic version of the shared contract package, for diagnostics endpoints. */
 export const SHARED_CONTRACT_VERSION = '0.1.0';
+
+export {
+  ACTIONS,
+  PERMISSIONS,
+  PLATFORM_ROLES,
+  RESOURCES,
+  ROLES,
+  SCOPES,
+  isPermitted,
+  isPlatformRole,
+  permissionScope,
+  type Action,
+  type Grant,
+  type Matrix,
+  type Resource,
+  type Role,
+  type Scope,
+} from './permissions.js';

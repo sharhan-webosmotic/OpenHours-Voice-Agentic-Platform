@@ -7,6 +7,12 @@
     "tsBuildInfoFile": "dist/.tsbuildinfo",
     "types": ["node"]
   },
-  "include": ["src/**/*.ts", "vitest.config.ts"],
+  "include": [
+    "src/**/*.ts",
+    "tests/**/*.ts",
+    "vitest.config.ts",
+    "prisma.config.ts",
+    "prisma/**/*.ts"
+  ],
   "exclude": ["dist", "coverage"]
 }

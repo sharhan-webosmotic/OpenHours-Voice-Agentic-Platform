@@ -75,20 +75,60 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # `pnpm lint` is `eslint .` at the root rather than a Turbo task, so it inherits
+      # none of the `^build` and `generate` prerequisites that typecheck, test and build
+      # declare in turbo.json. Two of its inputs are git-ignored and therefore absent on
+      # a fresh checkout: `apps/api/src/generated/` (the Prisma client) and
+      # `packages/shared/dist/` (the .d.ts that `@openhours/shared` exports). Without
+      # both, the typed rules resolve PrismaClient and @openhours/shared to error types
+      # and `no-unsafe-*` fires on every file that touches either.
+      #
+      # `build` dependsOn `generate`, so this one step produces both. It also IS the
+      # production build gate, which is why there is no separate build step at the end.
+      - name: Build (generates the Prisma client and the workspace .d.ts files)
+        run: pnpm build
+
+      # The database lock is only trustworthy if it is checked. These run against the
+      # postgres service with the real migrations, so a tenant table added without a
+      # policy fails the build rather than shipping readable across organisations.
+      # Testcontainers starts its own PostgreSQL for the database suites. Checked
+      # explicitly so a runner without Docker fails here with a clear reason instead of
+      # as an opaque container-start timeout several minutes into `pnpm test`.
+      - name: Check Docker is available for Testcontainers
+        run: docker info --format 'docker {{.ServerVersion}} available'
+
+      # The service container is fresh for every job, so these three steps prove the
+      # migrations and the hand-written SQL apply to a genuinely CLEAN database,
+      # independently of the test harness doing the same thing in its own container.
+      #
+      # Run through the ROOT scripts, the same ones a developer runs, so CI and local
+      # cannot drift apart.
+      - name: Apply migrations to a clean database
+        run: pnpm db:migrate
+
+      - name: Apply hand-written SQL (constraints, RLS, roles)
+        run: pnpm db:sql
+        env:
+          APP_USER_PASSWORD: app_user_ci_only
+
+      - name: Row-level security policy coverage
+        run: pnpm db:check-policies
+
       - name: Lint
         run: pnpm lint
 
       - name: Typecheck
         run: pnpm typecheck
 
+      # Runs both vitest projects: the unit suite, and the database suite which starts
+      # its own PostgreSQL via Testcontainers, applies the real migrations and the real
+      # hand-written SQL, and connects as the non-owner app_user so row-level security
+      # is live.
       - name: Test
         run: pnpm test
 
       - name: OpenAPI drift
         run: pnpm openapi:check
-
-      - name: Build
-        run: pnpm build
 
   audit:
     name: dependency audit

@@ -39,3 +39,14 @@ AI_DOCS/*.txt
 AI_DOCS/*.py
 AI_DOCS/design/samples/
 AI_DOCS/design/src/
+
+# Prisma's generated client: machine-written TypeScript, rebuilt by `pnpm generate`,
+# which the build, typecheck and test tasks depend on.
+apps/api/src/generated/
+
+# ─── Roadmap: local planning only, never committed ──────────────────
+# The ticket list and its prompts stay on the machine of whoever is
+# planning. Keeping it out of git stops half-edited tickets landing in
+# review diffs. CLAUDE.md records that it is local-only.
+ROADMAP.md
+docs/ROADMAP.md

@@ -54,6 +54,34 @@ const configSchema = z
 
     RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
+
+    /**
+     * Signing key for access tokens. 32 bytes minimum: a shorter key weakens HS256 to
+     * the point where the signature is the weakest part of the system.
+     */
+    JWT_SECRET: z.string().min(32),
+    /** Access tokens are short-lived because they cannot be revoked once issued. */
+    ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().max(3600).default(900),
+    REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().max(90).default(14),
+    /** Failed logins before the account locks. */
+    LOGIN_MAX_FAILURES: z.coerce.number().int().positive().default(5),
+    LOCKOUT_MINUTES: z.coerce.number().int().positive().default(15),
+    /**
+     * Login throttling. Per IP blunts a distributed sweep; per email stops one account
+     * being ground down from many addresses. Configurable because the right numbers
+     * differ between a test run, a single-tenant staging box and production behind a
+     * load balancer.
+     */
+    AUTH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
+    AUTH_RATE_LIMIT_MAX_PER_IP: z.coerce.number().int().positive().default(10),
+    AUTH_RATE_LIMIT_MAX_PER_EMAIL: z.coerce.number().int().positive().default(5),
+    /** Lifetime of a device pairing code, in minutes. */
+    PAIRING_CODE_TTL_MINUTES: z.coerce.number().int().positive().default(10),
+    /** Set Secure on cookies. Off only for plain-HTTP local development. */
+    COOKIE_SECURE: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((raw) => raw === 'true'),
   })
   .superRefine((value, ctx) => {
     // A wildcard origin with credentials lets any site read authenticated responses.

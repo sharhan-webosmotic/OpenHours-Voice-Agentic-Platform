@@ -15,6 +15,11 @@ import { PROBLEM_JSON_CONTENT_TYPE, toProblemDetails } from './common/problem-de
 import { getContext } from './common/request-context.js';
 import { requestContextMiddleware } from './common/request-context.middleware.js';
 import type { ReadinessProbe } from './health/health.service.js';
+import { authRouter } from './modules/auth/auth.routes.js';
+import { devicesRouter } from './modules/devices/devices.routes.js';
+import { forwardingRouter } from './modules/devices/forwarding.routes.js';
+import { supportSessionsRouter } from './modules/support-sessions/support-sessions.routes.js';
+import { auditRouter } from './modules/audit/audit.routes.js';
 
 export type AppDependencies = {
   readonly readiness: ReadinessProbe;
@@ -108,6 +113,12 @@ export const createApp = ({ readiness, config = appConfig }: AppDependencies): E
     }
     res.status(200).json({ status: 'ready' });
   });
+
+  app.use('/api/v1/auth', authRouter());
+  app.use('/api/v1/devices', devicesRouter());
+  app.use('/api/v1/forwarding', forwardingRouter());
+  app.use('/api/v1/support-sessions', supportSessionsRouter());
+  app.use('/api/v1/audit-logs', auditRouter());
 
   app.use((_req: Request, _res: Response, next: NextFunction) => {
     next(new NotFoundError('route not found'));

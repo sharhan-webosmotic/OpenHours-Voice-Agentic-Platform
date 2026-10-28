@@ -2,30 +2,30 @@
 
 Versions checked against the npm registry on 2026-10-27. Pin exact versions in `package.json` and commit the lockfile. Anything marked VERIFY must be confirmed in the first session that uses it, and the result written here.
 
-| Layer                | Choice                                                                        | Version                              | Notes                                                                                                                                                                                                                                         |
-| -------------------- | ----------------------------------------------------------------------------- | ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runtime              | Node.js LTS                                                                   | 24 LTS (22.12+ also works)           | All chosen packages support Node >= 22.12. Set in `.nvmrc` and `engines`.                                                                                                                                                                     |
-| Package manager      | pnpm + Turborepo                                                              | pnpm 12.x, turbo 2.11                | Use `packageManager` field with corepack.                                                                                                                                                                                                     |
-| Language             | TypeScript strict                                                             | **6.0.3**                            | Do NOT use 7.x yet: typescript-eslint 8.72 supports `>=4.8.4 <6.1.0`. Revisit when it supports 7.                                                                                                                                             |
-| API framework        | Express                                                                       | 5.3                                  | Async errors propagate natively in v5.                                                                                                                                                                                                        |
-| Validation           | zod                                                                           | 4.6                                  | Shared in `packages/shared`.                                                                                                                                                                                                                  |
-| OpenAPI              | @asteasolutions/zod-to-openapi, openapi-typescript, openapi-fetch             | 9.1 / 7.13 / 0.17                    | VERIFY zod 4 compatibility on Day 1.                                                                                                                                                                                                          |
-| ORM / DB             | Prisma + PostgreSQL 16                                                        | **prisma and @prisma/client 7.10.1** | The npm `latest` tag for `prisma` currently points to an 8.0 release candidate. Pin the stable 7.10.1 for BOTH packages; do not use `latest`. VERIFY: driver adapter and `set_config` inside interactive transactions for row-level security. |
-| Jobs                 | pg-boss                                                                       | 12.38                                | Runs on the same PostgreSQL; no Redis.                                                                                                                                                                                                        |
-| Auth                 | Self-managed: jose, argon2                                                    | 6.2 / 0.45                           | argon2id; 15-min JWT; rotating refresh tokens; device tokens for Android.                                                                                                                                                                     |
-| Logging / errors     | pino, @sentry/node                                                            | 10.4 / 11.9                          | Redaction list is mandatory.                                                                                                                                                                                                                  |
-| HTTP hardening       | helmet + express-rate-limit + cors                                            | **8.3.0 / 8.7.1 / 2.8.6**            | VERIFIED 2026-10-27 against Express 5.3.0, see "HTTP hardening verified" below. `cors` added in M1-02.                                                                                                                                        |
-| Phones               | libphonenumber-js                                                             | 1.13                                 | E.164 everywhere.                                                                                                                                                                                                                             |
-| Storage              | AWS S3 (ap-south-1), @aws-sdk/client-s3                                       | 3.x                                  | Private, SSE, signed URLs. Local dev uses SeaweedFS, not MinIO - see "Local object storage" below.                                                                                                                                            |
-| Web apps             | React, Vite, Tailwind CSS                                                     | 19.3 / 8.3 / 4.3                     | Tailwind via `@tailwindcss/vite`.                                                                                                                                                                                                             |
-| Web libs             | React Router 8, TanStack Query 5, TanStack Table, React Hook Form 7, date-fns | 8.5 / 5.105 / latest / 7.91 / latest | Radix primitives with shadcn/ui pattern.                                                                                                                                                                                                      |
-| Web tests            | Vitest 5, Testing Library, MSW 3, Playwright                                  | 5.0 / latest / 3.0 / 1.64            |                                                                                                                                                                                                                                               |
-| API tests            | Vitest, Supertest, Testcontainers (PostgreSQL)                                | 5.0 / 7.3 / 12.2                     | Connect as restricted `app_user` role.                                                                                                                                                                                                        |
-| Android (last phase) | Provisional: Kotlin, Jetpack Compose, Hilt, Room, WorkManager, FCM            | decided when Android starts          | Built after API, admin-web and clinic-web. The scope document says React Native; confirm then.                                                                                                                                                |
-| Voice                | Sarvam Voice Agents                                                           | per `docs/voice/sarvam-contract.md`  | Thin `VoiceProvider` interface, one implementation.                                                                                                                                                                                           |
-| Cloud                | AWS ap-south-1 (Mumbai)                                                       |                                      | RDS PostgreSQL, ECS Fargate, S3, Secrets Manager, CloudWatch, CloudFront. Terraform.                                                                                                                                                          |
-| CI/CD                | GitHub Actions                                                                |                                      | See `release-readiness` skill.                                                                                                                                                                                                                |
-| Quality              | ESLint 10 + typescript-eslint, Prettier, husky + lint-staged, commitlint      | 10.13 / 8.72                         | `pnpm check` is the gate.                                                                                                                                                                                                                     |
+| Layer                | Choice                                                                        | Version                                                  | Notes                                                                                                                                                                                              |
+| -------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime              | Node.js LTS                                                                   | 24 LTS (22.12+ also works)                               | All chosen packages support Node >= 22.12. Set in `.nvmrc` and `engines`.                                                                                                                          |
+| Package manager      | pnpm + Turborepo                                                              | pnpm 12.x, turbo 2.11                                    | Use `packageManager` field with corepack.                                                                                                                                                          |
+| Language             | TypeScript strict                                                             | **6.0.3**                                                | Do NOT use 7.x yet: typescript-eslint 8.72 supports `>=4.8.4 <6.1.0`. Revisit when it supports 7.                                                                                                  |
+| API framework        | Express                                                                       | 5.3                                                      | Async errors propagate natively in v5.                                                                                                                                                             |
+| Validation           | zod                                                                           | 4.6                                                      | Shared in `packages/shared`.                                                                                                                                                                       |
+| OpenAPI              | @asteasolutions/zod-to-openapi, openapi-typescript, openapi-fetch             | 9.1 / 7.13 / 0.17                                        | VERIFY zod 4 compatibility on Day 1.                                                                                                                                                               |
+| ORM / DB             | Prisma + PostgreSQL 16                                                        | **prisma, @prisma/client and @prisma/adapter-pg 7.10.1** | `latest` is an 8.0 release candidate; pin stable 7.10.1. VERIFIED 2026-10-27: driver adapter plus `set_config` inside interactive transactions works, see "Prisma 7 and row-level security" below. |
+| Jobs                 | pg-boss                                                                       | 12.38                                                    | Runs on the same PostgreSQL; no Redis.                                                                                                                                                             |
+| Auth                 | Self-managed: jose, argon2                                                    | 6.2 / 0.45                                               | argon2id; 15-min JWT; rotating refresh tokens; device tokens for Android.                                                                                                                          |
+| Logging / errors     | pino, @sentry/node                                                            | 10.4 / 11.9                                              | Redaction list is mandatory.                                                                                                                                                                       |
+| HTTP hardening       | helmet + express-rate-limit + cors                                            | **8.3.0 / 8.7.1 / 2.8.6**                                | VERIFIED 2026-10-27 against Express 5.3.0, see "HTTP hardening verified" below. `cors` added in M1-02.                                                                                             |
+| Phones               | libphonenumber-js                                                             | 1.13                                                     | E.164 everywhere.                                                                                                                                                                                  |
+| Storage              | AWS S3 (ap-south-1), @aws-sdk/client-s3                                       | 3.x                                                      | Private, SSE, signed URLs. Local dev uses SeaweedFS, not MinIO - see "Local object storage" below.                                                                                                 |
+| Web apps             | React, Vite, Tailwind CSS                                                     | 19.3 / 8.3 / 4.3                                         | Tailwind via `@tailwindcss/vite`.                                                                                                                                                                  |
+| Web libs             | React Router 8, TanStack Query 5, TanStack Table, React Hook Form 7, date-fns | 8.5 / 5.105 / latest / 7.91 / latest                     | Radix primitives with shadcn/ui pattern.                                                                                                                                                           |
+| Web tests            | Vitest 5, Testing Library, MSW 3, Playwright                                  | 5.0 / latest / 3.0 / 1.64                                |                                                                                                                                                                                                    |
+| API tests            | Vitest, Supertest, Testcontainers (PostgreSQL)                                | 5.0 / 7.3 / 12.2                                         | Connect as restricted `app_user` role.                                                                                                                                                             |
+| Android (last phase) | Provisional: Kotlin, Jetpack Compose, Hilt, Room, WorkManager, FCM            | decided when Android starts                              | Built after API, admin-web and clinic-web. The scope document says React Native; confirm then.                                                                                                     |
+| Voice                | Sarvam Voice Agents                                                           | per `docs/voice/sarvam-contract.md`                      | Thin `VoiceProvider` interface, one implementation.                                                                                                                                                |
+| Cloud                | AWS ap-south-1 (Mumbai)                                                       |                                                          | RDS PostgreSQL, ECS Fargate, S3, Secrets Manager, CloudWatch, CloudFront. Terraform.                                                                                                               |
+| CI/CD                | GitHub Actions                                                                |                                                          | See `release-readiness` skill.                                                                                                                                                                     |
+| Quality              | ESLint 10 + typescript-eslint, Prettier, husky + lint-staged, commitlint      | 10.13 / 8.72                                             | `pnpm check` is the gate.                                                                                                                                                                          |
 
 ## Open items
 
@@ -116,3 +116,99 @@ Two pino behaviours were established empirically and are now relied on:
 Consequence for every later ticket: **error messages must never contain patient data or
 secrets.** Redaction cannot protect a message without making it useless, so throw with
 identifiers only.
+
+## Prisma 7 and row-level security (M1-04, 2026-10-27)
+
+**VERIFIED by spike: `set_config` inside a Prisma interactive transaction works, so per-request
+RLS is viable. This closes the STACK.md VERIFY item.** Measured against `postgres:16.15-alpine`
+in Testcontainers, connected as a non-owner `app_user` with `NOBYPASSRLS`, through
+`@prisma/adapter-pg` 7.10.1.
+
+| Question                                                                                   | Result                                                                                                                                                                                                 |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Does `set_config('app.org_id', 'org-a', true)` hold for the whole interactive transaction? | **Yes.** `current_setting` returned `org-a` and `widget.findMany()` through the model API returned only org-a's row (count 1). Prisma keeps one connection for the life of an interactive transaction. |
+| Does the setting leak after commit?                                                        | **No.** `current_setting` was empty and a query outside the transaction returned 0 rows, because `true` scopes it to the transaction.                                                                  |
+| Can `app_user` insert into another organisation?                                           | **No.** The policy's `WITH CHECK` rejected it.                                                                                                                                                         |
+| Do sequential transactions bleed into each other?                                          | **No.** `org-a`, `org-b`, `org-a` each saw only their own row.                                                                                                                                         |
+
+Consequences for the implementation:
+
+- `withTenant` must use an **interactive transaction**. The setting is transaction-local, so a
+  non-transactional query, or a second transaction, sees nothing.
+- A query issued outside `withTenant` returns **zero rows** rather than failing loudly. Safe by
+  default but silent, so the client extension still throws when there is no tenant context, to
+  turn a silent empty result into a visible error.
+
+### The request transaction commits before the response is sent (M1-12 fix, 2026-10-28)
+
+`tenantMiddleware` keeps ONE interactive transaction open for the whole request, so a
+handler that writes in two steps cannot leave half of it committed. That design once ended
+the transaction on the response's `finish` event, which put `COMMIT` **after** the client
+already held its 201. Two consequences, both observed: a client that wrote and immediately
+read back took a different pooled connection and did not see its own row, and a `COMMIT`
+that failed could no longer change a response that had gone out.
+
+**The fix buffers the response.** The handler's bytes are collected in the middleware and
+sent only once `COMMIT` has resolved. Three rules follow from that, and they are
+constraints on every route, not implementation detail:
+
+1. **No route may stream a response.** A progressive response would be withheld until the
+   handler ended it, and a large one would accumulate in memory. Every handler ends with a
+   single `res.json()` today, and the middleware throws rather than silently drop bytes if
+   it is handed a chunk type it cannot buffer.
+2. **Call recordings and other large media are served as presigned S3 URLs**, never proxied
+   or streamed through the API. The API returns a URL; the bytes never enter a request
+   transaction.
+3. **The longer-term fix is per-operation transactions**, not a request-wide one. A service
+   that opens a transaction around its own unit of work, commits it, and then lets the
+   controller write the response needs no buffer and no streaming ban. That is a larger
+   change to every repository signature, so it is deferred rather than done; until it
+   lands, the buffer is what keeps the commit ahead of the response.
+
+### Three Prisma 7 breaking changes that shape the code
+
+1. **`url` is no longer allowed in the `datasource` block** (fails validation with P1012).
+   Connection config moves to `prisma.config.ts` (`datasource.url`) and `PrismaClient` requires
+   an `adapter`. Driver adapters are mandatory, not optional.
+2. **The `prisma-client` generator emits TypeScript, not JavaScript**, into a path you choose
+   rather than into `node_modules`. It is therefore compiled by our own `tsc`. The output
+   (`apps/api/src/generated/`) is **gitignored** and rebuilt by `pnpm generate`, which the
+   `build`, `typecheck` and `test` turbo tasks depend on, so a clean clone works without
+   committing machine-written code. It is excluded from lint and from Prettier.
+3. **Prisma ships its engine through a postinstall script**, so `prisma` and `@prisma/engines`
+   need `allowBuilds` entries in `pnpm-workspace.yaml`. Testcontainers' optional
+   Docker-over-SSH extras (`ssh2`, `cpu-features`, `protobufjs`) are explicitly **denied** there
+   instead, since the local Docker socket is used.
+
+## Creating a migration (M1-13, resolved 2026-10-28)
+
+**`prisma migrate dev` must not be used on this project.** It compares the database
+against migration history, and the hand-written SQL in `apps/api/prisma/sql` (policies,
+roles, constraints, grants) is not in that history. Prisma therefore reports drift and
+offers to RESET the database. Accepting that drops every policy and role, and on a shared
+database it drops the data.
+
+Use instead:
+
+```sh
+pnpm db:migrate:create <snake_case_name>   # writes the migration, touches no database
+pnpm db:migrate                            # prisma migrate deploy, applies it
+pnpm db:sql                                # re-applies the hand-written SQL
+pnpm db:check-policies                     # fails if a tenant table lost its policy
+```
+
+`db:migrate:create` takes the diff between the MIGRATIONS directory and the schema, using
+a throwaway Testcontainers PostgreSQL as the shadow database. Nothing persistent is read
+or written, so it is safe to run against a working dev environment. Prisma 7 has no
+`--shadow-database-url` flag: the shadow database is read from `prisma.config.ts`, which
+picks it up from `SHADOW_DATABASE_URL`, and the script sets that to its container.
+
+Verified 2026-10-28 both ways: with the schema unchanged it reports "No schema changes to
+migrate", and with a column added it emitted the correct `ALTER TABLE` without touching a
+real database. The same check confirms the hand-written `support_sessions` migration is
+correct, since a diff from the migrations to the schema reports no difference.
+
+**A new tenant table needs one more step.** Add a file to `prisma/sql/` that re-runs the
+policy loop, because `apply.ts` does not re-run a file it has already recorded.
+`pnpm db:check-policies` fails until that exists, which is the guard rather than a
+convention.

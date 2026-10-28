@@ -14,6 +14,15 @@ export type RequestContext = {
   readonly organisationId?: string;
   readonly userId?: string;
   readonly role?: string;
+  /**
+   * Set only for a paired Android device. A device is not a user: it has an
+   * organisation but no role, which is what keeps it off the user endpoints.
+   */
+  readonly deviceId?: string;
+  /** Client address, for audit rows. Resolved under the configured trust-proxy setting. */
+  readonly ipAddress?: string;
+  /** Truncated before storage: a user agent is unbounded client-controlled input. */
+  readonly userAgent?: string;
 };
 
 const storage = new AsyncLocalStorage<RequestContext>();

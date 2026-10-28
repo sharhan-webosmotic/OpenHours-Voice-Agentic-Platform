@@ -19,4 +19,10 @@ minimumReleaseAge: 1440
 # justify every entry: esbuild's postinstall links its platform native binary, and it is
 # required by tsx (the dev server) and vitest.
 allowBuilds:
+  '@prisma/engines': true
+  argon2: true
+  cpu-features: false
   esbuild: true
+  prisma: true
+  protobufjs: false
+  ssh2: false

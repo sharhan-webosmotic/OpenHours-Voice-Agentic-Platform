@@ -32,7 +32,19 @@ export const requestContextMiddleware = (req: Request, res: Response, next: Next
 
   res.setHeader(REQUEST_ID_HEADER, requestId);
 
-  runWithContext({ requestId }, () => {
-    next();
-  });
+  // Captured once here so every audit row in the request agrees, and so the rest of the
+  // code never reaches into req for them.
+  const userAgent = req.headers['user-agent'];
+
+  runWithContext(
+    {
+      requestId,
+      ...(req.ip === undefined ? {} : { ipAddress: req.ip }),
+      // Truncated: a user agent is unbounded client-controlled input and is stored.
+      ...(typeof userAgent === 'string' ? { userAgent: userAgent.slice(0, 512) } : {}),
+    },
+    () => {
+      next();
+    },
+  );
 };
