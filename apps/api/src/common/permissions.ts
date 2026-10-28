@@ -1,5 +1,4 @@
 import {
-  isPlatformRole,
   permissionScope,
   type Action,
   type Resource,
@@ -131,7 +130,3 @@ export const scopeFilter = (scope: Scope, principal: Principal): ScopeFilter => 
       return { kind: 'none' };
   }
 };
-
-/** Whether a platform role is acting outside any organisation. */
-export const isCrossTenantPrincipal = (principal: Principal): boolean =>
-  isPlatformRole(principal.role) && principal.organisationId === undefined;

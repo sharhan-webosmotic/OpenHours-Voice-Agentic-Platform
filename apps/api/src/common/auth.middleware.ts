@@ -55,12 +55,6 @@ export const requireAuth = (req: Request, _res: Response, next: NextFunction): v
     .catch(next);
 };
 
-/** Roles that belong to no organisation and may act across tenants. */
-const PLATFORM_ROLES = new Set(['SUPER_ADMIN', 'INTERNAL_ADMIN']);
-
-export const isPlatformRole = (role: string | undefined): boolean =>
-  role !== undefined && PLATFORM_ROLES.has(role);
-
 /**
  * Requires a clinic user, i.e. one with an organisation.
  *
