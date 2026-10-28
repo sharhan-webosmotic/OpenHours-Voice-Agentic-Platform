@@ -7,7 +7,13 @@ import { requireAuth, requireUser } from '../../common/auth.middleware.js';
 import { currentPrincipal, requirePermission } from '../../common/permissions.js';
 import { withPrincipalScope } from '../../db/principal-scope.js';
 import { organisationIdsWithSessionFor } from '../support-sessions/support-sessions.repository.js';
-import { MAX_PAGE_SIZE, list, type AuditListFilters, type AuditPage } from './audit.service.js';
+import {
+  MAX_PAGE_SIZE,
+  list,
+  record,
+  type AuditListFilters,
+  type AuditPage,
+} from './audit.service.js';
 
 export const auditQuerySchema = z.object({
   actorUserId: z.string().uuid().optional(),
@@ -19,6 +25,9 @@ export const auditQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(MAX_PAGE_SIZE).default(50),
 });
 
+/** Declared on the descriptor and written by the handler. One constant, so they agree. */
+const AUDIT_READ_ACTION = 'audit_log.read';
+
 registerRoute({
   method: 'get',
   path: '/api/v1/audit-logs',
@@ -28,7 +37,7 @@ registerRoute({
   // The rows describe PHI access without containing PHI, so reading the trail is itself
   // worth recording.
   phiSensitive: true,
-  auditAction: 'audit_log.read',
+  auditAction: AUDIT_READ_ACTION,
 });
 
 export const auditRouter = (): Router => {
@@ -87,7 +96,15 @@ export const auditRouter = (): Router => {
   return router;
 };
 
-/** Reads the page under whichever scope the principal's role grants. */
+/**
+ * Reads the page under whichever scope the principal's role grants, and records the read.
+ *
+ * Reading the whole audit trail for an organisation is itself a sensitive act, so root
+ * CLAUDE.md rule 5 applies to it. This call used to be missing: the route declared
+ * `auditAction: 'audit_log.read'` and wrote nothing, and the guard that was supposed to
+ * catch that inspected the route descriptor rather than the route's behaviour, so it
+ * reported green. The guard now drives real requests (tests/phi-routes-are-audited.test.ts).
+ */
 const readPage = async (
   principal: ReturnType<typeof currentPrincipal>,
   scope: ReturnType<typeof requirePermission>,
@@ -95,29 +112,52 @@ const readPage = async (
   requestedActorUserId: string | undefined,
 ): Promise<AuditPage> =>
   withPrincipalScope(principal, 'audit.read', async (db) => {
-    if (!isPlatformRole(principal.role) || scope === 'all') {
-      /**
-       * A clinic role is already confined to its own organisation by the scope, so no
-       * organisation filter is needed or wanted. SUPER_ADMIN has `all`, meaning the
-       * whole platform. Both therefore take the filters as given.
-       */
-      return list(db, {
-        ...baseFilters,
-        ...(requestedActorUserId === undefined ? {} : { actorUserId: requestedActorUserId }),
-      });
-    }
+    const page = await readUnderScope(db, principal, scope, baseFilters, requestedActorUserId);
 
+    // Written AFTER the read, so this request's own entry is not inside its own result,
+    // and inside the same transaction, so a failed read records nothing. Counts only:
+    // the filters could name an actor, and an audit row never carries the values it
+    // describes.
+    await record(db, {
+      action: AUDIT_READ_ACTION,
+      entityType: 'audit_log',
+      metadata: { returned: page.items.length, limit: baseFilters.limit ?? 0, scope },
+    });
+
+    return page;
+  });
+
+/** The scope resolution, split out so the audit write above cannot be skipped on a branch. */
+const readUnderScope = async (
+  db: Parameters<typeof list>[0],
+  principal: ReturnType<typeof currentPrincipal>,
+  scope: ReturnType<typeof requirePermission>,
+  baseFilters: AuditListFilters,
+  requestedActorUserId: string | undefined,
+): Promise<AuditPage> => {
+  if (!isPlatformRole(principal.role) || scope === 'all') {
     /**
-     * INTERNAL_ADMIN (`audit_scope`): the organisations they have opened a support
-     * session for, plus their own actions. That is the agreed table's definition with
-     * one part missing: it also says "assigned organisations", and no assignment
-     * mechanism exists yet, so an organisation this admin has never opened a session
-     * for is not visible. Recorded in docs/FOUNDATION-REPORT.md.
+     * A clinic role is already confined to its own organisation by the scope, so no
+     * organisation filter is needed or wanted. SUPER_ADMIN has `all`, meaning the
+     * whole platform. Both therefore take the filters as given.
      */
-    const organisationIds = await organisationIdsWithSessionFor(db, principal.userId);
-
     return list(db, {
       ...baseFilters,
-      scopedTo: { organisationIds, orActorUserId: principal.userId },
+      ...(requestedActorUserId === undefined ? {} : { actorUserId: requestedActorUserId }),
     });
+  }
+
+  /**
+   * INTERNAL_ADMIN (`audit_scope`): the organisations they have opened a support
+   * session for, plus their own actions. That is the agreed table's definition with
+   * one part missing: it also says "assigned organisations", and no assignment
+   * mechanism exists yet, so an organisation this admin has never opened a session
+   * for is not visible. Recorded in docs/FOUNDATION-REPORT.md.
+   */
+  const organisationIds = await organisationIdsWithSessionFor(db, principal.userId);
+
+  return list(db, {
+    ...baseFilters,
+    scopedTo: { organisationIds, orActorUserId: principal.userId },
   });
+};
