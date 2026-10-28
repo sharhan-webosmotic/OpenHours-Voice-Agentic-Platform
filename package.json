@@ -21,6 +21,7 @@
     "db:sql": "pnpm --filter @openhours/api db:sql",
     "db:check-policies": "pnpm --filter @openhours/api db:check-policies",
     "db:seed": "pnpm --filter @openhours/api db:seed",
+    "provision:clinic": "pnpm --filter @openhours/api provision:clinic",
     "check": "pnpm build && pnpm typecheck && pnpm lint && pnpm test",
     "prepare": "husky",
     "generate": "turbo run generate"

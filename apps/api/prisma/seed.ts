@@ -85,6 +85,13 @@ const SEED_USERS: readonly SeedUser[] = [
     organisationId: DEMO_ORGANISATION_ID,
   },
   {
+    id: '01930000-0000-7000-8000-000000000105',
+    email: 'manager@demo-clinic.test',
+    fullName: 'Demo Clinic Manager',
+    role: Role.CLINIC_MANAGER,
+    organisationId: DEMO_ORGANISATION_ID,
+  },
+  {
     id: '01930000-0000-7000-8000-000000000103',
     email: 'doctor@demo-clinic.test',
     fullName: 'Demo Clinic Doctor',

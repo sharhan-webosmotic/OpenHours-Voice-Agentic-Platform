@@ -19,7 +19,8 @@
     "db:migrate:create": "tsx prisma/create-migration.ts",
     "db:sql": "tsx prisma/sql/apply.ts",
     "db:check-policies": "tsx prisma/sql/check-policies.ts",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "provision:clinic": "tsx prisma/provision-clinic.ts"
   },
   "dependencies": {
     "@openhours/shared": "workspace:*",
