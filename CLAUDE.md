@@ -4,7 +4,9 @@ Multi-tenant SaaS for clinics: an AI voice receptionist (Sarvam) plus dashboards
 It stores patient health data. Treat every change as production code in a regulated domain.
 Quality beats speed: a slower correct change is always better than a fast risky one.
 
-Tickets and prompts live in docs/ROADMAP.md. Work only on the ticket I name, and do not start other tickets.
+Tickets and prompts live in docs/ROADMAP.md, which is git-ignored and local to the
+machine planning the work. It is never committed, so a fresh clone will not have it:
+ask for the ticket text. Work only on the ticket I name, and do not start other tickets.
 
 ## Repo map
 - `apps/api` Express + TypeScript + Prisma + PostgreSQL + pg-boss (API, webhooks, jobs)

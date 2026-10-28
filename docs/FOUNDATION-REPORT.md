@@ -102,9 +102,9 @@ adapter's responsibility and re-verified); and `tokenHashesMatch` was dead code.
   item in `docs/STACK.md` remains open.
 - **The in-memory rate-limit store is single-instance.** The login throttle is not a real
   control until a shared store exists. Tracked for M7 in `docs/STACK.md`.
-- **No human security review.** AI-only review is the weakest control here, and
-  `docs/ROADMAP.md` already says a human security review is required before real patient
-  data. Nothing in this branch changes that.
+- **No human security review.** AI-only review is the weakest control here. A human
+  security review is required before this platform touches real patient data. Nothing in
+  this branch changes that.
 
 ## Open issues
 
