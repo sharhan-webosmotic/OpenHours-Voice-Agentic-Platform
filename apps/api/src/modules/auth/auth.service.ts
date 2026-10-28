@@ -41,6 +41,21 @@ export type LoginResult = {
 const loginFailed = (): UnauthorizedError =>
   new UnauthorizedError('login failed', 'Email or password is incorrect.');
 
+/**
+ * Whether the organisation this user belongs to may still be signed in to.
+ *
+ * Null is "not applicable", not "unknown": the two platform roles belong to no
+ * organisation, and treating null as a refusal would lock every platform admin out. A
+ * clinic user always has one, enforced by a CHECK constraint on `organisation_id`, so a
+ * null here for a clinic role cannot happen without the schema being wrong.
+ *
+ * SUSPENDED and DEACTIVATED both refuse. Only ACTIVE passes, so a status added to the
+ * enum later is refused until someone decides otherwise, which is the direction that
+ * fails closed.
+ */
+const organisationAllowsSignIn = (organisationStatus: string | null): boolean =>
+  organisationStatus === null || organisationStatus === 'ACTIVE';
+
 const refreshTtl = (): Date =>
   new Date(Date.now() + config.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
 
@@ -112,6 +127,18 @@ export const login = async (email: string, password: string): Promise<LoginResul
       return { kind: 'failed', reason: 'inactive', userId: user.id };
     }
 
+    /**
+     * A deactivated clinic cannot be signed in to, by any of its users.
+     *
+     * Checked here rather than in a middleware because the organisation is a RESULT of
+     * authenticating: there is nothing to check until the user is known. The decoy work
+     * is spent so the response time does not separate this from a wrong password.
+     */
+    if (!organisationAllowsSignIn(user.organisationStatus)) {
+      await spendVerificationWork(password);
+      return { kind: 'failed', reason: 'org-inactive', userId: user.id };
+    }
+
     if (!(await verifyPassword(user.passwordHash, password))) {
       await repository.recordFailedLogin(
         db,
@@ -167,7 +194,7 @@ type RefreshOutcome =
   | { readonly kind: 'ok'; readonly result: LoginResult }
   | {
       readonly kind: 'rejected';
-      readonly reason: 'unknown' | 'reuse' | 'expired' | 'inactive';
+      readonly reason: 'unknown' | 'reuse' | 'expired' | 'inactive' | 'org-inactive';
       readonly userId?: string;
       readonly revoked?: number;
     };
@@ -198,6 +225,21 @@ export const refresh = async (presentedToken: string): Promise<LoginResult> => {
     if (user === null || user.status !== 'ACTIVE') {
       const revoked = await repository.revokeTokenFamily(db, stored.familyId);
       return { kind: 'rejected', reason: 'inactive', userId: stored.userId, revoked };
+    }
+
+    /**
+     * Deactivating a clinic ends its users' live sessions, it does not merely stop new
+     * ones. Refresh is the only place that can do it, because an access token is
+     * self-contained and cannot be revoked once issued, so the window is the access
+     * token's remaining lifetime.
+     *
+     * The family is revoked, as for a deactivated user: leaving it alive would let the
+     * session resume the moment the clinic were reactivated, which is a decision for
+     * whoever reactivates it rather than a side effect.
+     */
+    if (!organisationAllowsSignIn(user.organisationStatus)) {
+      const revoked = await repository.revokeTokenFamily(db, stored.familyId);
+      return { kind: 'rejected', reason: 'org-inactive', userId: stored.userId, revoked };
     }
 
     // Rotate: the presented token dies as its replacement is issued, in one

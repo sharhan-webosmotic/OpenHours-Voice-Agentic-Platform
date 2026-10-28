@@ -26,6 +26,16 @@ export type AuthUser = {
    */
   readonly role: Role;
   readonly status: string;
+  /**
+   * The owning organisation's status, or null for the two platform roles, which belong to
+   * no organisation.
+   *
+   * Null therefore means "not applicable", NOT "unknown": a clinic user always has one,
+   * enforced by a CHECK constraint on `organisation_id`. The service must not treat null
+   * as a refusal or every platform login would fail, and must not treat it as permission
+   * either. Both directions have a test.
+   */
+  readonly organisationStatus: string | null;
   readonly mustChangePassword: boolean;
   readonly failedLoginCount: number;
   readonly lockedUntil: Date | null;
@@ -39,8 +49,24 @@ export type StoredRefreshToken = {
   readonly revokedAt: Date | null;
 };
 
-export const findUserByEmail = async (db: TenantDb, email: string): Promise<AuthUser | null> =>
-  db.user.findUnique({
+/**
+ * Shapes a user row, flattening the organisation relation to the one field auth needs.
+ *
+ * The relation is not returned as-is because `AuthUser` is consumed by the service and a
+ * nested object there invites reading more of the organisation than authentication should
+ * care about.
+ */
+const toAuthUser = (
+  row: {
+    readonly organisation: { readonly status: string } | null;
+  } & Omit<AuthUser, 'organisationStatus'>,
+): AuthUser => {
+  const { organisation, ...user } = row;
+  return { ...user, organisationStatus: organisation?.status ?? null };
+};
+
+export const findUserByEmail = async (db: TenantDb, email: string): Promise<AuthUser | null> => {
+  const row = await db.user.findUnique({
     where: { email },
     select: {
       id: true,
@@ -52,11 +78,18 @@ export const findUserByEmail = async (db: TenantDb, email: string): Promise<Auth
       mustChangePassword: true,
       failedLoginCount: true,
       lockedUntil: true,
+      // Joined rather than fetched separately: a second query would be a second round
+      // trip on the login path, and this runs under platform scope where the join is
+      // not restricted by row-level security.
+      organisation: { select: { status: true } },
     },
   });
 
-export const findUserById = async (db: TenantDb, id: string): Promise<AuthUser | null> =>
-  db.user.findUnique({
+  return row === null ? null : toAuthUser(row);
+};
+
+export const findUserById = async (db: TenantDb, id: string): Promise<AuthUser | null> => {
+  const row = await db.user.findUnique({
     where: { id },
     select: {
       id: true,
@@ -68,8 +101,15 @@ export const findUserById = async (db: TenantDb, id: string): Promise<AuthUser |
       mustChangePassword: true,
       failedLoginCount: true,
       lockedUntil: true,
+      // Joined rather than fetched separately: a second query would be a second round
+      // trip on the login path, and this runs under platform scope where the join is
+      // not restricted by row-level security.
+      organisation: { select: { status: true } },
     },
   });
+
+  return row === null ? null : toAuthUser(row);
+};
 
 export const recordFailedLogin = async (
   db: TenantDb,

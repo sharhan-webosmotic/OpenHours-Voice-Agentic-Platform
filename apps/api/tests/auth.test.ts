@@ -279,6 +279,123 @@ describe('login', () => {
   });
 });
 
+/**
+ * A clinic's status governs its users' sign-in.
+ *
+ * Nothing read `organisations.status` anywhere in the API before this: the column, the
+ * enum and the admin intent to deactivate a clinic all existed, and a deactivated
+ * clinic's users could still sign in and keep working.
+ */
+describe('a deactivated organisation cannot be signed in to', () => {
+  /** A clinic of its own per case, so changing its status cannot disturb another test. */
+  const createClinicUser = async (
+    label: string,
+  ): Promise<{ email: string; organisationId: string }> => {
+    const email = `auth.org-${label}.${Date.now()}@test.invalid`;
+    const passwordHash = await hashPassword(PASSWORD);
+
+    const organisationId = await asPlatform(ownerClient(), async (tx) => {
+      const graph = await createOrganisationGraph(tx, `OrgStatus${label}`);
+
+      await tx.user.create({
+        data: {
+          id: uuidV7(),
+          organisationId: graph.organisationId,
+          email,
+          passwordHash,
+          fullName: `Org Status ${label}`,
+          role: 'STAFF',
+          status: 'ACTIVE',
+        },
+      });
+
+      return graph.organisationId;
+    });
+
+    return { email, organisationId };
+  };
+
+  const setOrganisationStatus = async (organisationId: string, status: string): Promise<void> => {
+    await asPlatform(ownerClient(), (tx) =>
+      tx.$executeRawUnsafe(
+        'UPDATE organisations SET status = $1::organisation_status WHERE id = $2::uuid',
+        status,
+        organisationId,
+      ),
+    );
+  };
+
+  it.each(['SUSPENDED', 'DEACTIVATED'])('refuses login when the clinic is %s', async (status) => {
+    const { email, organisationId } = await createClinicUser(status.toLowerCase());
+
+    // Proves the account itself is usable, so the clinic's status is what refuses it
+    // below rather than something else about the fixture.
+    expect((await login(email, PASSWORD)).status).toBe(200);
+
+    await setOrganisationStatus(organisationId, status);
+
+    const response = await login(email, PASSWORD);
+
+    expect(response.status).toBe(401);
+    // Indistinguishable from a wrong password: which clinics are suspended is not a
+    // fact an unauthenticated caller gets to learn.
+    expect(problemBody(response).detail).toBe('Email or password is incorrect.');
+  });
+
+  it('ends a live session at the next refresh and revokes the family', async () => {
+    const { email, organisationId } = await createClinicUser('live');
+
+    const session = await login(email, PASSWORD);
+    const cookie = refreshCookieFrom(session.headers);
+    expect(cookie).toBeTypeOf('string');
+
+    await setOrganisationStatus(organisationId, 'DEACTIVATED');
+
+    const refreshed = await request(app)
+      .post('/api/v1/auth/refresh')
+      .set('Cookie', `${REFRESH_COOKIE}=${cookie ?? ''}`);
+
+    expect(refreshed.status).toBe(401);
+
+    // The family is dead, so reactivating the clinic does not silently resume the
+    // session that was open when it was deactivated.
+    const revoked = await asPlatform(ownerClient(), (tx) =>
+      tx.refreshToken.count({ where: { user: { email }, revokedAt: null } }),
+    );
+    expect(revoked).toBe(0);
+  });
+
+  it('still lets a platform role in, because it belongs to no organisation', async () => {
+    /**
+     * The null case, and the reason it has its own test: `organisationStatus` is null for
+     * SUPER_ADMIN and INTERNAL_ADMIN, and a check that treated null as a refusal would
+     * lock every platform admin out of the admin console. That is the failure this
+     * change could plausibly have shipped.
+     */
+    const email = `auth.org-platform.${Date.now()}@test.invalid`;
+    const passwordHash = await hashPassword(PASSWORD);
+
+    await asPlatform(ownerClient(), (tx) =>
+      tx.user.create({
+        data: {
+          id: uuidV7(),
+          organisationId: null,
+          email,
+          passwordHash,
+          fullName: 'Org Status Platform',
+          role: 'SUPER_ADMIN',
+          status: 'ACTIVE',
+        },
+      }),
+    );
+
+    const response = await login(email, PASSWORD);
+
+    expect(response.status).toBe(200);
+    expect(jsonBody<LoginBody>(response).user.organisationId).toBeNull();
+  });
+});
+
 describe('refresh token rotation', () => {
   it('rotates on use and invalidates the presented token', async () => {
     const first = await login(ownerEmail, PASSWORD);
