@@ -59,11 +59,31 @@ export type FindManyArgs = {
   readonly to?: Date;
   readonly cursor?: string;
   readonly take: number;
+  /**
+   * Restricts the result to these organisations OR to this actor's own entries.
+   *
+   * Used for an INTERNAL_ADMIN, whose reach is a set of organisations rather than one
+   * tenant. Both halves are required together: the agreed table gives that role the
+   * organisations it is involved with PLUS its own actions, and those are different
+   * rows, so an AND would return almost nothing.
+   */
+  readonly scopedTo?: {
+    readonly organisationIds: readonly string[];
+    readonly orActorUserId: string;
+  };
 };
 
 export const findMany = async (db: TenantDb, args: FindManyArgs): Promise<readonly AuditRow[]> =>
   db.auditLog.findMany({
     where: {
+      ...(args.scopedTo === undefined
+        ? {}
+        : {
+            OR: [
+              { organisationId: { in: [...args.scopedTo.organisationIds] } },
+              { actorUserId: args.scopedTo.orActorUserId },
+            ],
+          }),
       ...(args.actorUserId === undefined ? {} : { actorUserId: args.actorUserId }),
       ...(args.action === undefined ? {} : { action: args.action }),
       ...(args.entityType === undefined ? {} : { entityType: args.entityType }),

@@ -4,6 +4,7 @@ import { createApp } from '../src/app.js';
 import { hashPassword } from '../src/common/passwords.js';
 import { uuidV7 } from '../src/common/uuid.js';
 import { jsonBody } from '../src/test-support/http.js';
+import { openSupportSession } from '../src/modules/support-sessions/support-sessions.service.js';
 import {
   asPlatform,
   asOrganisation,
@@ -120,6 +121,94 @@ describe('GET /api/v1/audit-logs is governed by the matrix', () => {
 
   it('rejects an unauthenticated request', async () => {
     expect((await request(app).get('/api/v1/audit-logs')).status).toBe(401);
+  });
+});
+
+describe('platform roles read the trail the matrix grants them', () => {
+  it('SUPER_ADMIN may read it, across organisations', async () => {
+    // Regression: the route used to sit behind a middleware that required an
+    // organisation, so a platform role (which has none) was refused outright even
+    // though the matrix grants it read 'all'.
+    const token = await loginAs(superAdminEmail);
+
+    const response = await request(app)
+      .get('/api/v1/audit-logs?limit=100')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(jsonBody<AuditPage>(response).items.length).toBeGreaterThan(0);
+  });
+
+  it('INTERNAL_ADMIN sees organisations it opened a session for, plus its own actions', async () => {
+    const adminId = uuidV7();
+    const adminEmail = `audit.internal.${Date.now()}@test.invalid`;
+    const involved = await asPlatform(ownerClient(), async (tx) => {
+      await tx.user.create({
+        data: {
+          id: adminId,
+          organisationId: null,
+          email: adminEmail,
+          passwordHash: await hashPassword(PASSWORD),
+          fullName: 'Audit Internal Admin',
+          role: 'INTERNAL_ADMIN',
+          status: 'ACTIVE',
+        },
+      });
+      return createOrganisationGraph(tx, 'AuditInvolved');
+    });
+
+    const uninvolved = await asPlatform(ownerClient(), (tx) =>
+      createOrganisationGraph(tx, 'AuditUninvolved'),
+    );
+
+    // Opening a session is what makes this admin involved with that clinic.
+    await openSupportSession({
+      actorUserId: adminId,
+      actorRole: 'INTERNAL_ADMIN',
+      organisationId: involved.organisationId,
+      reason: 'Establishing involvement with this organisation',
+    });
+
+    const token = await loginAs(adminEmail);
+    const response = await request(app)
+      .get('/api/v1/audit-logs?limit=100')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    const ids = jsonBody<AuditPage>(response).items.map((i) => i.id);
+
+    // Visible: the organisation it opened a session for.
+    expect(ids).toContain(involved.ids.audit_logs);
+    // Not visible: an organisation it has had nothing to do with.
+    expect(ids).not.toContain(uninvolved.ids.audit_logs);
+  });
+
+  it('INTERNAL_ADMIN cannot see an unrelated organisation even by filtering for it', async () => {
+    const adminId = uuidV7();
+    const adminEmail = `audit.internal2.${Date.now()}@test.invalid`;
+    await asPlatform(ownerClient(), async (tx) =>
+      tx.user.create({
+        data: {
+          id: adminId,
+          organisationId: null,
+          email: adminEmail,
+          passwordHash: await hashPassword(PASSWORD),
+          fullName: 'Audit Internal Admin Two',
+          role: 'INTERNAL_ADMIN',
+          status: 'ACTIVE',
+        },
+      }),
+    );
+
+    const token = await loginAs(adminEmail);
+    const response = await request(app)
+      .get('/api/v1/audit-logs?limit=100&entityType=organisation')
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    // No sessions opened and no actions of its own yet, so the scope is empty. A filter
+    // cannot widen a scope.
+    expect(jsonBody<AuditPage>(response).items).toHaveLength(0);
   });
 });
 

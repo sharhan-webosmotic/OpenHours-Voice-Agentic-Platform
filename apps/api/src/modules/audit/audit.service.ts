@@ -129,6 +129,11 @@ export type AuditListFilters = {
   /** Opaque cursor: the id of the last row from the previous page. */
   readonly cursor?: string;
   readonly limit?: number;
+  /** See audit.repository FindManyArgs.scopedTo. */
+  readonly scopedTo?: {
+    readonly organisationIds: readonly string[];
+    readonly orActorUserId: string;
+  };
 };
 
 export type AuditPage = {
@@ -160,6 +165,7 @@ export const list = async (db: TenantDb, filters: AuditListFilters): Promise<Aud
     ...(filters.from === undefined ? {} : { from: filters.from }),
     ...(filters.to === undefined ? {} : { to: filters.to }),
     ...(filters.cursor === undefined ? {} : { cursor: filters.cursor }),
+    ...(filters.scopedTo === undefined ? {} : { scopedTo: filters.scopedTo }),
     take: limit + 1,
   });
 

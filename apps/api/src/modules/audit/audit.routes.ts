@@ -2,10 +2,13 @@ import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { registerRoute } from '../../common/route-registry.js';
 import { validate, validatedData } from '../../common/validate.js';
+import { isPlatformRole } from '@openhours/shared';
 import { requireAuth, requireUser } from '../../common/auth.middleware.js';
+import { UnauthorizedError } from '../../common/errors.js';
 import { currentPrincipal, requirePermission } from '../../common/permissions.js';
-import { tenantDb, tenantMiddleware } from '../../db/tenant.middleware.js';
-import { MAX_PAGE_SIZE, list } from './audit.service.js';
+import { asSystem, withTenant, type TenantDb } from '../../db/tenant-client.js';
+import { organisationIdsWithSessionFor } from '../support-sessions/support-sessions.repository.js';
+import { MAX_PAGE_SIZE, list, type AuditListFilters, type AuditPage } from './audit.service.js';
 
 export const auditQuerySchema = z.object({
   actorUserId: z.string().uuid().optional(),
@@ -36,7 +39,16 @@ export const auditRouter = (): Router => {
     '/',
     requireAuth,
     requireUser,
-    tenantMiddleware,
+    /**
+     * No tenantMiddleware here, deliberately.
+     *
+     * That middleware requires an organisation in context, and a platform role has
+     * none, so gating this route on it refused SUPER_ADMIN and INTERNAL_ADMIN outright
+     * even though the matrix grants them read on audit_log. The scope is therefore
+     * resolved per principal below: a clinic role reads inside its own tenant
+     * transaction, a platform role reads cross-tenant through asSystem, which audits
+     * the use of that scope.
+     */
     validate({ query: auditQuerySchema }),
     async (req: Request, res: Response) => {
       const principal = currentPrincipal();
@@ -58,28 +70,70 @@ export const auditRouter = (): Router => {
         unknown
       >(req);
 
-      /**
-       * `audit_scope` for an INTERNAL_ADMIN is, per the agreed table, entries for the
-       * organisations they are assigned plus the support sessions they opened. There is
-       * no assignment table yet, so it is narrowed to their OWN actions: showing less
-       * than the table allows is the safe direction, and M1-11 introduces assignment.
-       * Recorded as an open issue in docs/FOUNDATION-REPORT.md.
-       */
-      const actorFilter = scope === 'audit_scope' ? principal.userId : query.actorUserId;
-
-      const page = await list(tenantDb(req), {
-        ...(actorFilter === undefined ? {} : { actorUserId: actorFilter }),
+      const baseFilters: AuditListFilters = {
         ...(query.action === undefined ? {} : { action: query.action }),
         ...(query.entityType === undefined ? {} : { entityType: query.entityType }),
         ...(query.from === undefined ? {} : { from: query.from }),
         ...(query.to === undefined ? {} : { to: query.to }),
         ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
         limit: query.limit,
-      });
+      };
+
+      const page = await readPage(principal, scope, baseFilters, query.actorUserId);
 
       res.status(200).json({ items: page.items, nextCursor: page.nextCursor });
     },
   );
 
   return router;
+};
+
+/** Reads the page under whichever scope the principal's role grants. */
+const readPage = async (
+  principal: ReturnType<typeof currentPrincipal>,
+  scope: ReturnType<typeof requirePermission>,
+  baseFilters: AuditListFilters,
+  requestedActorUserId: string | undefined,
+): Promise<AuditPage> => {
+  if (!isPlatformRole(principal.role)) {
+    if (principal.organisationId === undefined) {
+      throw new UnauthorizedError(
+        'clinic role without an organisation',
+        'Authentication is required.',
+      );
+    }
+
+    // Row-level security plus the client extension confine this to one tenant, so no
+    // organisation filter is needed or wanted here.
+    return withTenant({ organisationId: principal.organisationId }, (db: TenantDb) =>
+      list(db, {
+        ...baseFilters,
+        ...(requestedActorUserId === undefined ? {} : { actorUserId: requestedActorUserId }),
+      }),
+    );
+  }
+
+  return asSystem('audit.read', async (db) => {
+    if (scope === 'all') {
+      // SUPER_ADMIN: the whole platform.
+      return list(db, {
+        ...baseFilters,
+        ...(requestedActorUserId === undefined ? {} : { actorUserId: requestedActorUserId }),
+      });
+    }
+
+    /**
+     * INTERNAL_ADMIN (`audit_scope`): the organisations they have opened a support
+     * session for, plus their own actions. That is the agreed table's definition with
+     * one part missing: it also says "assigned organisations", and no assignment
+     * mechanism exists yet, so an organisation this admin has never opened a session
+     * for is not visible. Recorded in docs/FOUNDATION-REPORT.md.
+     */
+    const organisationIds = await organisationIdsWithSessionFor(db, principal.userId);
+
+    return list(db, {
+      ...baseFilters,
+      scopedTo: { organisationIds, orActorUserId: principal.userId },
+    });
+  });
 };
