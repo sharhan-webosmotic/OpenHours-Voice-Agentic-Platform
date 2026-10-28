@@ -11,6 +11,7 @@ import {
   ServiceUnavailableError,
   ValidationError,
 } from './common/errors.js';
+import { CSRF_HEADER } from './common/csrf.js';
 import { PROBLEM_JSON_CONTENT_TYPE, toProblemDetails } from './common/problem-details.js';
 import { getContext } from './common/request-context.js';
 import { requestContextMiddleware } from './common/request-context.middleware.js';
@@ -44,7 +45,15 @@ const buildCorsOptions = (config: Config): CorsOptions => ({
   },
   credentials: config.CORS_ALLOW_CREDENTIALS,
   methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key', 'X-Request-Id'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Idempotency-Key',
+    'X-Request-Id',
+    // Without this the preflight for the cookie-bearing auth routes fails, because the
+    // dashboard and the API are different ORIGINS even though they are same-SITE.
+    CSRF_HEADER,
+  ],
   exposedHeaders: ['X-Request-Id'],
   maxAge: 600,
 });
