@@ -249,6 +249,33 @@ export const PLATFORM_ROLES: readonly Role[] = ['SUPER_ADMIN', 'INTERNAL_ADMIN']
 export const isPlatformRole = (role: Role): boolean => PLATFORM_ROLES.includes(role);
 
 /**
+ * Which front end a sign-in came from.
+ *
+ * `clinic` is the dashboard at app.*, `admin` is the internal console at admin.*.
+ */
+export const LOGIN_AUDIENCES = ['clinic', 'admin'] as const;
+
+export type LoginAudience = (typeof LOGIN_AUDIENCES)[number];
+
+/**
+ * Whether `role` belongs in the application that asked.
+ *
+ * NOT A SECURITY BOUNDARY, and ADR-0001 says so in those words. What protects the admin
+ * surface is the permission matrix enforced in the service layer, plus
+ * `requireOrganisation` on clinic routes. This exists so a person who opens the wrong
+ * application is told which one to use, instead of signing in successfully and then
+ * meeting a wall of empty screens and 403s, and so that no refresh cookie is left set for
+ * a session the application is about to reject.
+ *
+ * It is safe for the client to supply the audience because it can only ever cause a
+ * REFUSAL: it selects no organisation and no role, so a client that lies about it refuses
+ * itself and gains nothing. No route may ever treat it as a reason to skip a permission
+ * check.
+ */
+export const roleBelongsInAudience = (role: Role, audience: LoginAudience): boolean =>
+  audience === 'admin' ? isPlatformRole(role) : !isPlatformRole(role);
+
+/**
  * The scope at which `role` may perform `action` on `resource`, or false if it may not.
  *
  * Returning the scope rather than a boolean is deliberate: a caller that only checks

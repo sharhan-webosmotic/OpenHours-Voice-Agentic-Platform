@@ -1,4 +1,4 @@
-import type { Role } from '@openhours/shared';
+import { roleBelongsInAudience, type LoginAudience, type Role } from '@openhours/shared';
 import { config } from '../../config.js';
 import { logger } from '../../common/logger.js';
 import { ForbiddenError, UnauthorizedError, ValidationError } from '../../common/errors.js';
@@ -105,9 +105,28 @@ const issueTokens = async (
  */
 type LoginOutcome =
   | { readonly kind: 'ok'; readonly result: LoginResult }
-  | { readonly kind: 'failed'; readonly reason: string; readonly userId?: string };
+  | { readonly kind: 'failed'; readonly reason: string; readonly userId?: string }
+  /**
+   * Separate from `failed` because this one is ANSWERED SPECIFICALLY.
+   *
+   * Every other failure collapses into one message so login cannot be used to discover
+   * which accounts exist. This one is different in kind: the credentials were correct, and
+   * telling the person to use the other application reveals nothing they did not just
+   * prove they know. Hiding it would leave them stuck at a login screen that rejects a
+   * password they typed correctly.
+   */
+  | {
+      readonly kind: 'wrong-audience';
+      readonly userId: string;
+      readonly role: Role;
+      readonly audience: LoginAudience;
+    };
 
-export const login = async (email: string, password: string): Promise<LoginResult> => {
+export const login = async (
+  email: string,
+  password: string,
+  audience?: LoginAudience,
+): Promise<LoginResult> => {
   const outcome = await asSystem('auth.login', async (db): Promise<LoginOutcome> => {
     const user = await repository.findUserByEmail(db, email);
 
@@ -158,6 +177,20 @@ export const login = async (email: string, password: string): Promise<LoginResul
       return { kind: 'failed', reason: 'bad-password', userId: user.id };
     }
 
+    /**
+     * AFTER the password has verified, deliberately. Checking before would answer "does
+     * this address belong to a platform admin?" to anyone who typed the address, with no
+     * password at all. Here it costs a correct password to learn, which is a fact the
+     * caller already holds.
+     *
+     * No token is issued and no cookie is set on this path, which is the point: refusing
+     * in the front end alone would leave a live refresh cookie for a session the
+     * application is about to reject.
+     */
+    if (audience !== undefined && !roleBelongsInAudience(user.role, audience)) {
+      return { kind: 'wrong-audience', userId: user.id, role: user.role, audience };
+    }
+
     await repository.recordSuccessfulLogin(db, user.id);
 
     // A fresh family per login, so revoking one session does not end the others.
@@ -174,6 +207,19 @@ export const login = async (email: string, password: string): Promise<LoginResul
       },
     };
   });
+
+  if (outcome.kind === 'wrong-audience') {
+    logger.info(
+      { userId: outcome.userId, role: outcome.role, audience: outcome.audience },
+      'login refused: wrong application',
+    );
+    throw new ForbiddenError(
+      `${outcome.role} signed in to the ${outcome.audience} application`,
+      outcome.audience === 'admin'
+        ? 'This console is for OpenHours staff. Please sign in to your clinic dashboard instead.'
+        : 'This dashboard is for clinic staff. Please sign in to the OpenHours admin console instead.',
+    );
+  }
 
   if (outcome.kind === 'failed') {
     logger.warn({ reason: outcome.reason, userId: outcome.userId }, 'login failed');

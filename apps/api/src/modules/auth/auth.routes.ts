@@ -5,6 +5,7 @@ import {
   type Request,
   type Response,
 } from 'express';
+import type { LoginAudience } from '@openhours/shared';
 import { config } from '../../config.js';
 import { readCookie } from '../../common/cookies.js';
 import { requireSameSiteRequest } from '../../common/csrf.js';
@@ -139,8 +140,12 @@ export const authRouter = (options: AuthRouterOptions = {}): Router => {
     emailLimiter,
     validate({ body: loginBodySchema }),
     async (req: Request, res: Response) => {
-      const { body } = validatedData<unknown, unknown, { email: string; password: string }>(req);
-      const result = await service.login(body.email, body.password);
+      const { body } = validatedData<
+        unknown,
+        unknown,
+        { email: string; password: string; audience?: LoginAudience }
+      >(req);
+      const result = await service.login(body.email, body.password, body.audience);
 
       res.cookie(
         REFRESH_COOKIE,

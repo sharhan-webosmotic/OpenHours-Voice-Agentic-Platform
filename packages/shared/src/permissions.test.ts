@@ -8,6 +8,7 @@ import {
   isPlatformRole,
   isRole,
   permissionScope,
+  roleBelongsInAudience,
   type Grant,
   type Resource,
   type Role,
@@ -296,6 +297,24 @@ describe('invariants that must hold whatever the table says', () => {
       for (const action of ACTIONS) {
         expect(permissionScope('ADMIN' as Role, resource, action)).toBe(false);
       }
+    }
+  });
+
+  /**
+   * Every role belongs in exactly one of the two applications, and the split is the
+   * platform/clinic one. Driven over all six roles rather than spot-checked, so adding a
+   * role forces a decision about which application it signs in to.
+   *
+   * This is user experience, not a control. ADR-0001 says so, and the permission matrix
+   * above is what actually protects the admin surface.
+   */
+  it('places every role in exactly one application', () => {
+    for (const role of ROLES) {
+      const clinic = roleBelongsInAudience(role, 'clinic');
+      const admin = roleBelongsInAudience(role, 'admin');
+
+      expect(clinic).toBe(!admin);
+      expect(admin).toBe(isPlatformRole(role));
     }
   });
 

@@ -12,6 +12,7 @@ export const SHARED_CONTRACT_VERSION = '0.1.0';
 
 export {
   ACTIONS,
+  LOGIN_AUDIENCES,
   PERMISSIONS,
   PLATFORM_ROLES,
   RESOURCES,
@@ -21,8 +22,10 @@ export {
   isPlatformRole,
   isRole,
   permissionScope,
+  roleBelongsInAudience,
   type Action,
   type Grant,
+  type LoginAudience,
   type Matrix,
   type Resource,
   type Role,

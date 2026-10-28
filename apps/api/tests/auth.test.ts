@@ -399,6 +399,95 @@ describe('a deactivated organisation cannot be signed in to', () => {
 });
 
 /**
+ * The wrong application refuses the sign-in rather than half-completing it.
+ *
+ * ADR-0001: this is user experience and defence in depth, NOT a security boundary. The
+ * permission matrix is what protects the admin surface, and these tests must not be read
+ * as covering that.
+ */
+describe('a role that does not belong in the asking application is refused', () => {
+  const loginTo = (email: string, audience: string) =>
+    request(app).post('/api/v1/auth/login').send({ email, password: PASSWORD, audience });
+
+  const platformUser = async (label: string): Promise<string> => {
+    const email = `auth.aud-${label}.${Date.now()}@test.invalid`;
+    const passwordHash = await hashPassword(PASSWORD);
+
+    await asPlatform(ownerClient(), (tx) =>
+      tx.user.create({
+        data: {
+          id: uuidV7(),
+          organisationId: null,
+          email,
+          passwordHash,
+          fullName: `Audience ${label}`,
+          role: 'SUPER_ADMIN',
+          status: 'ACTIVE',
+        },
+      }),
+    );
+
+    return email;
+  };
+
+  it('refuses a clinic role on the admin console and says where to go', async () => {
+    const response = await loginTo(ownerEmail, 'admin');
+
+    expect(response.status).toBe(403);
+    expect(problemBody(response).detail).toContain('clinic dashboard');
+  });
+
+  it('refuses a platform role on the clinic dashboard and says where to go', async () => {
+    const response = await loginTo(await platformUser('platform'), 'clinic');
+
+    expect(response.status).toBe(403);
+    expect(problemBody(response).detail).toContain('admin console');
+  });
+
+  it('sets no cookie and issues no token when it refuses', async () => {
+    const response = await loginTo(ownerEmail, 'admin');
+
+    // The whole reason this is checked server-side: refusing in the front end alone
+    // would leave a live refresh cookie for a session the app is about to reject.
+    expect(refreshCookieFrom(response.headers)).toBeUndefined();
+    expect(response.body).not.toHaveProperty('accessToken');
+  });
+
+  it('accepts each role in the application it belongs to', async () => {
+    expect((await loginTo(ownerEmail, 'clinic')).status).toBe(200);
+    expect((await loginTo(await platformUser('ok'), 'admin')).status).toBe(200);
+  });
+
+  it('skips the check when no audience is named', async () => {
+    // A non-browser caller has no application to name. Refusing it would be a breaking
+    // change that protects nothing.
+    expect((await login(ownerEmail, PASSWORD)).status).toBe(200);
+  });
+
+  it('rejects an audience that is not one of the two', async () => {
+    const response = await loginTo(ownerEmail, 'root');
+
+    // zod refuses it, so an unknown value cannot be read as "no audience" and skip
+    // the check by accident.
+    expect(response.status).toBe(400);
+  });
+
+  it('needs a correct password before it will say which application to use', async () => {
+    /**
+     * The check runs AFTER verification on purpose. Before it, login would answer "does
+     * this address belong to a platform admin?" to anyone who typed the address, with no
+     * password at all.
+     */
+    const response = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: ownerEmail, password: WRONG_PASSWORD, audience: 'admin' });
+
+    expect(response.status).toBe(401);
+    expect(problemBody(response).detail).toBe('Email or password is incorrect.');
+  });
+});
+
+/**
  * CSRF on the two routes that carry an ambient credential.
  *
  * There was no CSRF protection of any kind before this, and the repository had never
