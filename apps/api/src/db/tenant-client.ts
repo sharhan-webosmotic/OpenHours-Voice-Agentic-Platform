@@ -25,6 +25,29 @@ const scopedClient = createBaseClient(config).$extends(buildTenantExtension());
 /** What a repository receives: the transaction client, already scoped. */
 export type TenantDb = Parameters<Parameters<typeof scopedClient.$transaction>[0]>[0];
 
+/**
+ * The scope statements, exported so the test that proves the reset uses the same SQL the
+ * API does rather than a copy that can drift away from it.
+ *
+ * Both settings are written on EVERY entry, and both use `is_local = true`:
+ *
+ * `app.platform` is an ordinary PostgreSQL custom GUC, which means the unprivileged
+ * `app_user` the API connects as may set it itself, and setting it with a false third
+ * argument makes it SESSION-scoped, so it outlives the statement and every later
+ * transaction on that pooled connection. A reviewer proved the escalation: one
+ * `set_config('app.platform','on',false)` turned a tenant-scoped connection into a
+ * platform-scoped one for every request that reused it. Clearing the setting
+ * transaction-locally at the top of every tenant transaction means a leaked session
+ * value cannot widen a tenant-scoped request.
+ *
+ * This is a containment measure, NOT a fix. `app_user` can still assert platform scope
+ * inside its own transaction, because a client-settable GUC cannot be the authority.
+ * The real fix is tracked in docs/ROADMAP.md and must land before go-live.
+ */
+export const TENANT_SCOPE_SQL = `SELECT set_config('app.org_id', $1, true), set_config('app.platform', '', true)`;
+
+export const PLATFORM_SCOPE_SQL = `SELECT set_config('app.platform', 'on', true), set_config('app.org_id', '', true)`;
+
 export type TenantContext = {
   readonly organisationId: string;
   readonly actorUserId?: string;
@@ -44,10 +67,7 @@ export const withTenant = async <T>(
 ): Promise<T> =>
   runInScope({ kind: 'tenant', organisationId: context.organisationId }, () =>
     scopedClient.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(
-        `SELECT set_config('app.org_id', $1, true)`,
-        context.organisationId,
-      );
+      await tx.$executeRawUnsafe(TENANT_SCOPE_SQL, context.organisationId);
       return fn(tx);
     }),
   );
@@ -63,7 +83,7 @@ export const withTenant = async <T>(
 export const asSystem = async <T>(reason: string, fn: (db: TenantDb) => Promise<T>): Promise<T> =>
   runInScope({ kind: 'platform', reason }, () =>
     scopedClient.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`SELECT set_config('app.platform', 'on', true)`);
+      await tx.$executeRawUnsafe(PLATFORM_SCOPE_SQL);
 
       // Written directly rather than through the audit module, which imports from here:
       // routing it through would be a cycle. The fields are kept in step by hand, and
