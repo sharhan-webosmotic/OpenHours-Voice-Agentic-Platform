@@ -25,6 +25,14 @@ export type AccessTokenClaims = {
    * reaching the permission matrix.
    */
   readonly role: Role;
+  /**
+   * Whether this user still holds an administrator-issued temporary password.
+   *
+   * Carried in the token so the gate costs no database read per request. Staleness is not
+   * a risk: changing a password revokes every refresh token for that user, so a token
+   * saying `true` cannot outlive the change that would make it false.
+   */
+  readonly mustChangePassword: boolean;
 };
 
 const secret = (): Uint8Array => new TextEncoder().encode(config.JWT_SECRET);
@@ -33,6 +41,7 @@ export const signAccessToken = async (claims: AccessTokenClaims): Promise<string
   new SignJWT({
     org: claims.organisationId,
     role: claims.role,
+    pwd: claims.mustChangePassword,
   } satisfies JWTPayload)
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setSubject(claims.userId)
@@ -56,7 +65,7 @@ export const verifyAccessToken = async (token: string): Promise<AccessTokenClaim
       algorithms: ['HS256'],
     });
 
-    const { sub, org, role } = payload;
+    const { sub, org, role, pwd } = payload;
 
     if (typeof sub !== 'string') {
       throw new Error('missing claims');
@@ -75,8 +84,16 @@ export const verifyAccessToken = async (token: string): Promise<AccessTokenClaim
     if (org !== null && typeof org !== 'string') {
       throw new Error('invalid org claim');
     }
+    /**
+     * Required, not defaulted. A missing claim defaulted to `false` would mean any token
+     * minted before this claim existed, or by a future path that forgets it, silently
+     * bypasses the first-login gate. Refusing is the direction that fails closed.
+     */
+    if (typeof pwd !== 'boolean') {
+      throw new Error('invalid pwd claim');
+    }
 
-    return { userId: sub, organisationId: org, role };
+    return { userId: sub, organisationId: org, role, mustChangePassword: pwd };
   } catch {
     throw new UnauthorizedError('invalid access token', 'Authentication failed.');
   }

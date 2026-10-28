@@ -3,7 +3,11 @@ import { z } from 'zod';
 import { registerRoute } from '../../common/route-registry.js';
 import { validate, validatedData } from '../../common/validate.js';
 import { isPlatformRole } from '@openhours/shared';
-import { requireAuth, requireUser } from '../../common/auth.middleware.js';
+import {
+  requireAuth,
+  requirePasswordChangeComplete,
+  requireUser,
+} from '../../common/auth.middleware.js';
 import { currentPrincipal, requirePermission } from '../../common/permissions.js';
 import { withPrincipalScope } from '../../db/principal-scope.js';
 import { organisationIdsWithSessionFor } from '../support-sessions/support-sessions.repository.js';
@@ -47,6 +51,7 @@ export const auditRouter = (): Router => {
     '/',
     requireAuth,
     requireUser,
+    requirePasswordChangeComplete,
     /**
      * No tenantMiddleware here, deliberately.
      *

@@ -61,13 +61,22 @@ const refreshTtl = (): Date =>
 
 const issueTokens = async (
   db: Parameters<Parameters<typeof asSystem>[1]>[0],
-  user: { id: string; organisationId: string | null; role: Role },
+  user: {
+    id: string;
+    organisationId: string | null;
+    role: Role;
+    mustChangePassword: boolean;
+  },
   familyId: string,
 ): Promise<{ accessToken: string; refreshToken: string; expiresAt: Date }> => {
   const accessToken = await signAccessToken({
     userId: user.id,
     organisationId: user.organisationId,
     role: user.role,
+    // Carried in the token so the first-login gate needs no database read per request.
+    // Safe to cache for the token's lifetime because changing a password revokes every
+    // refresh token for the user, so a stale `true` cannot outlive the change.
+    mustChangePassword: user.mustChangePassword,
   });
 
   const refreshToken = generateOpaqueToken();

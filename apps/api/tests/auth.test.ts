@@ -677,6 +677,7 @@ describe('access tokens', () => {
 
   it('rejects a token signed with a different key', async () => {
     const forged = await signAccessToken({
+      mustChangePassword: false,
       userId: uuidV7(),
       organisationId: org.organisationId,
       role: 'SUPER_ADMIN',
