@@ -13,7 +13,7 @@ description: Use when writing or changing anything in apps/api - routes, control
 routes -> controller -> service -> repository (see `apps/api/CLAUDE.md`). Business rules and permission checks live in the service. Only the repository imports Prisma.
 
 ## Checklist for every endpoint
-- [ ] zod schemas for params, query, body AND response; registered for OpenAPI; `pnpm openapi` run and result committed
+- [ ] zod schemas for params, query, body AND response; registered via `registerRoute` so M1-03 can generate the OpenAPI document from the registry
 - [ ] `requirePermission(resource, action)` in the service, using the shared matrix
 - [ ] organisation comes from request context, never from input
 - [ ] audit call if the endpoint reads or writes PHI, roles, recordings, prescriptions or support access

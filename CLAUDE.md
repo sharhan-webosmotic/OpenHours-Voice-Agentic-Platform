@@ -19,11 +19,15 @@ ask for the ticket text. Work only on the ticket I name, and do not start other 
 - `apps/clinic-web` React dashboard for clinics. `apps/admin-web` React internal admin console
 - `apps/android` call-forwarding app only (no patient data on device). BUILT LAST: do not start it until the API, admin-web and clinic-web are complete and signed off. Ignore it for all earlier work, except that the API's device-pairing and forwarding endpoints exist.
 - `packages/shared` zod schemas, enums, permission matrix. `packages/api-client` generated from OpenAPI
-- `docs/` DECISIONS.md (binding choices), ADRs, STACK.md, runbook. Per-app rules live in each app's own `CLAUDE.md`
+- `docs/` DECISIONS.md (binding choices), BACKLOG.md (committed debt and its due point), ADRs, STACK.md, runbook. Per-app rules live in each app's own `CLAUDE.md`
 
 ## Commands (run from repo root)
-- `pnpm dev` | `pnpm check` (build + typecheck + lint + test + openapi drift; MUST pass before you say "done")
-- `pnpm test` | `pnpm typecheck` | `pnpm lint` | `pnpm openapi` | `pnpm db:migrate` | `pnpm db:seed`
+- `pnpm dev` | `pnpm check` (build + typecheck + lint + test; MUST pass before you say "done")
+- `pnpm test` | `pnpm typecheck` | `pnpm lint` | `pnpm db:migrate` | `pnpm db:seed`
+
+The gate asserts only what it runs. There is no OpenAPI drift leg: it was a stub that
+always exited 0, and a gate that always passes is worse than no gate. The real one
+arrives with M1-03, tracked in `docs/BACKLOG.md`.
 
 ## How to work on every task
 1. Read `docs/DECISIONS.md` and the relevant skill(s) below, then PLAN: files to touch, tests to add, risks. Wait for approval on anything that changes schema, auth, permissions or tenancy.

@@ -127,9 +127,6 @@ jobs:
       - name: Test
         run: pnpm test
 
-      - name: OpenAPI drift
-        run: pnpm openapi:check
-
   audit:
     name: dependency audit
     runs-on: ubuntu-latest

@@ -61,7 +61,7 @@ Confirmed against the npm registry and by installing:
 
 Still **UNVERIFIED** (nothing in this session exercised them):
 
-- OpenAPI toolchain zod-4 compatibility (`@asteasolutions/zod-to-openapi` 9.1, `openapi-typescript` 7.13, `openapi-fetch` 0.17). `pnpm openapi` is a stub that exits 0. This is the STACK.md "VERIFY zod 4 compatibility on Day 1" item and it is still open.
+- OpenAPI toolchain zod-4 compatibility (`@asteasolutions/zod-to-openapi` 9.1, `openapi-typescript` 7.13, `openapi-fetch` 0.17). None of the three is installed, and the `pnpm openapi` stub that stood in for them was removed along with the drift gate it fed (see `docs/BACKLOG.md`, M1-03). The "VERIFY zod 4 compatibility on Day 1" item above is still open.
 - Prisma driver adapter and `set_config` inside interactive transactions for row-level security.
 - pg-boss, jose, argon2, Testcontainers, and every web-app dependency. (`express-rate-limit`, `helmet` and `cors` were closed in M1-02, below.)
 
