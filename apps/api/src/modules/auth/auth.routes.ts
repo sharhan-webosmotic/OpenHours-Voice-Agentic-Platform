@@ -94,7 +94,8 @@ registerRoute({
   path: '/api/v1/auth/change-password',
   summary: 'Change the signed-in user password',
   body: changePasswordBodySchema,
-  permission: 'self:update',
+  // No `permission`: `self` is not a resource in the shared matrix. Acting on your own
+  // account needs no matrix cell; the control is requireAuth plus the current password.
   phiSensitive: false,
 });
 
@@ -102,7 +103,8 @@ registerRoute({
   method: 'get',
   path: '/api/v1/auth/me',
   summary: 'The signed-in principal',
-  permission: 'self:read',
+  // No `permission`: see change-password above. The control is requireAuth, and the
+  // user id comes from the verified token.
   phiSensitive: false,
 });
 

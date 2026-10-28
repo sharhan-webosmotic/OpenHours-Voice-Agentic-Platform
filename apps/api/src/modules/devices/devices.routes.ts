@@ -27,7 +27,9 @@ registerRoute({
   method: 'post',
   path: '/api/v1/devices/pairing-codes',
   summary: 'Issue a single-use device pairing code',
-  permission: 'device:create',
+  // No `permission`: `device` is not a resource in the shared matrix, so the string it
+  // declared could never have been checked. The real control is the PAIRING_ROLES set in
+  // devices.service.ts.
   phiSensitive: false,
 });
 
