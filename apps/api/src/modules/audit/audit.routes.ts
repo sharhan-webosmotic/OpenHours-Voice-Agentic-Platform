@@ -4,9 +4,8 @@ import { registerRoute } from '../../common/route-registry.js';
 import { validate, validatedData } from '../../common/validate.js';
 import { isPlatformRole } from '@openhours/shared';
 import { requireAuth, requireUser } from '../../common/auth.middleware.js';
-import { UnauthorizedError } from '../../common/errors.js';
 import { currentPrincipal, requirePermission } from '../../common/permissions.js';
-import { asSystem, withTenant, type TenantDb } from '../../db/tenant-client.js';
+import { withPrincipalScope } from '../../db/principal-scope.js';
 import { organisationIdsWithSessionFor } from '../support-sessions/support-sessions.repository.js';
 import { MAX_PAGE_SIZE, list, type AuditListFilters, type AuditPage } from './audit.service.js';
 
@@ -94,28 +93,14 @@ const readPage = async (
   scope: ReturnType<typeof requirePermission>,
   baseFilters: AuditListFilters,
   requestedActorUserId: string | undefined,
-): Promise<AuditPage> => {
-  if (!isPlatformRole(principal.role)) {
-    if (principal.organisationId === undefined) {
-      throw new UnauthorizedError(
-        'clinic role without an organisation',
-        'Authentication is required.',
-      );
-    }
-
-    // Row-level security plus the client extension confine this to one tenant, so no
-    // organisation filter is needed or wanted here.
-    return withTenant({ organisationId: principal.organisationId }, (db: TenantDb) =>
-      list(db, {
-        ...baseFilters,
-        ...(requestedActorUserId === undefined ? {} : { actorUserId: requestedActorUserId }),
-      }),
-    );
-  }
-
-  return asSystem('audit.read', async (db) => {
-    if (scope === 'all') {
-      // SUPER_ADMIN: the whole platform.
+): Promise<AuditPage> =>
+  withPrincipalScope(principal, 'audit.read', async (db) => {
+    if (!isPlatformRole(principal.role) || scope === 'all') {
+      /**
+       * A clinic role is already confined to its own organisation by the scope, so no
+       * organisation filter is needed or wanted. SUPER_ADMIN has `all`, meaning the
+       * whole platform. Both therefore take the filters as given.
+       */
       return list(db, {
         ...baseFilters,
         ...(requestedActorUserId === undefined ? {} : { actorUserId: requestedActorUserId }),
@@ -136,4 +121,3 @@ const readPage = async (
       scopedTo: { organisationIds, orActorUserId: principal.userId },
     });
   });
-};
