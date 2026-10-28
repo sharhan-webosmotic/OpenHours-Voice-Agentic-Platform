@@ -98,6 +98,14 @@ export const login = async (email: string, password: string): Promise<LoginResul
       return { kind: 'failed', reason: 'locked', userId: user.id };
     }
 
+    if (user.lockedUntil !== null) {
+      // Reached only when a lock has EXPIRED, because the branch above returns while it
+      // is live. Clearing the counter here, before this attempt is counted, is what stops
+      // an unauthenticated attacker holding an account locked for ever with one wrong
+      // password per window.
+      await repository.clearExpiredLockout(db, user.id);
+    }
+
     if (user.status !== 'ACTIVE') {
       await spendVerificationWork(password);
       return { kind: 'failed', reason: 'inactive', userId: user.id };

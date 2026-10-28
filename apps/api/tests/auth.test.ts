@@ -162,6 +162,112 @@ describe('login', () => {
     expect(locked?.lockedUntil).not.toBeNull();
   });
 
+  /**
+   * The lockout tests above assert that a lock is RECORDED. These three assert that it is
+   * ENFORCED and that it ends, which nothing did: the refusal branch in auth.service.ts
+   * was never executed by the suite, so it could have been inverted or dead and the suite
+   * would have stayed green.
+   *
+   * They use a REAL argon2 hash, unlike the recording test above, which stores a
+   * malformed one and therefore fails verification through its catch rather than by
+   * comparing. These would still pass if verification were broken to always return false,
+   * so the correct-password assertions matter.
+   */
+  const createLockableUser = async (label: string): Promise<string> => {
+    const email = `auth.${label}.${Date.now()}@test.invalid`;
+    const passwordHash = await hashPassword(PASSWORD);
+
+    await asPlatform(ownerClient(), (tx) =>
+      tx.user.create({
+        data: {
+          id: uuidV7(),
+          organisationId: org.organisationId,
+          email,
+          passwordHash,
+          fullName: `Lockout ${label}`,
+          role: 'STAFF',
+          status: 'ACTIVE',
+        },
+      }),
+    );
+
+    return email;
+  };
+
+  const lockAccount = async (email: string): Promise<void> => {
+    for (let i = 0; i < 5; i += 1) {
+      await login(email, WRONG_PASSWORD);
+    }
+
+    const locked = await asPlatform(ownerClient(), (tx) =>
+      tx.user.findUnique({ where: { email }, select: { lockedUntil: true } }),
+    );
+    expect(locked?.lockedUntil).not.toBeNull();
+  };
+
+  /** Moves the lock into the past, which is the only way to pass 15 minutes in a test. */
+  const expireLock = async (email: string): Promise<void> => {
+    await asPlatform(ownerClient(), (tx) =>
+      tx.user.update({
+        where: { email },
+        data: { lockedUntil: new Date(Date.now() - 60_000) },
+      }),
+    );
+  };
+
+  const userRow = async (
+    email: string,
+  ): Promise<{ failedLoginCount: number; lockedUntil: Date | null } | null> =>
+    asPlatform(ownerClient(), (tx) =>
+      tx.user.findUnique({
+        where: { email },
+        select: { failedLoginCount: true, lockedUntil: true },
+      }),
+    );
+
+  it('REFUSES the correct password while the account is locked', async () => {
+    const email = await createLockableUser('enforce');
+    await lockAccount(email);
+
+    // The password is right. The lock is what refuses it, and this is the branch no
+    // test previously executed.
+    const response = await login(email, PASSWORD);
+
+    expect(response.status).toBe(401);
+    // Indistinguishable from any other failure: saying "locked" would confirm the
+    // account exists.
+    expect(problemBody(response).detail).toBe(
+      problemBody(await login(`nobody.${Date.now()}@test.invalid`, PASSWORD)).detail,
+    );
+  });
+
+  it('CLEARS the failure counter once the lock has expired', async () => {
+    const email = await createLockableUser('counter');
+    await lockAccount(email);
+    await expireLock(email);
+
+    // One wrong password after expiry. Before the fix the counter was still 5, so this
+    // took it to 6 and re-locked the account for another window, for ever.
+    await login(email, WRONG_PASSWORD);
+
+    const row = await userRow(email);
+    expect(row?.failedLoginCount).toBe(1);
+    expect(row?.lockedUntil).toBeNull();
+  });
+
+  it('accepts the correct password once the lock has expired', async () => {
+    const email = await createLockableUser('expiry');
+    await lockAccount(email);
+    await expireLock(email);
+
+    const response = await login(email, PASSWORD);
+
+    expect(response.status).toBe(200);
+    const row = await userRow(email);
+    expect(row?.failedLoginCount).toBe(0);
+    expect(row?.lockedUntil).toBeNull();
+  });
+
   it('rejects a deactivated user', async () => {
     await asPlatform(ownerClient(), (tx) =>
       tx.user.update({ where: { email: deactivatedEmail }, data: { status: 'DEACTIVATED' } }),

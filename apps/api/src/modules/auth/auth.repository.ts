@@ -80,6 +80,25 @@ export const recordFailedLogin = async (
   }
 };
 
+/**
+ * Clears an EXPIRED lock and its counter, so the next attempt starts from zero.
+ *
+ * Without this, `failedLoginCount` was reset only by a successful login. After five
+ * failures it sat at 5 for ever, so one wrong password took it to 6, which is still at or
+ * above the limit, and re-locked the account for another window. Anyone who knew a
+ * clinic owner's email could keep them locked out permanently at four requests an hour,
+ * from any address, and the per-email throttle did not interfere.
+ *
+ * `updateMany` with the expiry in the `where`, not `update`: a concurrent attempt that
+ * has just set a fresh lock must not have it cleared by this call.
+ */
+export const clearExpiredLockout = async (db: TenantDb, userId: string): Promise<void> => {
+  await db.user.updateMany({
+    where: { id: userId, lockedUntil: { lte: new Date() } },
+    data: { failedLoginCount: 0, lockedUntil: null },
+  });
+};
+
 export const recordSuccessfulLogin = async (db: TenantDb, userId: string): Promise<void> => {
   await db.user.update({
     where: { id: userId },
