@@ -3,9 +3,13 @@
 **Branch:** `feat/foundation-backend`, 7 commits, not pushed and not merged.
 **Date:** 2026-10-27. **Scope:** M1-04 to M1-10. M1-03 and M1-11 were out of scope.
 
-`pnpm check` is green from a clean clone with `--frozen-lockfile`: typecheck, lint,
-**514 tests** (401 in `apps/api`, 113 in `packages/shared`), and the OpenAPI drift stub.
-`pnpm audit --audit-level high` reports no known vulnerabilities.
+`pnpm check` is green with the Turbo cache cleared, including the Testcontainers database
+suites: typecheck, lint, **521 tests** (408 in `apps/api`, 113 in `packages/shared`), and
+the OpenAPI drift stub. `pnpm audit --audit-level high` reports no known vulnerabilities.
+
+Coverage in `apps/api`: 94.73% lines, 85.31% branch. Against the CLAUDE.md floors, auth
+94.18%, tenancy (`src/db`) 97.36%, permissions (`src/common`) 93.53% and audit 100% all
+clear the 90% requirement, and everything else clears the 80% one.
 
 | Commit    | Ticket                                                 |
 | --------- | ------------------------------------------------------ |
@@ -25,7 +29,7 @@ domain. UUID v7 keys generated in the application, snake_case mapping, `timestam
 throughout, and every composite index led by `organisation_id`. ERDs and the
 justification for each tenant-less table are in `docs/architecture/`.
 
-**Two isolation locks (M1-06, M1-07).** Row-level security on 24 tables, `ENABLED` and
+**Two isolation locks (M1-06, M1-07).** Row-level security on 25 tables, `ENABLED` and
 `FORCED`, generated from one catalog query so a new tenant table gets a policy with
 nothing to remember. `organisations` is covered explicitly, keyed on `id`. Above it, a
 Prisma client extension injects the organisation into every query and throws when there
@@ -62,9 +66,9 @@ the appointment exclusion constraint under concurrency, the constraints and inde
 Prisma cannot express, UUID v7 ordering, recursive log redaction, request-ID handling,
 HTTP hardening, and the tenant transaction's rollback behaviour.
 
-**Coverage** (`apps/api`): 94.63% lines, 84.72% branch. Against the CLAUDE.md floors:
-auth 94.18%, tenancy (`src/db`) 97.22%, permissions (`src/common`) 93.53%, audit 100% —
-all above the 90% requirement; everything else above the 80% requirement.
+**Coverage** (`apps/api`): 94.73% lines, 85.31% branch. Against the CLAUDE.md floors: auth
+94.18%, tenancy (`src/db`) 97.36%, permissions (`src/common`) 93.53% and audit 100%, all
+above the 90% requirement. Everything else is above the 80% requirement.
 
 ## Bugs found and fixed
 
@@ -91,12 +95,9 @@ adapter's responsibility and re-verified); and `tokenHashesMatch` was dead code.
 - **No end-to-end run against the local docker stack.** Every HTTP test uses supertest
   against an in-process app. To exercise it for real:
   `docker compose up -d && pnpm db:migrate && pnpm db:sql && pnpm db:seed && pnpm dev`.
-- **The local dev database at port 5433 does not have the `support_sessions` table.**
-  Applying it needs `prisma migrate deploy`, which this session's permissions deny. Run
-  `pnpm db:migrate && pnpm db:sql` yourself. The table IS created and tested in
-  Testcontainers, so the migration itself is verified.
-- **CI has not run this branch.** The workflow is valid and its new steps (migrate, SQL,
-  policy coverage) match the local commands, but nothing has pushed.
+- **CI has not run this branch.** The workflow is valid, its database steps were verified
+  against a clean throwaway database, and the steps call the same root scripts as local,
+  but nothing has been pushed so no runner has executed it.
 - **`pnpm openapi` is still a stub** (M1-03, out of scope), so the zod-4 OpenAPI VERIFY
   item in `docs/STACK.md` remains open.
 - **The in-memory rate-limit store is single-instance.** The login throttle is not a real
@@ -107,28 +108,47 @@ adapter's responsibility and re-verified); and `tokenHashesMatch` was dead code.
 
 ## Open issues
 
-1. **`prisma migrate dev` now demands a database RESET.** The hand-written SQL in
-   `prisma/sql` (policies, roles, constraints) is drift it cannot account for, so
-   `db:migrate` is `prisma migrate deploy` and the `support_sessions` migration was
-   hand-written. A new migration needs either `prisma migrate diff` with a shadow
-   database or the same hand-written route. Worth deciding deliberately in M1-13.
-2. **`INTERNAL_ADMIN` audit scope is narrowed.** The agreed table says "organisations they
-   are assigned plus support sessions they opened", but no assignment table exists until
-   M1-11, so it is restricted to their own actions. Showing less than the table allows is
-   the safe direction, but it IS a deviation.
-3. **`auditRead` has no caller.** It is tested directly and ready; the patient,
-   prescription and recording routes it is for arrive in M2.
-4. **Data-scope rules are enforced as helpers, not yet applied to queries.** `scopeFilter`
-   returns the filter a repository must merge, and `clinic_opt_in` fails closed, but no
-   repository consumes them yet because the resources they govern are M2. The helpers are
-   unit tested.
-5. **`AI_DOCS/` versus `docs/`.** Two documentation trees now exist; `AI_DOCS/` arrived
-   with the ADF framework. Decide which is authoritative before anything writes to both.
-6. **ADF removal is pending, by your decision.** `.claude/` carries ~700 vendored ADF
-   files. Removing them also removes `/do` and `/retrospective`. A single clean commit can
-   drop ADF and keep the 11 project skills, `guard.mjs`, `format.mjs` and `settings.json`.
-7. **Coverage floors are not enforced by CI.** They are met today and measured by hand.
-   Wiring a threshold into the test command is M1-13.
+Reviewed 2026-10-28. Four were fixed, three deferred.
+
+### Fixed
+
+1. **`prisma migrate dev` demanded a database RESET.** Resolved. `pnpm db:migrate:create
+<name>` writes a migration by diffing the migrations directory against the schema,
+   using a throwaway Testcontainers PostgreSQL as the shadow database, so no real
+   database is read or written and no reset is offered. Verified in both directions, and
+   it also confirms the hand-written `support_sessions` migration was correct. Workflow in
+   `docs/STACK.md`.
+2. **`INTERNAL_ADMIN` audit scope.** Now the organisations it has opened a support session
+   for, plus its own actions, rather than its own actions alone. **Still narrower than the
+   agreed table in one respect:** the table also says "assigned organisations", and no
+   assignment mechanism exists, so an organisation this admin has never opened a session
+   for stays invisible. Expired and revoked sessions still count, because the question is
+   which clinics the admin has been involved with.
+3. **Platform roles could not read the audit log at all.** Found while checking issue 2:
+   the route sat behind `tenantMiddleware`, which requires an organisation, so SUPER_ADMIN
+   and INTERNAL_ADMIN were refused despite the matrix granting both. Scope is now resolved
+   per principal, and the pattern is extracted as `withPrincipalScope` because every
+   `/api/v1/admin` route in M1-11 has the same shape.
+4. **CI database steps.** They now call the same root scripts a developer calls, so the two
+   cannot drift. Added a Docker availability check before them, and fixed the test
+   harness swallowing migration errors into an unread buffer. Verified against a clean
+   throwaway database: migrate, SQL, then policy coverage reporting 25 tenant tables each
+   with `tenant_isolation` ENABLED and FORCED.
+
+### Deferred
+
+5. **`auditRead` has no caller.** The patient, prescription and recording routes it wraps
+   are M2, and it is already tested directly, so nothing is at risk by waiting.
+6. **Data-scope rules are helpers, not yet applied to queries.** M1-11 covers
+   organisations, users, phone numbers and voice agents, none of which carry an `own`,
+   `assigned` or `masked` scope, so nothing in M1-11 needs them.
+7. **`AI_DOCS/` versus `docs/`.** A decision about which tree is authoritative, not a
+   defect, and nothing writes to both today.
+8. **ADF removal.** Waiting on your call, because removing `.claude/skills/` also removes
+   `/do` and `/retrospective`.
+9. **Coverage floors are not enforced by CI.** Deferred to M1-13: per-path thresholds need
+   a deliberate choice about which paths carry 90, and switching them on without that
+   would fail CI on an unrelated dip. Measured by hand every run instead.
 
 ## Remaining in M1
 
