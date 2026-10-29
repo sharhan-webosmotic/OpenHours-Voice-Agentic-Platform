@@ -1,8 +1,8 @@
-# OpenHours Voice Agentic Platform
+# ClinicAI Voice Agentic Platform
 
 Multi-tenant SaaS for clinics: an AI voice receptionist (Sarvam) that books, reschedules and
 cancels appointments and answers clinic information questions, plus the dashboards clinic
-staff and OpenHours staff use to run it.
+staff and ClinicAI staff use to run it.
 
 The platform stores patient health data. Every change is production code in a regulated
 domain — read [`CLAUDE.md`](CLAUDE.md) before contributing, and the per-app `CLAUDE.md`
@@ -69,21 +69,22 @@ tracked, and they contain placeholders — never real credentials.
 
 Run these from the repository root.
 
-| Command           | What it does                                                                            |
-| ----------------- | --------------------------------------------------------------------------------------- |
-| `pnpm dev`        | Starts every app that has a `dev` script (currently the API, with reload).              |
-| `pnpm check`      | **The gate**: typecheck + lint + test + OpenAPI drift. Must pass before you say "done". |
-| `pnpm test`       | Vitest across `apps/api` and `packages/shared`.                                         |
-| `pnpm typecheck`  | `tsc --noEmit` per package, including test files.                                       |
-| `pnpm lint`       | ESLint 10 flat config across the workspace.                                             |
-| `pnpm build`      | Emits `dist/` per package (source only, no tests).                                      |
-| `pnpm format`     | Prettier over the repository.                                                           |
-| `pnpm openapi`    | **Stub.** Will generate the OpenAPI document from zod schemas.                          |
-| `pnpm db:migrate` | **Stub.** Will run Prisma migrations.                                                   |
-| `pnpm db:seed`    | **Stub.** Will seed synthetic data.                                                     |
+| Command           | What it does                                                                    |
+| ----------------- | ------------------------------------------------------------------------------- |
+| `pnpm dev`        | Starts every app that has a `dev` script (currently the API, with reload).      |
+| `pnpm check`      | **The gate**: build + typecheck + lint + test. Must pass before you say "done". |
+| `pnpm test`       | Vitest across `apps/api` and `packages/shared`.                                 |
+| `pnpm typecheck`  | `tsc --noEmit` per package, including test files.                               |
+| `pnpm lint`       | ESLint 10 flat config across the workspace.                                     |
+| `pnpm build`      | Emits `dist/` per package (source only, no tests).                              |
+| `pnpm format`     | Prettier over the repository.                                                   |
+| `pnpm db:migrate` | Applies Prisma migrations (`prisma migrate deploy`).                            |
+| `pnpm db:seed`    | Seeds synthetic development data.                                               |
 
-The three stubs print `not yet implemented` and exit 0, so a green `pnpm check` is never
-mistaken for a real OpenAPI or database gate. They are replaced in later prompts.
+There is no `pnpm openapi`. It was a stub that printed `not yet implemented` and exited
+0, and the drift leg it fed made `pnpm check` report a gate it was not running. Both are
+removed, so the gate asserts only what it runs. The real OpenAPI document and the
+generated client are M1-03 in `docs/BACKLOG.md`.
 
 ## Local services
 
@@ -110,8 +111,7 @@ green local `pnpm check` should mean a green CI.
 2. `pnpm lint`
 3. `pnpm typecheck`
 4. `pnpm test`
-5. `pnpm openapi:check` — the OpenAPI drift gate (currently the stub)
-6. `pnpm build`
+5. `pnpm build`
 
 **`audit`** — `pnpm audit --audit-level high`, which **fails the build on any high or
 critical advisory**.

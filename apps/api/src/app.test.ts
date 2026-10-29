@@ -48,7 +48,7 @@ describe('GET /ready', () => {
   it('never leaks the underlying driver error to the client', async () => {
     const response = await request(
       appWithReadiness(() =>
-        Promise.reject(new Error('password authentication failed for user "openhours"')),
+        Promise.reject(new Error('password authentication failed for user "clinicai"')),
       ),
     ).get('/ready');
 

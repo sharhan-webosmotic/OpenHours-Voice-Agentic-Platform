@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { LOGIN_AUDIENCES } from '@clinicai/shared';
 import { MINIMUM_PASSWORD_LENGTH } from '../../common/passwords.js';
 
 /**
@@ -11,6 +12,16 @@ export const loginBodySchema = z.object({
   // No minimum on login: an old password that predates the policy must still work, and a
   // length rule here would leak the policy to an attacker guessing.
   password: z.string().min(1).max(1024),
+  /**
+   * Which application is asking, so a clinic role opening the admin console is told to
+   * use the dashboard instead of signing in and meeting empty screens.
+   *
+   * OPTIONAL, and omitting it skips the check entirely. A non-browser caller, and every
+   * existing test, has no application to name, and refusing them would be a breaking
+   * change that protects nothing: see roleBelongsInAudience in packages/shared for why
+   * this is user experience rather than a control.
+   */
+  audience: z.enum(LOGIN_AUDIENCES).optional(),
 });
 
 export const changePasswordBodySchema = z.object({

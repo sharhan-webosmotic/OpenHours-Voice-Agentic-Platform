@@ -5,8 +5,10 @@ import {
   type Request,
   type Response,
 } from 'express';
+import type { LoginAudience } from '@clinicai/shared';
 import { config } from '../../config.js';
 import { readCookie } from '../../common/cookies.js';
+import { requireSameSiteRequest } from '../../common/csrf.js';
 import { createRateLimiter } from '../../common/rate-limit.js';
 import { UnauthorizedError } from '../../common/errors.js';
 import { getContext } from '../../common/request-context.js';
@@ -24,7 +26,7 @@ import * as service from './auth.service.js';
  * and is expected to live in memory only.
  */
 
-export const REFRESH_COOKIE = 'openhours_refresh';
+export const REFRESH_COOKIE = 'clinicai_refresh';
 
 const refreshCookieOptions = (expiresAt: Date): CookieOptions => ({
   httpOnly: true,
@@ -138,8 +140,12 @@ export const authRouter = (options: AuthRouterOptions = {}): Router => {
     emailLimiter,
     validate({ body: loginBodySchema }),
     async (req: Request, res: Response) => {
-      const { body } = validatedData<unknown, unknown, { email: string; password: string }>(req);
-      const result = await service.login(body.email, body.password);
+      const { body } = validatedData<
+        unknown,
+        unknown,
+        { email: string; password: string; audience?: LoginAudience }
+      >(req);
+      const result = await service.login(body.email, body.password, body.audience);
 
       res.cookie(
         REFRESH_COOKIE,
@@ -154,28 +160,39 @@ export const authRouter = (options: AuthRouterOptions = {}): Router => {
     },
   );
 
-  router.post('/refresh', refreshLimiter, async (req: Request, res: Response) => {
-    const presented = readCookie(req.headers.cookie, REFRESH_COOKIE);
+  /**
+   * The two routes below are the only ones that authenticate from a cookie rather than an
+   * `Authorization` header, so they are the only ones a cross-site page could trigger
+   * with the victim's credential attached. `requireSameSiteRequest` is why they cannot.
+   * See common/csrf.ts for what each layer covers.
+   */
+  router.post(
+    '/refresh',
+    requireSameSiteRequest,
+    refreshLimiter,
+    async (req: Request, res: Response) => {
+      const presented = readCookie(req.headers.cookie, REFRESH_COOKIE);
 
-    if (presented === undefined) {
-      throw new UnauthorizedError('no refresh cookie', 'Please sign in again.');
-    }
+      if (presented === undefined) {
+        throw new UnauthorizedError('no refresh cookie', 'Please sign in again.');
+      }
 
-    const result = await service.refresh(presented);
+      const result = await service.refresh(presented);
 
-    res.cookie(
-      REFRESH_COOKIE,
-      result.refreshToken,
-      refreshCookieOptions(result.refreshTokenExpiresAt),
-    );
-    res.status(200).json({
-      accessToken: result.accessToken,
-      mustChangePassword: result.mustChangePassword,
-      user: result.user,
-    });
-  });
+      res.cookie(
+        REFRESH_COOKIE,
+        result.refreshToken,
+        refreshCookieOptions(result.refreshTokenExpiresAt),
+      );
+      res.status(200).json({
+        accessToken: result.accessToken,
+        mustChangePassword: result.mustChangePassword,
+        user: result.user,
+      });
+    },
+  );
 
-  router.post('/logout', async (req: Request, res: Response) => {
+  router.post('/logout', requireSameSiteRequest, async (req: Request, res: Response) => {
     await service.logout(readCookie(req.headers.cookie, REFRESH_COOKIE));
     res.clearCookie(REFRESH_COOKIE, { path: '/api/v1/auth' });
     res.status(204).send();

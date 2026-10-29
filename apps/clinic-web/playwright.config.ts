@@ -1,0 +1,89 @@
+import { defineConfig, devices } from '@playwright/test';
+
+/**
+ * The browser tests, and the only thing in this repository that can prove the session works.
+ *
+ * WHY THEY EXIST SEPARATELY FROM `pnpm check`. Everything else runs without a browser. The
+ * API suite uses supertest, which sends no `Origin` header, so `SameSite` is never evaluated
+ * by anything. The component suite runs in jsdom, which has no cookie jar shared with a
+ * server. Both can pass completely while the cookie arrangement is broken, because neither
+ * one is a browser. D-002's whole claim, that a refresh token in an httpOnly SameSite=Strict
+ * cookie is attached to a same-site fetch from the dashboard, is only checkable here.
+ *
+ * NOT IN THE GATE, because they need a running API, a PostgreSQL database and two named
+ * hosts. A gate leg that cannot run on a clean checkout is a gate leg that gets skipped, and
+ * a skipped leg is the lying-gate problem this feature already removed once. Run them
+ * deliberately: `pnpm e2e`.
+ *
+ * THE HOSTS MATTER AND ARE NOT INTERCHANGEABLE WITH `localhost`. SameSite is evaluated on the
+ * registrable domain, so the dashboard and the API have to be siblings under one.
+ * `app.clinicai.localhost` and `api.clinicai.localhost` are; `localhost:5173` and
+ * `localhost:3000` are the same host and would make the test prove nothing about the
+ * arrangement that ships. Add both to /etc/hosts. See docs/features/sign-in.md.
+ *
+ * `COOKIE_SECURE` MUST STAY TRUE. Browsers treat `*.localhost` as a trustworthy origin, so a
+ * `Secure` cookie does set over plain HTTP there. Turning it off to make the test pass would
+ * disable the single setting the test exists to exercise.
+ */
+
+const DASHBOARD = 'http://app.clinicai.localhost:5173';
+
+export default defineConfig({
+  testDir: './tests',
+  // One worker: the tests share one provisioned account, and signing out in one would end
+  // the session another is using.
+  workers: 1,
+  fullyParallel: false,
+  // Fail rather than retry. A session test that passes on the second attempt is a session
+  // test that found a real race and hid it.
+  retries: 0,
+  reporter: [['list']],
+  use: {
+    baseURL: DASHBOARD,
+    trace: 'retain-on-failure',
+    screenshot: 'only-on-failure',
+  },
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          /**
+           * Chromium resolves `*.clinicai.localhost` itself, so these tests need no
+           * /etc/hosts entry and no sudo.
+           *
+           * This is not a shortcut around the hostnames: the browser still sends those
+           * names, still sees three distinct origins, and still applies SameSite on the
+           * shared registrable domain, which is the whole thing under test. It only
+           * removes a machine-setup step that silently made the suite unrunnable.
+           *
+           * A developer browsing by hand still wants the /etc/hosts entries, which is why
+           * docs/features/sign-in.md keeps them.
+           */
+          args: ['--host-resolver-rules=MAP *.clinicai.localhost 127.0.0.1'],
+        },
+      },
+    },
+  ],
+  webServer: {
+    // Only the dashboard. The API is started separately, because it needs a database and
+    // migrations, and a test runner that silently starts infrastructure hides what it
+    // depends on.
+    command: 'pnpm dev',
+    /**
+     * The readiness probe is loopback, not the name.
+     *
+     * This probe runs in Node, inside the Playwright process, which resolves host names
+     * through the operating system and therefore cannot resolve `*.clinicai.localhost`
+     * either. Only Chromium has the resolver rules. Pointing the probe at the name made the
+     * whole suite fail with "Timed out waiting 60000ms from config.webServer" while the dev
+     * server was running perfectly.
+     *
+     * `baseURL` above stays the named host, because that is what the browser must use.
+     */
+    url: 'http://127.0.0.1:5173',
+    reuseExistingServer: true,
+    timeout: 60_000,
+  },
+});

@@ -1,0 +1,28 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    /**
+     * Bundler resolution, unlike the API's nodenext: Vite resolves the imports, so a
+     * relative specifier carries no file extension. `noEmit` because Vite does the
+     * emitting; `tsc` here is a type checker only.
+     */
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+    "noEmit": true,
+    "composite": false,
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "tests/**/*.ts"
+  ],
+  "exclude": ["dist", "coverage"]
+}

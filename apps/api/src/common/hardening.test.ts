@@ -10,7 +10,7 @@ import { getContext } from './request-context.js';
 import { requestContextMiddleware } from './request-context.middleware.js';
 import { problemBody } from '../test-support/http.js';
 
-const ALLOWED = 'https://clinic.openhours.health';
+const ALLOWED = 'https://clinic.clinicai.health';
 const DENIED = 'https://evil.example.com';
 
 const buildApp = (overrides: Partial<Config> = {}) =>
@@ -189,7 +189,7 @@ describe('rate limiter', () => {
     expect(problemBody(second)).toMatchObject({
       status: 429,
       title: 'Too Many Requests',
-      type: 'https://openhours.health/problems/too-many-requests',
+      type: 'https://clinicai.health/problems/too-many-requests',
     });
     expect(problemBody(second).requestId).toBeTypeOf('string');
     expect(problemBody(second)).not.toHaveProperty('stack');

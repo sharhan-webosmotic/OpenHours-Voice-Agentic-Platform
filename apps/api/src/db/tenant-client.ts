@@ -73,38 +73,69 @@ export const withTenant = async <T>(
   );
 
 /**
+ * Records that the escape hatch was opened, in its OWN transaction, before the work.
+ *
+ * This used to be written inside the work transaction, which meant every caller that
+ * threw discarded its own audit row: a rejected password change, a failed device pairing
+ * and a rejected device token left no trace whatsoever, and those are the three events an
+ * investigator would most want. Login failure was the one exception, and only because
+ * `login` deliberately returns an outcome instead of throwing. Review finding I3.
+ *
+ * BEFORE the work, not after it and not in a `finally`: if the use of the escape hatch
+ * cannot be recorded, the escape hatch is not used. A failure here propagates and `fn`
+ * never runs, which is the fail-closed direction.
+ *
+ * The consequence to understand: the trail now records ATTEMPTS, not outcomes. A row
+ * saying `auth.change-password` does not mean a password changed. The action's own audit
+ * row, written by the service inside the work transaction, is what records that.
+ *
+ * Written directly rather than through the audit module, which imports from here:
+ * routing it through would be a cycle. The fields are kept in step by hand, and the
+ * reason only, never the data the call went on to read.
+ */
+const recordScopeUse = async (reason: string): Promise<void> => {
+  await scopedClient.$transaction(async (tx) => {
+    // Platform scope again: this is its own transaction, and `set_config(..., true)` is
+    // transaction-local, so the setting from the caller's transaction does not reach here.
+    // Without it, row-level security refuses an audit row that belongs to no organisation.
+    await tx.$executeRawUnsafe(PLATFORM_SCOPE_SQL);
+
+    const context = getContext();
+    await tx.auditLog.create({
+      data: {
+        id: uuidV7(),
+        action: 'system.scope.used',
+        entityType: 'system',
+        metadata: { reason },
+        ...(context?.requestId === undefined ? {} : { requestId: context.requestId }),
+        ...(context?.ipAddress === undefined ? {} : { ipAddress: context.ipAddress }),
+      },
+    });
+  });
+};
+
+/**
  * Runs `fn` with cross-organisation access, for the paths that legitimately have no
  * tenant yet: login, resolving a provider webhook to an organisation, and jobs.
  *
- * Every call writes an audit row inside the same transaction, so the escape hatch is
- * never silent. It is not a way to make a query work: a repository that needs this is
- * usually missing a tenant context.
+ * Every call writes an audit row in a transaction of its own, which commits whether or
+ * not the work succeeds, so the escape hatch is never silent. It is not a way to make a
+ * query work: a repository that needs this is usually missing a tenant context.
+ *
+ * Two transactions per call is the cost. It is one extra round trip on the login path,
+ * and `asSystem` is not on a voice tool path, so no latency budget is affected.
  */
 export const asSystem = async <T>(reason: string, fn: (db: TenantDb) => Promise<T>): Promise<T> =>
-  runInScope({ kind: 'platform', reason }, () =>
-    scopedClient.$transaction(async (tx) => {
+  runInScope({ kind: 'platform', reason }, async () => {
+    await recordScopeUse(reason);
+
+    logger.info({ reason }, 'platform scope opened');
+
+    return scopedClient.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(PLATFORM_SCOPE_SQL);
-
-      // Written directly rather than through the audit module, which imports from here:
-      // routing it through would be a cycle. The fields are kept in step by hand, and
-      // the reason only, never the data the call went on to read.
-      const context = getContext();
-      await tx.auditLog.create({
-        data: {
-          id: uuidV7(),
-          action: 'system.scope.used',
-          entityType: 'system',
-          metadata: { reason },
-          ...(context?.requestId === undefined ? {} : { requestId: context.requestId }),
-          ...(context?.ipAddress === undefined ? {} : { ipAddress: context.ipAddress }),
-        },
-      });
-
-      logger.info({ reason }, 'platform scope opened');
-
       return fn(tx);
-    }),
-  );
+    });
+  });
 
 /** Closes the pool. Called from the server's shutdown path. */
 export const disconnectDatabase = async (): Promise<void> => {

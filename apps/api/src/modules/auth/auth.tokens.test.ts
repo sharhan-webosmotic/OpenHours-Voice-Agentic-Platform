@@ -17,8 +17,8 @@ import { signAccessToken, verifyAccessToken } from './auth.tokens.js';
  * succeeds and the shape check is genuinely what refuses them.
  */
 
-const ISSUER = 'openhours';
-const AUDIENCE = 'openhours-api';
+const ISSUER = 'clinicai';
+const AUDIENCE = 'clinicai-api';
 
 const secret = (): Uint8Array => new TextEncoder().encode(config.JWT_SECRET);
 
@@ -27,7 +27,9 @@ const signRaw = async (
   payload: Record<string, unknown>,
   options: { readonly subject?: string } = {},
 ): Promise<string> => {
-  let builder = new SignJWT(payload)
+  // `pwd` is defaulted here, not in the verifier, so each case below still fails for the
+  // one claim it is about. A case that is ABOUT `pwd` overrides it explicitly.
+  let builder = new SignJWT({ pwd: false, ...payload })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setIssuer(ISSUER)
     .setAudience(AUDIENCE)
@@ -47,12 +49,14 @@ describe('verifyAccessToken claim shape', () => {
       userId: 'usr-1',
       organisationId: 'org-1',
       role: 'CLINIC_OWNER',
+      mustChangePassword: false,
     });
 
     await expect(verifyAccessToken(token)).resolves.toEqual({
       userId: 'usr-1',
       organisationId: 'org-1',
       role: 'CLINIC_OWNER',
+      mustChangePassword: false,
     });
   });
 
@@ -61,6 +65,7 @@ describe('verifyAccessToken claim shape', () => {
       userId: 'usr-2',
       organisationId: null,
       role: 'SUPER_ADMIN',
+      mustChangePassword: false,
     });
 
     const claims = await verifyAccessToken(token);
@@ -77,6 +82,46 @@ describe('verifyAccessToken claim shape', () => {
 
   it('refuses a validly signed token with no role', async () => {
     const token = await signRaw({ org: 'org-1' }, { subject: 'usr-1' });
+
+    await expect(verifyAccessToken(token)).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it('refuses a token with no pwd claim rather than defaulting it to false', async () => {
+    /**
+     * Defaulting a missing claim to `false` would mean any token minted before the claim
+     * existed, or by a future path that forgets it, silently bypasses the first-login
+     * password gate. Refusing fails closed.
+     */
+    const token = await signRaw(
+      { org: 'org-1', role: 'CLINIC_OWNER', pwd: undefined },
+      { subject: 'usr-1' },
+    );
+
+    await expect(verifyAccessToken(token)).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it('refuses a pwd claim that is not a boolean', async () => {
+    const token = await signRaw(
+      { org: 'org-1', role: 'CLINIC_OWNER', pwd: 'false' },
+      { subject: 'usr-1' },
+    );
+
+    await expect(verifyAccessToken(token)).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it('refuses a validly signed token whose role is not in the matrix', async () => {
+    /**
+     * The claim used to be accepted as any string, cast to Role downstream, and then used
+     * to index the matrix, where an unknown value threw a TypeError rather than denying.
+     * Review finding I13. A role the matrix does not list is refused here instead.
+     */
+    const token = await signRaw({ org: 'org-1', role: 'ADMIN' }, { subject: 'usr-1' });
+
+    await expect(verifyAccessToken(token)).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it('refuses a role that differs only by case, because the matrix is exact', async () => {
+    const token = await signRaw({ org: 'org-1', role: 'clinic_owner' }, { subject: 'usr-1' });
 
     await expect(verifyAccessToken(token)).rejects.toBeInstanceOf(UnauthorizedError);
   });

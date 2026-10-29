@@ -16,6 +16,14 @@ export default tseslint.config(
       '**/src/generated/**',
       // Built last, and not a TypeScript project.
       'apps/android/**',
+      /**
+       * The Figma Make export the design system was extracted from. Kept in the tree as
+       * the reference for what the screens are meant to look like, and deliberately not
+       * linted or type-checked: it is a third-party artefact, it is not shipped, and
+       * holding it to the product's rules would mean rewriting code whose only job is to
+       * be read.
+       */
+      'ClinicFlow Interactive Prototype/**',
     ],
   },
   js.configs.recommended,
@@ -33,7 +41,7 @@ export default tseslint.config(
     },
   },
   {
-    files: ['**/*.ts'],
+    files: ['**/*.ts', '**/*.tsx'],
     extends: [tseslint.configs.recommendedTypeChecked],
     languageOptions: {
       parserOptions: {
@@ -96,6 +104,15 @@ export default tseslint.config(
         },
       ],
     },
+  },
+  {
+    /**
+     * The web applications run in a browser, so `window`, `document` and `fetch` are
+     * globals rather than undefined identifiers. Node globals stay available because the
+     * Vite and Vitest configs in the same package do run in Node.
+     */
+    files: ['apps/clinic-web/**/*.{ts,tsx}', 'apps/admin-web/**/*.{ts,tsx}'],
+    languageOptions: { globals: { ...globals.browser, ...globals.node } },
   },
   {
     // Config files legitimately use default exports (tooling requires them).

@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ACTIONS,
   PERMISSIONS,
   RESOURCES,
   ROLES,
   isPermitted,
   isPlatformRole,
+  isRole,
   permissionScope,
+  roleBelongsInAudience,
   type Grant,
   type Resource,
   type Role,
@@ -280,5 +283,47 @@ describe('invariants that must hold whatever the table says', () => {
 
   it('identifies exactly the two platform roles', () => {
     expect(ROLES.filter((role) => isPlatformRole(role))).toEqual(['SUPER_ADMIN', 'INTERNAL_ADMIN']);
+  });
+
+  /**
+   * Default deny has to hold for roles as it does for resources and actions.
+   *
+   * An unknown role used to throw `TypeError: Cannot read properties of undefined`,
+   * which means a Role added to the database enum without a matrix row would have been a
+   * 500 on every request by that role rather than a clean 403. Review finding I13.
+   */
+  it('denies a role the matrix does not list, rather than throwing', () => {
+    for (const resource of RESOURCES) {
+      for (const action of ACTIONS) {
+        expect(permissionScope('ADMIN' as Role, resource, action)).toBe(false);
+      }
+    }
+  });
+
+  /**
+   * Every role belongs in exactly one of the two applications, and the split is the
+   * platform/clinic one. Driven over all six roles rather than spot-checked, so adding a
+   * role forces a decision about which application it signs in to.
+   *
+   * This is user experience, not a control. ADR-0001 says so, and the permission matrix
+   * above is what actually protects the admin surface.
+   */
+  it('places every role in exactly one application', () => {
+    for (const role of ROLES) {
+      const clinic = roleBelongsInAudience(role, 'clinic');
+      const admin = roleBelongsInAudience(role, 'admin');
+
+      expect(clinic).toBe(!admin);
+      expect(admin).toBe(isPlatformRole(role));
+    }
+  });
+
+  it('recognises exactly the six roles and nothing else', () => {
+    for (const role of ROLES) {
+      expect(isRole(role)).toBe(true);
+    }
+    for (const value of ['ADMIN', 'clinic_owner', '', 'Role', 42, null, undefined, {}]) {
+      expect(isRole(value)).toBe(false);
+    }
   });
 });

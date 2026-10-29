@@ -4,7 +4,12 @@ import { UnauthorizedError } from '../../common/errors.js';
 import { getContext } from '../../common/request-context.js';
 import { validate, validatedData } from '../../common/validate.js';
 import { registerRoute } from '../../common/route-registry.js';
-import { requireAuth, requireOrganisation, requireUser } from '../../common/auth.middleware.js';
+import {
+  requireAuth,
+  requireOrganisation,
+  requirePasswordChangeComplete,
+  requireUser,
+} from '../../common/auth.middleware.js';
 import { tenantDb, tenantMiddleware } from '../../db/tenant.middleware.js';
 import { pairDeviceBodySchema } from '../auth/auth.schemas.js';
 import * as service from './devices.service.js';
@@ -48,6 +53,7 @@ export const devicesRouter = (): Router => {
     '/pairing-codes',
     requireAuth,
     requireUser,
+    requirePasswordChangeComplete,
     requireOrganisation,
     tenantMiddleware,
     async (req: Request, res: Response) => {

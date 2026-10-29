@@ -58,10 +58,31 @@ Confirmed against the npm registry and by installing:
 - **typescript-eslint pinned to 8.72.0, not 8.72.1.** pnpm 12 enforces a `minimumReleaseAge` supply-chain policy; 8.72.1 was published 2026-10-26 and is inside the 24h window. 8.72.0 (2026-10-19) passes and declares identical peer ranges (`eslint ^10`, `typescript >=4.8.4 <6.1.0`). STACK.md pins the minor (8.72), so this stays in spec. The policy was kept rather than relaxed.
 - **PostgreSQL 16** - `postgres:16.15-alpine` pulled and running; `select version()` reports `PostgreSQL 16.15 on x86_64-pc-linux-musl`.
 - **Express 5.3.0, zod 4.6.7, ESLint 10.13.0, Prettier 3.9.10, Vitest 5.0.5, Supertest 7.3.1, turbo 2.11.10, pino 10.4.0** - all installed; `pnpm check` green.
+- **Web, installed with the sign-in feature and pinned exactly** (both applications hold the
+  same set, see `docs/DECISIONS.md` D-009): React 19.3.1, React DOM 19.3.1, Vite 8.3.5,
+  `@vitejs/plugin-react` 6.1.2, Tailwind 4.3.3 with `@tailwindcss/vite` 4.3.3,
+  React Router 8.5.1, TanStack Query 5.105.0, React Hook Form 7.91.0, lucide-react 1.62.0,
+  zod 4.6.7, `@fontsource-variable/inter` 5.3.0.
+- **Web tests:** Vitest 5.0.5, jsdom 30.1.3, `@testing-library/react` 16.3.3,
+  `@testing-library/user-event` 14.6.8, `@testing-library/jest-dom` 7.0.1,
+  `@playwright/test` 1.64.1.
+
+  Reasons for the three choices that had an alternative. **jsdom over happy-dom:** slower,
+  and markedly more faithful on focus management and form behaviour, which is most of what
+  the component tests assert. **Inter self-hosted via `@fontsource-variable/inter` rather
+  than a CDN:** the prototype loads it from `static.figma.com`, which in production would tell
+  a third party that a clinic user is using the product, and a font that fails to load is a
+  layout that collapses. **No MSW, though it is in the table above:** the API client's tests
+  stub `fetch` and the component tests stub the client, because what they assert is which
+  requests are made with which headers and which screen results. MSW earns its place when a
+  test needs a server's behaviour; none here does. It stays listed for the features that will.
+
+- **No `clsx` or `classnames`.** The six-line `cn` helper in `src/components/ui/cn.ts` covers
+  every call site, which all pass a flat list of strings and conditionals.
 
 Still **UNVERIFIED** (nothing in this session exercised them):
 
-- OpenAPI toolchain zod-4 compatibility (`@asteasolutions/zod-to-openapi` 9.1, `openapi-typescript` 7.13, `openapi-fetch` 0.17). `pnpm openapi` is a stub that exits 0. This is the STACK.md "VERIFY zod 4 compatibility on Day 1" item and it is still open.
+- OpenAPI toolchain zod-4 compatibility (`@asteasolutions/zod-to-openapi` 9.1, `openapi-typescript` 7.13, `openapi-fetch` 0.17). None of the three is installed, and the `pnpm openapi` stub that stood in for them was removed along with the drift gate it fed (see `docs/BACKLOG.md`, M1-03). The "VERIFY zod 4 compatibility on Day 1" item above is still open.
 - Prisma driver adapter and `set_config` inside interactive transactions for row-level security.
 - pg-boss, jose, argon2, Testcontainers, and every web-app dependency. (`express-rate-limit`, `helmet` and `cors` were closed in M1-02, below.)
 

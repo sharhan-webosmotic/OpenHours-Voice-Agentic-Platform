@@ -7,6 +7,7 @@ import { hashPassword } from '../src/common/passwords.js';
 import { uuidV7 } from '../src/common/uuid.js';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import { REFRESH_COOKIE, authRouter } from '../src/modules/auth/auth.routes.js';
+import { CSRF_HEADER } from '../src/common/csrf.js';
 import { createRateLimiter } from '../src/common/rate-limit.js';
 import { PROBLEM_JSON_CONTENT_TYPE, toProblemDetails } from '../src/common/problem-details.js';
 import { requestContextMiddleware } from '../src/common/request-context.middleware.js';
@@ -279,6 +280,326 @@ describe('login', () => {
   });
 });
 
+/**
+ * A clinic's status governs its users' sign-in.
+ *
+ * Nothing read `organisations.status` anywhere in the API before this: the column, the
+ * enum and the admin intent to deactivate a clinic all existed, and a deactivated
+ * clinic's users could still sign in and keep working.
+ */
+describe('a deactivated organisation cannot be signed in to', () => {
+  /** A clinic of its own per case, so changing its status cannot disturb another test. */
+  const createClinicUser = async (
+    label: string,
+  ): Promise<{ email: string; organisationId: string }> => {
+    const email = `auth.org-${label}.${Date.now()}@test.invalid`;
+    const passwordHash = await hashPassword(PASSWORD);
+
+    const organisationId = await asPlatform(ownerClient(), async (tx) => {
+      const graph = await createOrganisationGraph(tx, `OrgStatus${label}`);
+
+      await tx.user.create({
+        data: {
+          id: uuidV7(),
+          organisationId: graph.organisationId,
+          email,
+          passwordHash,
+          fullName: `Org Status ${label}`,
+          role: 'STAFF',
+          status: 'ACTIVE',
+        },
+      });
+
+      return graph.organisationId;
+    });
+
+    return { email, organisationId };
+  };
+
+  const setOrganisationStatus = async (organisationId: string, status: string): Promise<void> => {
+    await asPlatform(ownerClient(), (tx) =>
+      tx.$executeRawUnsafe(
+        'UPDATE organisations SET status = $1::organisation_status WHERE id = $2::uuid',
+        status,
+        organisationId,
+      ),
+    );
+  };
+
+  it.each(['SUSPENDED', 'DEACTIVATED'])('refuses login when the clinic is %s', async (status) => {
+    const { email, organisationId } = await createClinicUser(status.toLowerCase());
+
+    // Proves the account itself is usable, so the clinic's status is what refuses it
+    // below rather than something else about the fixture.
+    expect((await login(email, PASSWORD)).status).toBe(200);
+
+    await setOrganisationStatus(organisationId, status);
+
+    const response = await login(email, PASSWORD);
+
+    expect(response.status).toBe(401);
+    // Indistinguishable from a wrong password: which clinics are suspended is not a
+    // fact an unauthenticated caller gets to learn.
+    expect(problemBody(response).detail).toBe('Email or password is incorrect.');
+  });
+
+  it('ends a live session at the next refresh and revokes the family', async () => {
+    const { email, organisationId } = await createClinicUser('live');
+
+    const session = await login(email, PASSWORD);
+    const cookie = refreshCookieFrom(session.headers);
+    expect(cookie).toBeTypeOf('string');
+
+    await setOrganisationStatus(organisationId, 'DEACTIVATED');
+
+    const refreshed = await request(app)
+      .post('/api/v1/auth/refresh')
+      .set(CSRF_HEADER, '1')
+      .set('Cookie', `${REFRESH_COOKIE}=${cookie ?? ''}`);
+
+    expect(refreshed.status).toBe(401);
+
+    // The family is dead, so reactivating the clinic does not silently resume the
+    // session that was open when it was deactivated.
+    const revoked = await asPlatform(ownerClient(), (tx) =>
+      tx.refreshToken.count({ where: { user: { email }, revokedAt: null } }),
+    );
+    expect(revoked).toBe(0);
+  });
+
+  it('still lets a platform role in, because it belongs to no organisation', async () => {
+    /**
+     * The null case, and the reason it has its own test: `organisationStatus` is null for
+     * SUPER_ADMIN and INTERNAL_ADMIN, and a check that treated null as a refusal would
+     * lock every platform admin out of the admin console. That is the failure this
+     * change could plausibly have shipped.
+     */
+    const email = `auth.org-platform.${Date.now()}@test.invalid`;
+    const passwordHash = await hashPassword(PASSWORD);
+
+    await asPlatform(ownerClient(), (tx) =>
+      tx.user.create({
+        data: {
+          id: uuidV7(),
+          organisationId: null,
+          email,
+          passwordHash,
+          fullName: 'Org Status Platform',
+          role: 'SUPER_ADMIN',
+          status: 'ACTIVE',
+        },
+      }),
+    );
+
+    const response = await login(email, PASSWORD);
+
+    expect(response.status).toBe(200);
+    expect(jsonBody<LoginBody>(response).user.organisationId).toBeNull();
+  });
+});
+
+/**
+ * The wrong application refuses the sign-in rather than half-completing it.
+ *
+ * ADR-0001: this is user experience and defence in depth, NOT a security boundary. The
+ * permission matrix is what protects the admin surface, and these tests must not be read
+ * as covering that.
+ */
+describe('a role that does not belong in the asking application is refused', () => {
+  const loginTo = (email: string, audience: string) =>
+    request(app).post('/api/v1/auth/login').send({ email, password: PASSWORD, audience });
+
+  const platformUser = async (label: string): Promise<string> => {
+    const email = `auth.aud-${label}.${Date.now()}@test.invalid`;
+    const passwordHash = await hashPassword(PASSWORD);
+
+    await asPlatform(ownerClient(), (tx) =>
+      tx.user.create({
+        data: {
+          id: uuidV7(),
+          organisationId: null,
+          email,
+          passwordHash,
+          fullName: `Audience ${label}`,
+          role: 'SUPER_ADMIN',
+          status: 'ACTIVE',
+        },
+      }),
+    );
+
+    return email;
+  };
+
+  it('refuses a clinic role on the admin console and says where to go', async () => {
+    const response = await loginTo(ownerEmail, 'admin');
+
+    expect(response.status).toBe(403);
+    expect(problemBody(response).detail).toContain('clinic dashboard');
+  });
+
+  it('refuses a platform role on the clinic dashboard and says where to go', async () => {
+    const response = await loginTo(await platformUser('platform'), 'clinic');
+
+    expect(response.status).toBe(403);
+    expect(problemBody(response).detail).toContain('admin console');
+  });
+
+  it('sets no cookie and issues no token when it refuses', async () => {
+    const response = await loginTo(ownerEmail, 'admin');
+
+    // The whole reason this is checked server-side: refusing in the front end alone
+    // would leave a live refresh cookie for a session the app is about to reject.
+    expect(refreshCookieFrom(response.headers)).toBeUndefined();
+    expect(response.body).not.toHaveProperty('accessToken');
+  });
+
+  it('accepts each role in the application it belongs to', async () => {
+    expect((await loginTo(ownerEmail, 'clinic')).status).toBe(200);
+    expect((await loginTo(await platformUser('ok'), 'admin')).status).toBe(200);
+  });
+
+  it('skips the check when no audience is named', async () => {
+    // A non-browser caller has no application to name. Refusing it would be a breaking
+    // change that protects nothing.
+    expect((await login(ownerEmail, PASSWORD)).status).toBe(200);
+  });
+
+  it('rejects an audience that is not one of the two', async () => {
+    const response = await loginTo(ownerEmail, 'root');
+
+    // zod refuses it, so an unknown value cannot be read as "no audience" and skip
+    // the check by accident.
+    expect(response.status).toBe(400);
+  });
+
+  it('needs a correct password before it will say which application to use', async () => {
+    /**
+     * The check runs AFTER verification on purpose. Before it, login would answer "does
+     * this address belong to a platform admin?" to anyone who typed the address, with no
+     * password at all.
+     */
+    const response = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: ownerEmail, password: WRONG_PASSWORD, audience: 'admin' });
+
+    expect(response.status).toBe(401);
+    expect(problemBody(response).detail).toBe('Email or password is incorrect.');
+  });
+});
+
+/**
+ * CSRF on the two routes that carry an ambient credential.
+ *
+ * There was no CSRF protection of any kind before this, and the repository had never
+ * ticketed any: the only mitigation was `SameSite=Strict`, which covers an attacker on an
+ * unrelated domain and NOT a sibling subdomain, because SameSite is evaluated on the
+ * registrable domain and app, admin and api share one. See src/common/csrf.ts.
+ *
+ * `CORS_ALLOWED_ORIGINS` is `https://clinic.test` in the suite's environment.
+ */
+describe('the cookie-bearing routes refuse a request they cannot attribute', () => {
+  const openSession = async (): Promise<string> => {
+    const session = await login(ownerEmail, PASSWORD);
+    const cookie = refreshCookieFrom(session.headers);
+
+    if (cookie === undefined) {
+      throw new Error('login did not set a refresh cookie');
+    }
+
+    return cookie;
+  };
+
+  const postRefresh = (cookie: string) =>
+    request(app).post('/api/v1/auth/refresh').set('Cookie', `${REFRESH_COOKIE}=${cookie}`);
+
+  it('refuses a refresh with no custom header, and accepts the same cookie with one', async () => {
+    const cookie = await openSession();
+
+    const without = await postRefresh(cookie);
+    expect(without.status).toBe(403);
+
+    // The same cookie, one header different. That is what proves the header is the
+    // control rather than something else about the request.
+    const with_ = await postRefresh(cookie).set(CSRF_HEADER, '1');
+    expect(with_.status).toBe(200);
+  });
+
+  it('refuses a logout with no custom header', async () => {
+    const cookie = await openSession();
+
+    expect(
+      (await request(app).post('/api/v1/auth/logout').set('Cookie', `${REFRESH_COOKIE}=${cookie}`))
+        .status,
+    ).toBe(403);
+
+    // The session is untouched, so a forged logout cannot be used to sign a user out.
+    expect((await postRefresh(cookie).set(CSRF_HEADER, '1')).status).toBe(200);
+  });
+
+  it('refuses an origin that is not on the allow-list', async () => {
+    const cookie = await openSession();
+
+    // The sibling-subdomain case: SameSite=Strict would send the cookie here, because
+    // this is same-site under one registrable domain, and only the allow-list refuses it.
+    const response = await postRefresh(cookie)
+      .set(CSRF_HEADER, '1')
+      .set('Origin', 'https://evil.clinic.test');
+
+    expect(response.status).toBe(403);
+  });
+
+  it('accepts an origin that is on the allow-list', async () => {
+    const cookie = await openSession();
+
+    const response = await postRefresh(cookie)
+      .set(CSRF_HEADER, '1')
+      .set('Origin', 'https://clinic.test');
+
+    expect(response.status).toBe(200);
+  });
+
+  it.each(['cross-site', 'none'])('refuses Sec-Fetch-Site: %s', async (site) => {
+    const cookie = await openSession();
+
+    const response = await postRefresh(cookie).set(CSRF_HEADER, '1').set('Sec-Fetch-Site', site);
+
+    expect(response.status).toBe(403);
+  });
+
+  it.each(['same-origin', 'same-site'])('accepts Sec-Fetch-Site: %s', async (site) => {
+    const cookie = await openSession();
+
+    const response = await postRefresh(cookie).set(CSRF_HEADER, '1').set('Sec-Fetch-Site', site);
+
+    expect(response.status).toBe(200);
+  });
+
+  it('accepts a caller that sends neither header, which is not a browser', async () => {
+    /**
+     * Deliberate, not a gap. Both headers are set by the browser and cannot be removed by
+     * page script, so a forged cross-site request made through a browser carries one of
+     * them. A caller presenting neither is not a browser and holds no ambient cookie to
+     * abuse. Refusing on absence would break server-to-server and command-line callers
+     * for no gain. supertest is exactly such a caller, which is why the rest of this
+     * suite works at all.
+     */
+    const cookie = await openSession();
+
+    expect((await postRefresh(cookie).set(CSRF_HEADER, '1')).status).toBe(200);
+  });
+
+  it('does not tell the caller which header to add', async () => {
+    const cookie = await openSession();
+
+    const response = await postRefresh(cookie);
+
+    expect(problemBody(response).detail).toBe(
+      'This request could not be verified. Please sign in again.',
+    );
+    expect(JSON.stringify(problemBody(response))).not.toContain(CSRF_HEADER);
+  });
+});
+
 describe('refresh token rotation', () => {
   it('rotates on use and invalidates the presented token', async () => {
     const first = await login(ownerEmail, PASSWORD);
@@ -287,6 +608,7 @@ describe('refresh token rotation', () => {
 
     const second = await request(app)
       .post('/api/v1/auth/refresh')
+      .set(CSRF_HEADER, '1')
       .set('Cookie', `${REFRESH_COOKIE}=${firstToken ?? ''}`);
 
     expect(second.status).toBe(200);
@@ -296,6 +618,7 @@ describe('refresh token rotation', () => {
     // The new token works.
     const third = await request(app)
       .post('/api/v1/auth/refresh')
+      .set(CSRF_HEADER, '1')
       .set('Cookie', `${REFRESH_COOKIE}=${secondToken ?? ''}`);
     expect(third.status).toBe(200);
   });
@@ -306,12 +629,14 @@ describe('refresh token rotation', () => {
 
     const rotated = await request(app)
       .post('/api/v1/auth/refresh')
+      .set(CSRF_HEADER, '1')
       .set('Cookie', `${REFRESH_COOKIE}=${original ?? ''}`);
     const current = refreshCookieFrom(rotated.headers);
 
     // Replaying the already-used token.
     const replay = await request(app)
       .post('/api/v1/auth/refresh')
+      .set(CSRF_HEADER, '1')
       .set('Cookie', `${REFRESH_COOKIE}=${original ?? ''}`);
     expect(replay.status).toBe(401);
 
@@ -319,6 +644,7 @@ describe('refresh token rotation', () => {
     // dies: the token that WAS valid must now be rejected too.
     const afterRevocation = await request(app)
       .post('/api/v1/auth/refresh')
+      .set(CSRF_HEADER, '1')
       .set('Cookie', `${REFRESH_COOKIE}=${current ?? ''}`);
     expect(afterRevocation.status).toBe(401);
   });
@@ -326,6 +652,7 @@ describe('refresh token rotation', () => {
   it('rejects an unknown refresh token', async () => {
     const response = await request(app)
       .post('/api/v1/auth/refresh')
+      .set(CSRF_HEADER, '1')
       .set('Cookie', `${REFRESH_COOKIE}=not-a-real-token`);
 
     expect(response.status).toBe(401);
@@ -344,6 +671,7 @@ describe('refresh token rotation', () => {
 
     const response = await request(app)
       .post('/api/v1/auth/refresh')
+      .set(CSRF_HEADER, '1')
       .set('Cookie', `${REFRESH_COOKIE}=${token ?? ''}`);
 
     expect(response.status).toBe(401);
@@ -377,6 +705,7 @@ describe('refresh token rotation', () => {
     // self-contained and cannot be revoked once issued, which is why it is short-lived.
     const response = await request(app)
       .post('/api/v1/auth/refresh')
+      .set(CSRF_HEADER, '1')
       .set('Cookie', `${REFRESH_COOKIE}=${token ?? ''}`);
 
     expect(response.status).toBe(401);
@@ -388,11 +717,13 @@ describe('refresh token rotation', () => {
 
     const loggedOut = await request(app)
       .post('/api/v1/auth/logout')
+      .set(CSRF_HEADER, '1')
       .set('Cookie', `${REFRESH_COOKIE}=${token ?? ''}`);
     expect(loggedOut.status).toBe(204);
 
     const afterLogout = await request(app)
       .post('/api/v1/auth/refresh')
+      .set(CSRF_HEADER, '1')
       .set('Cookie', `${REFRESH_COOKIE}=${token ?? ''}`);
     expect(afterLogout.status).toBe(401);
   });
@@ -435,6 +766,7 @@ describe('access tokens', () => {
 
   it('rejects a token signed with a different key', async () => {
     const forged = await signAccessToken({
+      mustChangePassword: false,
       userId: uuidV7(),
       organisationId: org.organisationId,
       role: 'SUPER_ADMIN',
@@ -570,6 +902,7 @@ describe('change password', () => {
     // sessions alive would defeat it.
     const afterChange = await request(app)
       .post('/api/v1/auth/refresh')
+      .set(CSRF_HEADER, '1')
       .set('Cookie', `${REFRESH_COOKIE}=${refresh ?? ''}`);
     expect(afterChange.status).toBe(401);
 
@@ -646,12 +979,13 @@ describe('change password', () => {
 describe('logout is idempotent', () => {
   it('succeeds with no cookie at all', async () => {
     // Logging out when already logged out is not an error: the goal is reached.
-    expect((await request(app).post('/api/v1/auth/logout')).status).toBe(204);
+    expect((await request(app).post('/api/v1/auth/logout').set(CSRF_HEADER, '1')).status).toBe(204);
   });
 
   it('succeeds with an unknown token', async () => {
     const response = await request(app)
       .post('/api/v1/auth/logout')
+      .set(CSRF_HEADER, '1')
       .set('Cookie', `${REFRESH_COOKIE}=never-existed`);
 
     expect(response.status).toBe(204);
