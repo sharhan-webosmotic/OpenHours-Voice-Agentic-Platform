@@ -16,10 +16,18 @@ ask for the ticket text. Work only on the ticket I name, and do not start other 
 
 ## Repo map
 - `apps/api` Express + TypeScript + Prisma + PostgreSQL + pg-boss (API, webhooks, jobs)
-- `apps/clinic-web` React dashboard for clinics. `apps/admin-web` React internal admin console
+- `apps/clinic-web` React dashboard for clinics. `apps/admin-web` React internal admin console.
+  Each is standalone and holds its own copy of the tokens, primitives, session and shell
+  (D-009), because the two are to be split into separate repositories. A change to one of
+  those shared pieces must be applied to both: nothing enforces it
 - `apps/android` call-forwarding app only (no patient data on device). BUILT LAST: do not start it until the API, admin-web and clinic-web are complete and signed off. Ignore it for all earlier work, except that the API's device-pairing and forwarding endpoints exist.
-- `packages/shared` zod schemas, enums, permission matrix. `packages/api-client` generated from OpenAPI
-- `docs/` DECISIONS.md (binding choices), BACKLOG.md (committed debt and its due point), ADRs, STACK.md, runbook. Per-app rules live in each app's own `CLAUDE.md`
+- `packages/shared` zod schemas, enums, permission matrix. `packages/api-client` the typed API
+  client, hand-written for the five auth endpoints until M1-03 generates it from OpenAPI
+- `docs/` DECISIONS.md (binding choices), BACKLOG.md (committed debt and its due point),
+  design-system.md (the tokens and where each value came from), features/, ADRs, STACK.md,
+  runbook. Per-app rules live in each app's own `CLAUDE.md`
+- `ClinicFlow Interactive Prototype/` the Figma Make export the design system was extracted
+  from. Reference only: not linted, type-checked, built or shipped
 
 ## Commands (run from repo root)
 - `pnpm dev` | `pnpm check` (build + typecheck + lint + test; MUST pass before you say "done")
@@ -28,6 +36,13 @@ ask for the ticket text. Work only on the ticket I name, and do not start other 
 The gate asserts only what it runs. There is no OpenAPI drift leg: it was a stub that
 always exited 0, and a gate that always passes is worse than no gate. The real one
 arrives with M1-03, tracked in `docs/BACKLOG.md`.
+
+**The browser tests are not in the gate either.** `pnpm e2e` in either web app needs the
+API, a database and three `*.openhours.localhost` host names, so it cannot run on a clean
+checkout. It is also the only thing that can prove the refresh cookie is actually sent:
+supertest sends no `Origin` header and jsdom has no shared cookie jar. Until a run is
+green on a machine, say the cookie arrangement is reasoned rather than verified. Setup is
+in `docs/features/sign-in.md`.
 
 ## How to work on every task
 1. Read `docs/DECISIONS.md` and the relevant skill(s) below, then PLAN: files to touch, tests to add, risks. Wait for approval on anything that changes schema, auth, permissions or tenancy.
