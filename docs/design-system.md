@@ -14,9 +14,13 @@ shipped.
 
 The Figma connector was never reachable from the session that built this feature, so the
 prototype replaced the design file as the source. For colour that is an improvement: the
-prototype declares fifteen named CSS custom properties and uses no stray hex values, so the
-palette transferred exactly. For type and radius it was not, and the next section says what
-had to be decided.
+prototype declares fifteen named CSS custom properties, and all fifteen transferred exactly.
+It is not quite free of stray hex values, though, and three of the tokens below come from
+them rather than from a named property: the sign-in panel's gradient is written inline as
+`linear-gradient(145deg, #214fc2, #356ae6 55%, #8068df)` and one surface as `#fafbff`. Those
+values are still the prototype's own, so they are taken verbatim like the rest, but they are
+listed separately so the provenance is not overstated. For type and radius the prototype was
+not an improvement, and the next section says what had to be decided.
 
 ## Colour: taken verbatim
 
@@ -34,6 +38,15 @@ had to be decided.
 | `--ca-green-500` / `--ca-green-050`   | `#20b486` / `#e7f8f2` | success                      |
 | `--ca-orange-500` / `--ca-orange-050` | `#bd7218` / `#fff5e8` | warning                      |
 | `--ca-red-500` / `--ca-red-050`       | `#df4f5d` / `#fff0f2` | danger                       |
+
+Three more are the prototype's values too, taken from inline declarations rather than from
+its named properties. They were missing from this table, which is review finding M2.
+
+| Token             | Value     | Role                             | Where it came from            |
+| ----------------- | --------- | -------------------------------- | ----------------------------- |
+| `--ca-blue-800`   | `#214fc2` | sign-in panel gradient, darkest  | inline `linear-gradient` stop |
+| `--ca-violet-550` | `#8068df` | sign-in panel gradient, lightest | inline `linear-gradient` stop |
+| `--ca-white-050`  | `#fafbff` | the panel's own surface tint     | inline `background`           |
 
 **One colour is invented, and it is the only one.** The prototype has a single violet and no
 darker companion, because it never built the admin console, so there was no violet hover

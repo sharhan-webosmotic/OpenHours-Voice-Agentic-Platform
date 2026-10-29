@@ -16,8 +16,6 @@ export const makeTestConfig = (overrides: Partial<Config> = {}): Config =>
     CORS_ALLOW_CREDENTIALS: true,
     TRUST_PROXY: false,
     BODY_LIMIT: '100kb',
-    RATE_LIMIT_WINDOW_MS: 60_000,
-    RATE_LIMIT_MAX: 100,
     JWT_SECRET: 'test-jwt-secret-at-least-32-bytes-long!!',
     ACCESS_TOKEN_TTL_SECONDS: 900,
     REFRESH_TOKEN_TTL_DAYS: 14,

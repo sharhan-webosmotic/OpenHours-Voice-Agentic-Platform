@@ -116,6 +116,18 @@
   --ca-text-display: clamp(2.375rem, 4vw, 3.75rem);
 
   --ca-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /**
+   * Line height and tracking for the display headline, and the relaxed body measure.
+   *
+   * These were written inline in `features/auth/AuthLayout.tsx` as `leading-[1.08]`,
+   * `tracking-[-2px]` and `leading-[1.7]`. They are type decisions, so they belong with
+   * the rest of the type scale rather than in one component, and under D-009 an inline
+   * copy is a value the two applications can drift on. Review finding M3.
+   */
+  --ca-leading-display: 1.08;
+  --ca-tracking-display: -2px;
+  --ca-leading-relaxed: 1.7;
+
   --ca-font-weight-normal: 400;
   --ca-font-weight-medium: 500;
   --ca-font-weight-semibold: 600;

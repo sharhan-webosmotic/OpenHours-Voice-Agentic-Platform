@@ -20,7 +20,15 @@
   /* The clinic accent: the prototype's blue, verbatim. */
   --ca-color-accent: var(--ca-blue-500);
   --ca-color-accent-strong: var(--ca-blue-600);
-  --ca-color-accent-ring: rgba(53, 106, 230, 0.2);
+  /**
+   * Derived from the accent primitive rather than written out again.
+   *
+   * This was `rgba(53, 106, 230, 0.2)`, which is `--ca-blue-500` spelled in decimal, so
+   * changing the accent left the focus ring on the old hue, and it was the one raw colour
+   * outside tokens.css despite that file calling itself the only place one appears.
+   * Review finding M4.
+   */
+  --ca-color-accent-ring: color-mix(in srgb, var(--ca-blue-500) 20%, transparent);
 
   /**
    * The sign-in panel's gradient. A fourth per-application value, alongside the three

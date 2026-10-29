@@ -1,12 +1,20 @@
 import rateLimit, { type RateLimitRequestHandler } from 'express-rate-limit';
-import { config } from '../config.js';
 import { TooManyRequestsError } from './errors.js';
 
 export type RateLimiterOptions = {
-  /** Sliding window in milliseconds. Defaults to RATE_LIMIT_WINDOW_MS. */
-  readonly windowMs?: number;
-  /** Allowed requests per window per key. Defaults to RATE_LIMIT_MAX. */
-  readonly limit?: number;
+  /**
+   * Sliding window in milliseconds. REQUIRED.
+   *
+   * This and `limit` used to fall back to `RATE_LIMIT_WINDOW_MS` and `RATE_LIMIT_MAX`.
+   * Every call site passed both explicitly, so those two settings were never an effective
+   * limit anywhere, while reading like an application-wide throttle an operator could tune.
+   * The project removed a decorative `permission` field and a gate leg that asserted
+   * nothing for the same reason, so the fallback is gone and the two settings with it:
+   * every limiter now states its own bound where it is mounted. Review finding M7.
+   */
+  readonly windowMs: number;
+  /** Allowed requests per window per key. REQUIRED, see windowMs. */
+  readonly limit: number;
   /**
    * Bucket key. Defaults to the client IP as resolved under the configured
    * trust-proxy setting.
@@ -27,10 +35,10 @@ export type RateLimiterOptions = {
  * instance the effective limit is `limit x instances`. A shared store is required
  * before horizontal scaling (recorded in docs/STACK.md).
  */
-export const createRateLimiter = (options: RateLimiterOptions = {}): RateLimitRequestHandler =>
+export const createRateLimiter = (options: RateLimiterOptions): RateLimitRequestHandler =>
   rateLimit({
-    windowMs: options.windowMs ?? config.RATE_LIMIT_WINDOW_MS,
-    limit: options.limit ?? config.RATE_LIMIT_MAX,
+    windowMs: options.windowMs,
+    limit: options.limit,
     // `RateLimit-*` headers per the IETF draft; the legacy `X-RateLimit-*` set is off.
     standardHeaders: 'draft-8',
     legacyHeaders: false,

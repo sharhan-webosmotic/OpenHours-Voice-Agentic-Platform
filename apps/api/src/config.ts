@@ -52,9 +52,6 @@ const configSchema = z
     /** Max JSON request body, in the byte-string form `express.json` accepts. */
     BODY_LIMIT: z.string().default('100kb'),
 
-    RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
-    RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
-
     /**
      * Signing key for access tokens. 32 bytes minimum: a shorter key weakens HS256 to
      * the point where the signature is the weakest part of the system.

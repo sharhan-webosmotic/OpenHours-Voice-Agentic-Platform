@@ -37,9 +37,16 @@ const BASE =
   'inline-flex items-center justify-center gap-2 rounded-md px-4 font-semibold ' +
   'transition-colors disabled:cursor-not-allowed disabled:opacity-50';
 
+/**
+ * Both heights come off the scale.
+ *
+ * `lg` was `h-[46px]`, an arbitrary value beside an `md` that already used `h-10`. Snapped
+ * to `h-11` (44px), a two-pixel move, which is the same method docs/design-system.md used
+ * for every type size it absorbed. Review finding M3.
+ */
 const SIZES: Record<ButtonSize, string> = {
   md: 'h-10 text-xs',
-  lg: 'h-[46px] text-base',
+  lg: 'h-11 text-base',
 };
 
 const KINDS: Record<ButtonKind, string> = {

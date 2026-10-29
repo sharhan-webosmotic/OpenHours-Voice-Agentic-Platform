@@ -72,12 +72,21 @@ export const AuthLayout = ({
          * browser tests caught it.
          */}
         <p
-          className="my-[22px] font-bold leading-[1.08] tracking-[-2px]"
-          style={{ fontSize: 'var(--ca-text-display)' }}
+          className="my-[22px] font-bold"
+          style={{
+            fontSize: 'var(--ca-text-display)',
+            lineHeight: 'var(--ca-leading-display)',
+            letterSpacing: 'var(--ca-tracking-display)',
+          }}
         >
           {headline}
         </p>
-        <p className="m-0 max-w-[450px] text-md leading-[1.7] text-white/80">{subhead}</p>
+        <p
+          className="m-0 max-w-[450px] text-md text-white/80"
+          style={{ lineHeight: 'var(--ca-leading-relaxed)' }}
+        >
+          {subhead}
+        </p>
       </div>
 
       <p className="relative z-10 m-0 w-fit rounded-lg border border-white/20 bg-white/10 px-3.5 py-2.5 text-xs">
