@@ -1,4 +1,10 @@
-import express, { type Express, type NextFunction, type Request, type Response } from 'express';
+import express, {
+  type Express,
+  type NextFunction,
+  type Request,
+  type Response,
+  type Router,
+} from 'express';
 import cors, { type CorsOptions } from 'cors';
 import helmet from 'helmet';
 import { pinoHttp } from 'pino-http';
@@ -68,6 +74,30 @@ const isBodyTooLarge = (error: unknown): boolean =>
 const isMalformedJson = (error: unknown): boolean =>
   error instanceof SyntaxError && 'body' in error;
 
+/**
+ * Every router and the prefix it is mounted at, as data rather than as five `app.use`
+ * calls.
+ *
+ * WHY IT IS A TABLE. `src/route-table.test.ts` walks this list, asks each router for the
+ * routes it actually carries, and asserts the result matches `getRegisteredRoutes()`
+ * exactly. Express 5 does not expose a layer's mount prefix, so without a shared table the
+ * test would have to re-state these five strings and could drift from what `createApp`
+ * really mounts, which is the drift it exists to catch. Reading the prefix from the same
+ * list the application uses is what makes the assertion mean something.
+ *
+ * That test is what closes review finding I2: the registry is a hand-written declaration,
+ * and three guards walk it (the first-login gate, the declared-permission check and the
+ * PHI audit check), so a route mounted without a `registerRoute` call was invisible to all
+ * three. A gated user reached such a route with a 200 while every guard stayed green.
+ */
+export const ROUTER_MOUNTS: readonly (readonly [string, () => Router])[] = [
+  ['/api/v1/auth', authRouter],
+  ['/api/v1/devices', devicesRouter],
+  ['/api/v1/forwarding', forwardingRouter],
+  ['/api/v1/support-sessions', supportSessionsRouter],
+  ['/api/v1/audit-logs', auditRouter],
+];
+
 export const createApp = ({ readiness, config = appConfig }: AppDependencies): Express => {
   const app = express();
 
@@ -123,11 +153,9 @@ export const createApp = ({ readiness, config = appConfig }: AppDependencies): E
     res.status(200).json({ status: 'ready' });
   });
 
-  app.use('/api/v1/auth', authRouter());
-  app.use('/api/v1/devices', devicesRouter());
-  app.use('/api/v1/forwarding', forwardingRouter());
-  app.use('/api/v1/support-sessions', supportSessionsRouter());
-  app.use('/api/v1/audit-logs', auditRouter());
+  for (const [prefix, router] of ROUTER_MOUNTS) {
+    app.use(prefix, router());
+  }
 
   app.use((_req: Request, _res: Response, next: NextFunction) => {
     next(new NotFoundError('route not found'));
