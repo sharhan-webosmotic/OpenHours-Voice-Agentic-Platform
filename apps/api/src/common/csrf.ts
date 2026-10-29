@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import { CSRF_HEADER_NAME } from '@clinicai/shared';
 import { config } from '../config.js';
 import { ForbiddenError } from './errors.js';
 
@@ -27,7 +28,14 @@ import { ForbiddenError } from './errors.js';
  * one scoped host-only to the API is not readable by the app that has to echo it.
  */
 
-export const CSRF_HEADER = 'x-clinicai-csrf';
+/**
+ * Re-exported rather than declared, so the API and `packages/api-client` cannot disagree.
+ *
+ * This was two independent literals. Renaming only this one left every gated suite green
+ * while refresh and logout answered 403 for both dashboards, which is review finding I1.
+ * The single declaration lives in `packages/shared/src/session.ts` with the reasoning.
+ */
+export const CSRF_HEADER = CSRF_HEADER_NAME;
 
 /** Any value is accepted. The header's PRESENCE is the signal, not its contents. */
 const hasCustomHeader = (req: Request): boolean => {

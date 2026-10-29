@@ -5,7 +5,7 @@ import {
   UNAUTHORIZED_TYPE,
   type ProblemDetails,
 } from './problem.js';
-import type { LoginAudience, Role } from '@clinicai/shared';
+import { CSRF_HEADER_NAME, type LoginAudience, type Role } from '@clinicai/shared';
 
 /**
  * The typed client for the five auth endpoints, and the one place a session lives.
@@ -58,7 +58,7 @@ export type Session = {
  * It lives here rather than in the applications so that no feature code has to remember
  * it, and so that forgetting it is impossible rather than merely unlikely.
  */
-export const CSRF_HEADER = 'X-ClinicAI-Csrf';
+export const CSRF_HEADER = CSRF_HEADER_NAME;
 
 export type ApiClientOptions = {
   /** The API origin, for example `https://api.clinicai.health`. No trailing slash. */

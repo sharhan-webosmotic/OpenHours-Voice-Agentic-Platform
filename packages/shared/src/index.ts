@@ -10,6 +10,8 @@
 /** Semantic version of the shared contract package, for diagnostics endpoints. */
 export const SHARED_CONTRACT_VERSION = '0.1.0';
 
+export { CSRF_HEADER_NAME } from './session.js';
+
 export {
   ACTIONS,
   LOGIN_AUDIENCES,
