@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { PERMISSIONS, ROLES, isPermitted, type Role } from '@openhours/shared';
-import { ADMIN_NAV, CLINIC_NAV, landingPath, visibleNavigation } from './navigation';
+import { CLINIC_NAV, landingPath, visibleNavigation } from './navigation';
 
 /**
  * The menu against the permission matrix, for all six roles.
@@ -21,7 +21,7 @@ import { ADMIN_NAV, CLINIC_NAV, landingPath, visibleNavigation } from './navigat
 const label = (role: Role) => role;
 
 describe('every item is governed by a real matrix cell', () => {
-  it.each([...CLINIC_NAV, ...ADMIN_NAV])('$label reads $resource:$action', (item) => {
+  it.each(CLINIC_NAV)('$label reads $resource:$action', (item) => {
     // A typo in a resource name would otherwise make an item invisible to everyone, which
     // looks like a permission decision rather than a mistake.
     expect(PERMISSIONS[item.resource]).toBeDefined();
@@ -38,14 +38,6 @@ describe('visibleNavigation agrees with the matrix for every role', () => {
         visible.includes(item),
         `${label(role)} ${permitted ? 'should' : 'should not'} see ${item.label}`,
       ).toBe(permitted);
-    }
-  });
-
-  it.each(ROLES)('%s sees exactly the admin items it is permitted', (role) => {
-    const visible = visibleNavigation(ADMIN_NAV, role);
-
-    for (const item of ADMIN_NAV) {
-      expect(visible.includes(item)).toBe(isPermitted(role, item.resource, item.action));
     }
   });
 
@@ -85,16 +77,6 @@ describe('the specific denials that shape the product', () => {
     expect(visibleNavigation(CLINIC_NAV, 'CLINIC_MANAGER').map((item) => item.label)).toContain(
       'Clinic Settings',
     );
-  });
-
-  it('hides Internal users from an INTERNAL_ADMIN, because platform_users is SUPER_ADMIN only', () => {
-    const admin = visibleNavigation(ADMIN_NAV, 'INTERNAL_ADMIN').map((item) => item.label);
-    const superAdmin = visibleNavigation(ADMIN_NAV, 'SUPER_ADMIN').map((item) => item.label);
-
-    // Three of four, and the difference is the matrix being honoured rather than an
-    // omission in the admin console.
-    expect(admin).not.toContain('Internal users');
-    expect(superAdmin).toContain('Internal users');
   });
 });
 

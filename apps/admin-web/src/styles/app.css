@@ -1,0 +1,22 @@
+/**
+ * The admin console's entry stylesheet.
+ *
+ * Identical to the clinic dashboard's but for the three accent tokens below. That is the
+ * whole of "only the accent colour and the logo differ": the logo takes its colour from
+ * `--oh-color-accent` through `currentColor`, so changing the accent changes the logo too
+ * and there is no second asset to keep in step.
+ *
+ * The violet is the prototype's `--oh-violet-500`. Its darker companion is the one invented
+ * colour in the token file: the prototype never built this console, so there was no violet
+ * hover state to copy, and it was derived by applying the blue pair's own delta to the
+ * violet so both accents behave identically on hover. See src/styles/tokens.css.
+ */
+
+@import '@fontsource-variable/inter';
+@import './theme.css';
+
+:root {
+  --oh-color-accent: var(--oh-violet-500);
+  --oh-color-accent-strong: var(--oh-violet-600);
+  --oh-color-accent-ring: rgba(139, 106, 232, 0.2);
+}

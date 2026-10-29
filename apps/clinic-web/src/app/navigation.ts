@@ -97,45 +97,6 @@ export const CLINIC_NAV = [
    */
 ] as const satisfies readonly NavItem[];
 
-/**
- * The admin console's four items.
- *
- * Not in the prototype, which only ever covered the clinic dashboard, so these are built
- * to the same visual language rather than transcribed. `platform_users` is SUPER_ADMIN
- * only, so an INTERNAL_ADMIN sees three of the four: that is the matrix being honoured,
- * not an omission.
- */
-export const ADMIN_NAV = [
-  {
-    path: '/clinics',
-    label: 'Clinics',
-    resource: 'organisations',
-    action: 'read',
-    icon: 'Building2',
-  },
-  {
-    path: '/internal-users',
-    label: 'Internal users',
-    resource: 'platform_users',
-    action: 'read',
-    icon: 'ShieldCheck',
-  },
-  {
-    path: '/monitoring',
-    label: 'Monitoring',
-    resource: 'integration_errors',
-    action: 'read',
-    icon: 'Activity',
-  },
-  {
-    path: '/settings',
-    label: 'Settings',
-    resource: 'phone_voice_mapping',
-    action: 'read',
-    icon: 'Settings',
-  },
-] as const satisfies readonly NavItem[];
-
 /** The items this role may see, in declared order. */
 export const visibleNavigation = (items: readonly NavItem[], role: Role): readonly NavItem[] =>
   items.filter((item) => isPermitted(role, item.resource, item.action));

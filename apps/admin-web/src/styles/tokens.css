@@ -1,0 +1,169 @@
+/**
+ * The design tokens, and the only place in the repository a raw colour value appears.
+ *
+ * Extracted from the ClinicFlow interactive prototype (a Figma Make export on the same
+ * React 19 and Tailwind 4 stack this repository uses), not eyeballed from an image. The
+ * prototype's fifteen named colour custom properties are carried over verbatim. Its type
+ * sizes and corner radii were NOT: the export gave almost every node its own pixel value,
+ * fifteen distinct font sizes and seventeen distinct radii, so those were snapped to a
+ * scale. See docs/design-system.md for the table of what moved and by how much.
+ *
+ * TWO LAYERS, AND THE SPLIT IS THE POINT. Primitives (`--oh-*`) are the palette. Semantic
+ * tokens (`--oh-color-*`, `--oh-text-*`, `--oh-radius-*`) are what a component is allowed to read.
+ * A component never names a primitive, so a component never names a colour: it asks for
+ * "the danger text colour" and the token layer decides what that is today.
+ *
+ * WHY THAT MATTERS HERE. Dark mode is deliberately not built in this feature, but the
+ * whole point of the indirection is that adding it later touches this file and nothing
+ * else. A dark theme is a second definition of the semantic block under
+ * `[data-theme='dark']`, and no component, test or screen changes. Had components read
+ * `--oh-navy` directly, dark mode would have been a rewrite of every component instead.
+ *
+ * THE ACCENT IS PER APPLICATION. `--oh-color-accent` and its two companions are the only
+ * tokens the two applications disagree about: the clinic dashboard is blue, the admin
+ * console violet. Each app overrides exactly these three in its own entry stylesheet, so
+ * "only the accent colour and the logo differ" is enforced by there being nothing else to
+ * override.
+ */
+
+:root {
+  /* ---- Primitives: the prototype's palette, verbatim. ---- */
+  --oh-blue-500: #356ae6;
+  --oh-blue-600: #2457cf;
+  --oh-violet-500: #8b6ae8;
+  /**
+   * The prototype has one violet and no darker companion, because it never built the
+   * admin console. This is the one invented colour in the file, derived by applying the
+   * blue pair's own delta to the violet so the two accents behave identically on hover.
+   */
+  --oh-violet-600: #7a57d1;
+
+  --oh-navy-900: #17264b;
+  --oh-slate-600: #64728f;
+  --oh-slate-400: #8d98ae;
+  --oh-slate-100: #e6eaf4;
+  --oh-slate-050: #f3f5fd;
+  --oh-white: #ffffff;
+
+  --oh-green-500: #20b486;
+  --oh-green-050: #e7f8f2;
+  --oh-orange-500: #bd7218;
+  --oh-orange-050: #fff5e8;
+  --oh-red-500: #df4f5d;
+  --oh-red-050: #fff0f2;
+
+  /* ---- Semantic: everything a component may read. ---- */
+
+  /* Surfaces. */
+  --oh-color-background: var(--oh-slate-050);
+  --oh-color-surface: var(--oh-white);
+  --oh-color-border: var(--oh-slate-100);
+
+  /* Text, three levels. Nothing in the design needs a fourth. */
+  --oh-color-text: var(--oh-navy-900);
+  --oh-color-text-muted: var(--oh-slate-600);
+  --oh-color-text-subtle: var(--oh-slate-400);
+  /* For text sitting on a filled accent or status surface. */
+  --oh-color-text-inverse: var(--oh-white);
+
+  /**
+   * Accent. Overridden per application, and the only tokens that are. `--oh-color-accent-ring`
+   * is kept separate from the accent itself because a focus ring is a translucent wash of
+   * it, and a component must not be computing alpha from a colour it cannot see.
+   */
+  --oh-color-accent: var(--oh-blue-500);
+  --oh-color-accent-strong: var(--oh-blue-600);
+  --oh-color-accent-ring: rgba(53, 106, 230, 0.2);
+
+  /* Status, each a foreground and the wash it sits on. */
+  --oh-color-success: var(--oh-green-500);
+  --oh-color-success-surface: var(--oh-green-050);
+  --oh-color-warning: var(--oh-orange-500);
+  --oh-color-warning-surface: var(--oh-orange-050);
+  --oh-color-danger: var(--oh-red-500);
+  --oh-color-danger-surface: var(--oh-red-050);
+
+  /* ---- Type. Seven steps, snapped from the prototype's fifteen. ---- */
+  --oh-text-xs: 0.75rem; /* 12px, the body size: 76 of the prototype's declarations. */
+  --oh-text-sm: 0.8125rem; /* 13px */
+  --oh-text-base: 0.875rem; /* 14px */
+  --oh-text-md: 1rem; /* 16px */
+  --oh-text-lg: 1.125rem; /* 18px */
+  --oh-text-xl: 1.375rem; /* 22px */
+  --oh-text-2xl: 1.75rem; /* 28px */
+
+  --oh-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --oh-font-weight-normal: 400;
+  --oh-font-weight-medium: 500;
+  --oh-font-weight-semibold: 600;
+  --oh-font-weight-bold: 700;
+
+  /* ---- Radius. Five steps, snapped from the prototype's seventeen. ---- */
+  --oh-radius-sm: 0.5rem; /* 8px */
+  --oh-radius-md: 0.625rem; /* 10px */
+  --oh-radius-lg: 0.75rem; /* 12px */
+  --oh-radius-xl: 1rem; /* 16px */
+  --oh-radius-full: 999px;
+
+  /* ---- Elevation. The prototype's card shadow, and two it uses for overlays. ---- */
+  --oh-shadow-card: 0 8px 26px rgba(31, 48, 89, 0.06);
+  --oh-shadow-popover: 0 2px 8px rgba(30, 49, 90, 0.08);
+  --oh-shadow-modal: 0 24px 70px rgba(20, 34, 68, 0.2);
+
+  /* ---- Focus. One ring, every interactive element, no exceptions. ---- */
+  --oh-focus-ring-width: 3px;
+  --oh-focus-ring-offset: 2px;
+
+  color-scheme: light;
+}
+
+/**
+ * The base layer. Deliberately small: it sets the page and the focus ring and stops.
+ *
+ * The focus ring is defined once, here, on `:focus-visible` for every focusable element
+ * rather than per component. Accessibility is a requirement rather than a component
+ * author's option, and a ring a component has to remember to add is a ring some component
+ * will forget. `:focus-visible` rather than `:focus` so a mouse click does not ring.
+ */
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--oh-slate-400) transparent;
+}
+
+body {
+  margin: 0;
+  background: var(--oh-color-background);
+  color: var(--oh-color-text);
+  font-family: var(--oh-font-sans);
+  font-size: var(--oh-text-xs);
+  font-weight: var(--oh-font-weight-normal);
+  -webkit-font-smoothing: antialiased;
+}
+
+:where(button, input, select, textarea) {
+  font: inherit;
+  color: inherit;
+}
+
+:where(button) {
+  cursor: pointer;
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: var(--oh-focus-ring-width) solid var(--oh-color-accent-ring);
+  outline-offset: var(--oh-focus-ring-offset);
+}
+
+/**
+ * Honour a reduced-motion preference globally. The design uses motion only for feedback,
+ * never to convey meaning, so removing it costs nothing and keeping it can cause harm.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

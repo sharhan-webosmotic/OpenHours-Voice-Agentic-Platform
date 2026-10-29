@@ -16,6 +16,13 @@
     "declaration": false,
     "declarationMap": false
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts", "vitest.config.ts", "tests/**/*.ts"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "tests/**/*.ts"
+  ],
   "exclude": ["dist", "coverage"]
 }
