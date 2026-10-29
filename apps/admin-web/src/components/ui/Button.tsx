@@ -16,8 +16,17 @@ import { Spinner } from './Spinner';
 
 export type ButtonKind = 'primary' | 'secondary' | 'danger';
 
+/**
+ * `md` is the product chrome size; `lg` is the prototype's 46px form button.
+ *
+ * Two sizes, not a scale. A third would be a choice every author has to make and nothing
+ * in the design needs one.
+ */
+export type ButtonSize = 'md' | 'lg';
+
 export type ButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className'> & {
   readonly kind?: ButtonKind | undefined;
+  readonly size?: ButtonSize | undefined;
   /** Shows a spinner, sets `aria-busy` and blocks activation. */
   readonly loading?: boolean | undefined;
   readonly fullWidth?: boolean | undefined;
@@ -25,8 +34,13 @@ export type ButtonProps = Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'classNa
 };
 
 const BASE =
-  'inline-flex items-center justify-center gap-2 rounded-md px-4 h-10 font-semibold ' +
-  'text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-50';
+  'inline-flex items-center justify-center gap-2 rounded-md px-4 font-semibold ' +
+  'transition-colors disabled:cursor-not-allowed disabled:opacity-50';
+
+const SIZES: Record<ButtonSize, string> = {
+  md: 'h-10 text-xs',
+  lg: 'h-[46px] text-base',
+};
 
 const KINDS: Record<ButtonKind, string> = {
   primary: 'bg-accent text-inverse hover:bg-accent-strong',
@@ -36,6 +50,7 @@ const KINDS: Record<ButtonKind, string> = {
 
 export const Button = ({
   kind = 'primary',
+  size = 'md',
   loading = false,
   fullWidth = false,
   type = 'button',
@@ -50,7 +65,7 @@ export const Button = ({
     // client is single-flight too, because a button is not a control over the network.
     disabled={disabled === true || loading}
     aria-busy={loading || undefined}
-    className={cn(BASE, KINDS[kind], fullWidth && 'w-full')}
+    className={cn(BASE, SIZES[size], KINDS[kind], fullWidth && 'w-full')}
   >
     {loading && <Spinner />}
     {children}

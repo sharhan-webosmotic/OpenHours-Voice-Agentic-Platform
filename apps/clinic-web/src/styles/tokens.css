@@ -38,6 +38,20 @@
    */
   --oh-violet-600: #7a57d1;
 
+  /**
+   * The two ends of the sign-in panel's gradient, which the prototype declares inline as
+   * `linear-gradient(145deg, #214fc2, #356ae6 55%, #8068df)`. Neither end is one of the
+   * palette colours above: the blue is darker than `--oh-blue-600` and the violet sits
+   * between `--oh-violet-500` and `--oh-violet-600`. They are kept as their own primitives
+   * rather than rounded to a neighbour, because a gradient is the one place a two-step
+   * colour shift is visible as banding.
+   */
+  --oh-blue-800: #214fc2;
+  --oh-violet-550: #8068df;
+
+  /** The faint wash behind the sign-in form. Not `--oh-slate-050`, which is bluer. */
+  --oh-white-050: #fafbff;
+
   --oh-navy-900: #17264b;
   --oh-slate-600: #64728f;
   --oh-slate-400: #8d98ae;
@@ -91,6 +105,15 @@
   --oh-text-lg: 1.125rem; /* 18px */
   --oh-text-xl: 1.375rem; /* 22px */
   --oh-text-2xl: 1.75rem; /* 28px */
+  /**
+   * The marketing headline on the sign-in panel, and the only place it is used.
+   *
+   * Outside the seven-step scale on purpose. The scale governs product chrome, where a
+   * fixed step is what keeps screens consistent; this is a single display line that has to
+   * hold a half-width panel at any window size, so it is fluid. The prototype declares
+   * `clamp(38px, 4vw, 60px)` and that is carried over unchanged.
+   */
+  --oh-text-display: clamp(2.375rem, 4vw, 3.75rem);
 
   --oh-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --oh-font-weight-normal: 400;
@@ -126,44 +149,61 @@
  * will forget. `:focus-visible` rather than `:focus` so a mouse click does not ring.
  */
 
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--oh-slate-400) transparent;
-}
-
-body {
-  margin: 0;
-  background: var(--oh-color-background);
-  color: var(--oh-color-text);
-  font-family: var(--oh-font-sans);
-  font-size: var(--oh-text-xs);
-  font-weight: var(--oh-font-weight-normal);
-  -webkit-font-smoothing: antialiased;
-}
-
-:where(button, input, select, textarea) {
-  font: inherit;
-  color: inherit;
-}
-
-:where(button) {
-  cursor: pointer;
-}
-
-:where(a, button, input, select, textarea, [tabindex]):focus-visible {
-  outline: var(--oh-focus-ring-width) solid var(--oh-color-accent-ring);
-  outline-offset: var(--oh-focus-ring-offset);
-}
-
 /**
- * Honour a reduced-motion preference globally. The design uses motion only for feedback,
- * never to convey meaning, so removing it costs nothing and keeping it can cause harm.
+ * The element defaults live in `@layer base`, and that is load-bearing rather than tidiness.
+ *
+ * Unlayered CSS beats every layered rule, whatever the specificity. Tailwind puts its
+ * utilities in `@layer utilities`, so while these rules sat outside a layer the
+ * zero-specificity `:where(button) { color: inherit }` below silently won against
+ * `.text-inverse` and `.text-subtle`. Every button in the product rendered its label in the
+ * body colour: the primary button was navy text on a blue fill, and the disabled
+ * "Forgot password?" control looked active. Nothing in the markup was wrong and no test
+ * could see it, because the component tests assert roles and text rather than computed
+ * colour.
+ *
+ * Inside `base`, a utility class overrides these, which is the order you want: defaults
+ * first, then whatever a component asks for.
  */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--oh-slate-400) transparent;
+  }
+
+  body {
+    margin: 0;
+    background: var(--oh-color-background);
+    color: var(--oh-color-text);
+    font-family: var(--oh-font-sans);
+    font-size: var(--oh-text-xs);
+    font-weight: var(--oh-font-weight-normal);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :where(button, input, select, textarea) {
+    font: inherit;
+    color: inherit;
+  }
+
+  :where(button) {
+    cursor: pointer;
+  }
+
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    outline: var(--oh-focus-ring-width) solid var(--oh-color-accent-ring);
+    outline-offset: var(--oh-focus-ring-offset);
+  }
+
+  /**
+   * Honour a reduced-motion preference globally. The design uses motion only for feedback,
+   * never to convey meaning, so removing it costs nothing and keeping it can cause harm.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }

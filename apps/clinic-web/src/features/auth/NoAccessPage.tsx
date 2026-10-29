@@ -1,7 +1,7 @@
 import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
 import { Logo } from '../../components/ui/Logo';
 import { useAuth } from '../../app/AuthProvider';
+import { AuthLayout } from './AuthLayout';
 
 /**
  * Shown when a signed-in user reaches a page their role may not read, or signs in to an
@@ -23,22 +23,27 @@ export const NoAccessPage = ({
   const { signOut } = useAuth();
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6">
-      <div className="flex w-full max-w-md flex-col gap-5">
-        <Logo className="self-center" />
+    <AuthLayout
+      headline="One calm place for every clinic day."
+      subhead="Appointments, patients and the AI receptionist's activity, organised in one place for your whole clinic."
+      footnote="Your clinic's data is private to your clinic. Only your team can see it."
+    >
+      <Logo className="self-start lg:hidden" />
 
-        <Card className="flex flex-col items-start gap-3">
-          <h1 className="m-0 text-xl font-bold text-default">No access</h1>
-          <p className="m-0 text-xs text-muted">{reason}</p>
-          <p className="m-0 text-xs text-muted">
-            If you believe this is wrong, ask a clinic owner or an administrator to review your
-            role. Nothing is missing from your account: this page is simply not part of it.
-          </p>
-          <Button kind="secondary" onClick={() => void signOut()}>
-            Sign out
-          </Button>
-        </Card>
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-bold uppercase tracking-[1.1px] text-accent">Access</span>
+        <h1 className="m-0 text-2xl font-bold tracking-[-0.8px] text-default">No access</h1>
       </div>
-    </main>
+
+      <p className="m-0 text-sm leading-[1.6] text-muted">{reason}</p>
+      <p className="m-0 text-sm leading-[1.6] text-muted">
+        If you believe this is wrong, ask a clinic owner or an administrator to review your role.
+        Nothing is missing from your account: this page is simply not part of it.
+      </p>
+
+      <Button kind="secondary" size="lg" onClick={() => void signOut()}>
+        Sign out
+      </Button>
+    </AuthLayout>
   );
 };

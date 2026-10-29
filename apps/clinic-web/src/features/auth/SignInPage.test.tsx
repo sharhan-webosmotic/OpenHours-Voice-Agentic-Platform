@@ -184,7 +184,7 @@ describe('forgot password', () => {
      * in a prototype and a lie in a product that holds patient records.
      */
     expect(forgot).toBeDisabled();
-    expect(forgot).toHaveAccessibleDescription(/Coming soon/);
+    expect(forgot).toHaveAccessibleDescription(/coming soon/i);
     expect(screen.getByText(/ask an administrator/i)).toBeInTheDocument();
   });
 });

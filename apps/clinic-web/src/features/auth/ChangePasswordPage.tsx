@@ -4,10 +4,10 @@ import { Navigate } from 'react-router';
 import { ApiError } from '@openhours/api-client';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
 import { Field } from '../../components/ui/Field';
 import { Logo } from '../../components/ui/Logo';
 import { useAuth } from '../../app/AuthProvider';
+import { AuthLayout } from './AuthLayout';
 
 /**
  * Replacing an administrator-issued temporary password. Not in the prototype, which only
@@ -78,88 +78,95 @@ export const ChangePasswordPage = () => {
   });
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6">
-      <div className="flex w-full max-w-sm flex-col gap-5">
-        <Logo className="self-center" />
+    <AuthLayout
+      headline="One calm place for every clinic day."
+      subhead="Appointments, patients and the AI receptionist's activity, organised in one place for your whole clinic."
+      footnote="Your clinic's data is private to your clinic. Only your team can see it."
+    >
+      <Logo className="self-start lg:hidden" />
 
-        <Card className="flex flex-col gap-4">
-          {done ? (
-            <>
-              <h1 className="m-0 text-xl font-bold text-default">Password changed</h1>
-              <Alert kind="success">
-                Your password has been updated and every other session was signed out. Sign in again
-                with your new password.
-              </Alert>
-              <Button onClick={() => window.location.assign('/sign-in')} fullWidth>
-                Go to sign in
-              </Button>
-            </>
-          ) : (
-            <>
-              <div className="flex flex-col gap-1">
-                <h1 className="m-0 text-xl font-bold text-default">Choose a new password</h1>
-                <p className="m-0 text-xs text-muted">
-                  Your account was created with a temporary password. Replace it before continuing.
-                </p>
-              </div>
+      {done ? (
+        <>
+          <h1 className="m-0 text-2xl font-bold tracking-[-0.8px] text-default">
+            Password changed
+          </h1>
+          <Alert kind="success">
+            Your password has been updated and every other session was signed out. Sign in again
+            with your new password.
+          </Alert>
+          <Button size="lg" fullWidth onClick={() => window.location.assign('/sign-in')}>
+            Go to sign in
+          </Button>
+        </>
+      ) : (
+        <>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-bold uppercase tracking-[1.1px] text-accent">
+              One more step
+            </span>
+            <h1 className="m-0 text-2xl font-bold tracking-[-0.8px] text-default">
+              Choose a new password
+            </h1>
+            <p className="m-0 text-sm leading-[1.6] text-muted">
+              Your account was created with a temporary password. Replace it before continuing.
+            </p>
+          </div>
 
-              {failure !== undefined && <Alert kind="danger">{failure}</Alert>}
+          {failure !== undefined && <Alert kind="danger">{failure}</Alert>}
 
-              <form
-                className="flex flex-col gap-4"
-                onSubmit={(event) => {
-                  // `handleSubmit` returns a promise and a DOM handler must return void. The
-                  // rejection cannot escape: `onSubmit` catches everything it can report.
-                  void onSubmit(event);
-                }}
-                noValidate
-              >
-                <Field
-                  label="Temporary password"
-                  type="password"
-                  autoComplete="current-password"
-                  autoFocus
-                  error={errors.currentPassword?.message}
-                  {...register('currentPassword', {
-                    required: 'Enter the temporary password you were given.',
-                  })}
-                />
+          <form
+            className="flex flex-col gap-4"
+            onSubmit={(event) => {
+              // `handleSubmit` returns a promise and a DOM handler must return void. The
+              // rejection cannot escape: `onSubmit` catches everything it can report.
+              void onSubmit(event);
+            }}
+            noValidate
+          >
+            <Field
+              label="Temporary password"
+              type="password"
+              autoComplete="current-password"
+              autoFocus
+              error={errors.currentPassword?.message}
+              {...register('currentPassword', {
+                required: 'Enter the temporary password you were given.',
+              })}
+            />
 
-                <Field
-                  label="New password"
-                  type="password"
-                  autoComplete="new-password"
-                  hint={`At least ${MINIMUM_LENGTH} characters. A memorable phrase is stronger than a short complicated word.`}
-                  error={errors.newPassword?.message}
-                  {...register('newPassword', {
-                    required: 'Choose a new password.',
-                    minLength: {
-                      value: MINIMUM_LENGTH,
-                      message: `Use at least ${MINIMUM_LENGTH} characters.`,
-                    },
-                  })}
-                />
+            <Field
+              label="New password"
+              type="password"
+              autoComplete="new-password"
+              hint={`At least ${MINIMUM_LENGTH} characters. A memorable phrase is stronger than a short complicated word.`}
+              error={errors.newPassword?.message}
+              {...register('newPassword', {
+                required: 'Choose a new password.',
+                minLength: {
+                  value: MINIMUM_LENGTH,
+                  message: `Use at least ${MINIMUM_LENGTH} characters.`,
+                },
+              })}
+            />
 
-                <Field
-                  label="Confirm new password"
-                  type="password"
-                  autoComplete="new-password"
-                  error={errors.confirmPassword?.message}
-                  {...register('confirmPassword', {
-                    required: 'Re-enter the new password.',
-                    validate: (value) =>
-                      value === getValues('newPassword') || 'Both passwords must match.',
-                  })}
-                />
+            <Field
+              label="Confirm new password"
+              type="password"
+              autoComplete="new-password"
+              error={errors.confirmPassword?.message}
+              {...register('confirmPassword', {
+                required: 'Re-enter the new password.',
+                validate: (value) =>
+                  value === getValues('newPassword') || 'Both passwords must match.',
+              })}
+            />
 
-                <Button type="submit" fullWidth loading={isSubmitting}>
-                  Change password
-                </Button>
-              </form>
-            </>
-          )}
-        </Card>
-      </div>
-    </main>
+            <Button type="submit" size="lg" fullWidth loading={isSubmitting}>
+              Change password
+            </Button>
+          </form>
+        </>
+      )}
+    </AuthLayout>
   );
 };

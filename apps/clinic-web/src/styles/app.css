@@ -21,4 +21,17 @@
   --oh-color-accent: var(--oh-blue-500);
   --oh-color-accent-strong: var(--oh-blue-600);
   --oh-color-accent-ring: rgba(53, 106, 230, 0.2);
+
+  /**
+   * The sign-in panel's gradient. A fourth per-application value, alongside the three
+   * accent tokens: it is the brand surface, so it differs for the same reason they do.
+   * The clinic reads blue into violet, as the prototype draws it; the console reverses it
+   * so the two are distinguishable at a glance from across a room.
+   */
+  --oh-gradient-brand: linear-gradient(
+    145deg,
+    var(--oh-blue-800),
+    var(--oh-blue-500) 55%,
+    var(--oh-violet-550)
+  );
 }
