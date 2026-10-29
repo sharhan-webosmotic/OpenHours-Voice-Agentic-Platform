@@ -1,8 +1,8 @@
 import { render, type RenderResult } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import type { ReactNode } from 'react';
-import { ApiError, type ApiClient, type CurrentUser, type Session } from '@openhours/api-client';
-import type { Role } from '@openhours/shared';
+import { ApiError, type ApiClient, type CurrentUser, type Session } from '@clinicai/api-client';
+import type { Role } from '@clinicai/shared';
 import { AuthProvider } from '../app/AuthProvider';
 import { createSessionBus, type SessionBus } from '../app/sessionBus';
 
@@ -54,7 +54,7 @@ export const stubClient = (options: StubOptions = {}): Stub => {
   });
 
   const expired = () =>
-    problem(401, 'https://openhours.health/problems/unauthorized', 'Sign in again.');
+    problem(401, 'https://clinicai.health/problems/unauthorized', 'Sign in again.');
 
   const client: ApiClient = {
     login: () => {

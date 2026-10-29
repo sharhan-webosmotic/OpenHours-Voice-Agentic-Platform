@@ -1,6 +1,6 @@
 import type { Prisma } from '../../generated/prisma/client.js';
 import type { TenantDb } from '../../db/tenant-client.js';
-import type { Role } from '@openhours/shared';
+import type { Role } from '@clinicai/shared';
 
 /**
  * The only place in the audit module that touches Prisma (apps/api/CLAUDE.md). The

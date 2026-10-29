@@ -57,7 +57,7 @@ working control.
 
 ### The two layers
 
-1. **A required custom header, `X-OpenHours-Csrf`.** Any value is accepted: its presence is
+1. **A required custom header, `X-ClinicAI-Csrf`.** Any value is accepted: its presence is
    the signal. A cross-site HTML form cannot set a custom header at all, and a cross-site
    `fetch` that sets one triggers a CORS preflight, which the existing strict allow-list
    refuses. This is also the mechanism the project's own `tenant-security-phi` skill

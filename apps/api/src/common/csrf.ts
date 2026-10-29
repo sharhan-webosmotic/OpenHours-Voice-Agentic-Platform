@@ -27,7 +27,7 @@ import { ForbiddenError } from './errors.js';
  * one scoped host-only to the API is not readable by the app that has to echo it.
  */
 
-export const CSRF_HEADER = 'x-openhours-csrf';
+export const CSRF_HEADER = 'x-clinicai-csrf';
 
 /** Any value is accepted. The header's PRESENCE is the signal, not its contents. */
 const hasCustomHeader = (req: Request): boolean => {

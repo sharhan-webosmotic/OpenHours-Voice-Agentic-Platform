@@ -104,7 +104,7 @@ const Landing = () => {
   const first = landingPath(CLINIC_NAV, user.role);
 
   return first === undefined ? (
-    <NoAccessPage reason="Your role does not include access to any part of the clinic dashboard. If you are an OpenHours administrator, use the admin console instead." />
+    <NoAccessPage reason="Your role does not include access to any part of the clinic dashboard. If you are an ClinicAI administrator, use the admin console instead." />
   ) : (
     <Navigate to={first} replace />
   );

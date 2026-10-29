@@ -5,7 +5,7 @@ import {
   type Request,
   type Response,
 } from 'express';
-import type { LoginAudience } from '@openhours/shared';
+import type { LoginAudience } from '@clinicai/shared';
 import { config } from '../../config.js';
 import { readCookie } from '../../common/cookies.js';
 import { requireSameSiteRequest } from '../../common/csrf.js';
@@ -26,7 +26,7 @@ import * as service from './auth.service.js';
  * and is expected to live in memory only.
  */
 
-export const REFRESH_COOKIE = 'openhours_refresh';
+export const REFRESH_COOKIE = 'clinicai_refresh';
 
 const refreshCookieOptions = (expiresAt: Date): CookieOptions => ({
   httpOnly: true,

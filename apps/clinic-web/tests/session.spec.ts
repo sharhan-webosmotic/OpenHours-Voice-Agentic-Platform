@@ -27,7 +27,7 @@ import { expect, test, type Page } from '@playwright/test';
 const EMAIL = process.env.E2E_EMAIL;
 /** The one-time password `pnpm provision:clinic` printed. Spent by the first test. */
 const TEMPORARY_PASSWORD = process.env.E2E_TEMP_PASSWORD;
-const API_HOST = process.env.E2E_API_HOST ?? 'api.openhours.localhost';
+const API_HOST = process.env.E2E_API_HOST ?? 'api.clinicai.localhost';
 
 /** Chosen here, not configured: it exists only between the first test and the last. */
 const PASSWORD = 'e2e-replacement-password';
@@ -40,7 +40,7 @@ test.skip(
 // Ordered, because the first test spends the temporary password the rest depend on.
 test.describe.configure({ mode: 'serial' });
 
-const REFRESH_COOKIE = 'openhours_refresh';
+const REFRESH_COOKIE = 'clinicai_refresh';
 
 const refreshCookie = async (page: Page) => {
   const cookies = await page.context().cookies();
@@ -160,10 +160,10 @@ test.describe('the refresh cookie', () => {
     // ADR-0001: a cross-site HTML form cannot set a custom header, and a cross-site fetch
     // that does triggers a preflight the API's origin allow-list refuses. The client sends
     // it so no feature has to remember to.
-    expect(headers['x-openhours-csrf']).toBeDefined();
+    expect(headers['x-clinicai-csrf']).toBeDefined();
     // The browser's own statement of where the request came from, which is the layer that
     // catches a sibling subdomain SameSite=Strict would have let through.
-    expect(headers['origin']).toContain('app.openhours.localhost');
+    expect(headers['origin']).toContain('app.clinicai.localhost');
   });
 });
 

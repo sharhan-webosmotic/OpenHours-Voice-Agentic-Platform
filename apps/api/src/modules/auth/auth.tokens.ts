@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
-import { isRole, type Role } from '@openhours/shared';
+import { isRole, type Role } from '@clinicai/shared';
 import { config } from '../../config.js';
 import { UnauthorizedError } from '../../common/errors.js';
 
@@ -12,8 +12,8 @@ import { UnauthorizedError } from '../../common/errors.js';
  * which is why the access lifetime is minutes rather than hours.
  */
 
-const ISSUER = 'openhours';
-const AUDIENCE = 'openhours-api';
+const ISSUER = 'clinicai';
+const AUDIENCE = 'clinicai-api';
 
 export type AccessTokenClaims = {
   readonly userId: string;

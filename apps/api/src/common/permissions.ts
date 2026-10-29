@@ -5,7 +5,7 @@ import {
   type Resource,
   type Role,
   type Scope,
-} from '@openhours/shared';
+} from '@clinicai/shared';
 import { ForbiddenError, UnauthorizedError } from './errors.js';
 import { getContext } from './request-context.js';
 

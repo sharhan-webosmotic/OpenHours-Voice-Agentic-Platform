@@ -1,5 +1,5 @@
 {
-  "name": "@openhours/api",
+  "name": "@clinicai/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -23,7 +23,7 @@
     "provision:clinic": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env prisma/provision-clinic.ts"
   },
   "dependencies": {
-    "@openhours/shared": "workspace:*",
+    "@clinicai/shared": "workspace:*",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "argon2": "0.45.1",

@@ -1,8 +1,8 @@
 {
-  "name": "openhours-platform",
+  "name": "clinicai-platform",
   "version": "0.1.0",
   "private": true,
-  "description": "OpenHours Voice Agentic Platform - multi-tenant clinic SaaS with an AI voice receptionist.",
+  "description": "ClinicAI Voice Agentic Platform - multi-tenant clinic SaaS with an AI voice receptionist.",
   "engines": {
     "node": ">=22.12.0"
   },
@@ -16,12 +16,12 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "db:migrate": "pnpm --filter @openhours/api db:migrate",
-    "db:migrate:create": "pnpm --filter @openhours/api db:migrate:create",
-    "db:sql": "pnpm --filter @openhours/api db:sql",
-    "db:check-policies": "pnpm --filter @openhours/api db:check-policies",
-    "db:seed": "pnpm --filter @openhours/api db:seed",
-    "provision:clinic": "pnpm --filter @openhours/api provision:clinic",
+    "db:migrate": "pnpm --filter @clinicai/api db:migrate",
+    "db:migrate:create": "pnpm --filter @clinicai/api db:migrate:create",
+    "db:sql": "pnpm --filter @clinicai/api db:sql",
+    "db:check-policies": "pnpm --filter @clinicai/api db:check-policies",
+    "db:seed": "pnpm --filter @clinicai/api db:seed",
+    "provision:clinic": "pnpm --filter @clinicai/api provision:clinic",
     "check": "pnpm build && pnpm typecheck && pnpm lint && pnpm test",
     "prepare": "husky",
     "generate": "turbo run generate"

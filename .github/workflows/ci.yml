@@ -25,20 +25,20 @@ jobs:
       postgres:
         image: postgres:16.15-alpine
         env:
-          POSTGRES_USER: openhours
+          POSTGRES_USER: clinicai
           POSTGRES_PASSWORD: postgres_ci_only
-          POSTGRES_DB: openhours_test
+          POSTGRES_DB: clinicai_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U openhours -d openhours_test"
+          --health-cmd "pg_isready -U clinicai -d clinicai_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
 
     env:
       # Synthetic CI database only. Real or production data never reaches CI.
-      DATABASE_URL: postgresql://openhours:postgres_ci_only@localhost:5432/openhours_test
+      DATABASE_URL: postgresql://clinicai:postgres_ci_only@localhost:5432/clinicai_test
       NODE_ENV: test
 
     steps:
@@ -79,8 +79,8 @@ jobs:
       # none of the `^build` and `generate` prerequisites that typecheck, test and build
       # declare in turbo.json. Two of its inputs are git-ignored and therefore absent on
       # a fresh checkout: `apps/api/src/generated/` (the Prisma client) and
-      # `packages/shared/dist/` (the .d.ts that `@openhours/shared` exports). Without
-      # both, the typed rules resolve PrismaClient and @openhours/shared to error types
+      # `packages/shared/dist/` (the .d.ts that `@clinicai/shared` exports). Without
+      # both, the typed rules resolve PrismaClient and @clinicai/shared to error types
       # and `no-unsafe-*` fires on every file that touches either.
       #
       # `build` dependsOn `generate`, so this one step produces both. It also IS the

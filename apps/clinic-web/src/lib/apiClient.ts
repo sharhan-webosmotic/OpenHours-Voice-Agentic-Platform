@@ -1,4 +1,4 @@
-import { createApiClient, type ApiClient } from '@openhours/api-client';
+import { createApiClient, type ApiClient } from '@clinicai/api-client';
 import { createSessionBus, type SessionBus } from '../app/sessionBus';
 import { config } from '../config';
 

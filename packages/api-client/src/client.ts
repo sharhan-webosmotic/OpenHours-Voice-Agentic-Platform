@@ -5,7 +5,7 @@ import {
   UNAUTHORIZED_TYPE,
   type ProblemDetails,
 } from './problem.js';
-import type { LoginAudience, Role } from '@openhours/shared';
+import type { LoginAudience, Role } from '@clinicai/shared';
 
 /**
  * The typed client for the five auth endpoints, and the one place a session lives.
@@ -58,10 +58,10 @@ export type Session = {
  * It lives here rather than in the applications so that no feature code has to remember
  * it, and so that forgetting it is impossible rather than merely unlikely.
  */
-export const CSRF_HEADER = 'X-OpenHours-Csrf';
+export const CSRF_HEADER = 'X-ClinicAI-Csrf';
 
 export type ApiClientOptions = {
-  /** The API origin, for example `https://api.openhours.health`. No trailing slash. */
+  /** The API origin, for example `https://api.clinicai.health`. No trailing slash. */
   readonly baseUrl: string;
   /** Which application is asking, so the API can refuse a role that belongs in the other. */
   readonly audience: LoginAudience;

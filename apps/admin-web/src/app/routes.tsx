@@ -71,7 +71,7 @@ const Landing = () => {
   const first = landingPath(ADMIN_NAV, user.role);
 
   return first === undefined ? (
-    <NoAccessPage reason="Your role does not include access to the OpenHours admin console. If you work at a clinic, use the clinic dashboard instead." />
+    <NoAccessPage reason="Your role does not include access to the ClinicAI admin console. If you work at a clinic, use the clinic dashboard instead." />
   ) : (
     <Navigate to={first} replace />
   );
@@ -84,7 +84,7 @@ const NotFound = () => {
 
 export const AppRoutes = () => (
   <Routes>
-    <Route path="/sign-in" element={<SignInPage audienceNote="OpenHours admin console" />} />
+    <Route path="/sign-in" element={<SignInPage audienceNote="ClinicAI admin console" />} />
     <Route path="/change-password" element={<ChangePasswordPage />} />
 
     <Route element={<RequireSession />}>

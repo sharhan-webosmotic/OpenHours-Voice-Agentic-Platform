@@ -1,4 +1,4 @@
-import type { Action, Resource } from '@openhours/shared';
+import type { Action, Resource } from '@clinicai/shared';
 import { useRole } from '../app/AuthProvider';
 import { permits } from '../app/navigation';
 

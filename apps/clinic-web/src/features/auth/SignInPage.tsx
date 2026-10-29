@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Navigate, useLocation } from 'react-router';
-import { ApiError, TOO_MANY_REQUESTS_TYPE } from '@openhours/api-client';
+import { ApiError, TOO_MANY_REQUESTS_TYPE } from '@clinicai/api-client';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Field } from '../../components/ui/Field';
@@ -100,7 +100,7 @@ export const SignInPage = ({ audienceNote }: { readonly audienceNote: string }) 
           Welcome back
         </span>
         <h1 className="m-0 text-2xl font-bold tracking-[-0.8px] text-default">
-          Sign in to OpenHours
+          Sign in to ClinicAI
         </h1>
         <p className="m-0 text-sm leading-[1.6] text-muted">{audienceNote}</p>
       </div>

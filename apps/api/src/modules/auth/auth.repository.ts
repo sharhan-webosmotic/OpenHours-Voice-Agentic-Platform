@@ -1,4 +1,4 @@
-import type { Role } from '@openhours/shared';
+import type { Role } from '@clinicai/shared';
 import type { TenantDb } from '../../db/tenant-client.js';
 import { uuidV7 } from '../../common/uuid.js';
 

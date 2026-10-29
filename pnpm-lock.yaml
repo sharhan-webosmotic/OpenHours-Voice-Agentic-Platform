@@ -208,15 +208,15 @@ importers:
 
   apps/admin-web:
     dependencies:
+      '@clinicai/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
+      '@clinicai/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@fontsource-variable/inter':
         specifier: 5.3.0
         version: 5.3.0
-      '@openhours/api-client':
-        specifier: workspace:*
-        version: link:../../packages/api-client
-      '@openhours/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@tanstack/react-query':
         specifier: 5.105.0
         version: 5.105.0(@types/react@19.3.0)(react@19.3.1)
@@ -281,7 +281,7 @@ importers:
 
   apps/api:
     dependencies:
-      '@openhours/shared':
+      '@clinicai/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@prisma/adapter-pg':
@@ -360,15 +360,15 @@ importers:
 
   apps/clinic-web:
     dependencies:
+      '@clinicai/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
+      '@clinicai/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@fontsource-variable/inter':
         specifier: 5.3.0
         version: 5.3.0
-      '@openhours/api-client':
-        specifier: workspace:*
-        version: link:../../packages/api-client
-      '@openhours/shared':
-        specifier: workspace:*
-        version: link:../../packages/shared
       '@tanstack/react-query':
         specifier: 5.105.0
         version: 5.105.0(@types/react@19.3.0)(react@19.3.1)
@@ -437,7 +437,7 @@ importers:
 
   packages/api-client:
     dependencies:
-      '@openhours/shared':
+      '@clinicai/shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:

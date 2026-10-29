@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { LOGIN_AUDIENCES } from '@openhours/shared';
+import { LOGIN_AUDIENCES } from '@clinicai/shared';
 import { MINIMUM_PASSWORD_LENGTH } from '../../common/passwords.js';
 
 /**

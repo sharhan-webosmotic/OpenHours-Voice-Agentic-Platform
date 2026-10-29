@@ -15,7 +15,7 @@ import { z } from 'zod';
  */
 
 const schema = z.object({
-  /** The API origin, without a trailing slash: `https://api.openhours.health`. */
+  /** The API origin, without a trailing slash: `https://api.clinicai.health`. */
   VITE_API_URL: z
     .string()
     .url()

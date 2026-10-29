@@ -25,7 +25,7 @@ export const NoAccessPage = ({
   return (
     <AuthLayout
       headline="Every clinic on the platform, in one view."
-      subhead="Provisioning, monitoring and support for every OpenHours clinic, in one console."
+      subhead="Provisioning, monitoring and support for every ClinicAI clinic, in one console."
       footnote="Internal tool. Every action here is recorded in the audit log."
     >
       <Logo className="self-start lg:hidden" />

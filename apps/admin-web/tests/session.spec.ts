@@ -20,9 +20,9 @@ const CLINIC_EMAIL = process.env.E2E_EMAIL;
 const CLINIC_PASSWORD = process.env.E2E_CLINIC_PASSWORD;
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD;
-const API_HOST = process.env.E2E_API_HOST ?? 'api.openhours.localhost';
+const API_HOST = process.env.E2E_API_HOST ?? 'api.clinicai.localhost';
 
-const REFRESH_COOKIE = 'openhours_refresh';
+const REFRESH_COOKIE = 'clinicai_refresh';
 
 const signIn = async (page: Page, email: string, password: string) => {
   await page.goto('/sign-in');

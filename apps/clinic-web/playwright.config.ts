@@ -17,7 +17,7 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * THE HOSTS MATTER AND ARE NOT INTERCHANGEABLE WITH `localhost`. SameSite is evaluated on the
  * registrable domain, so the dashboard and the API have to be siblings under one.
- * `app.openhours.localhost` and `api.openhours.localhost` are; `localhost:5173` and
+ * `app.clinicai.localhost` and `api.clinicai.localhost` are; `localhost:5173` and
  * `localhost:3000` are the same host and would make the test prove nothing about the
  * arrangement that ships. Add both to /etc/hosts. See docs/features/sign-in.md.
  *
@@ -26,7 +26,7 @@ import { defineConfig, devices } from '@playwright/test';
  * disable the single setting the test exists to exercise.
  */
 
-const DASHBOARD = 'http://app.openhours.localhost:5173';
+const DASHBOARD = 'http://app.clinicai.localhost:5173';
 
 export default defineConfig({
   testDir: './tests',
@@ -50,7 +50,7 @@ export default defineConfig({
         ...devices['Desktop Chrome'],
         launchOptions: {
           /**
-           * Chromium resolves `*.openhours.localhost` itself, so these tests need no
+           * Chromium resolves `*.clinicai.localhost` itself, so these tests need no
            * /etc/hosts entry and no sudo.
            *
            * This is not a shortcut around the hostnames: the browser still sends those
@@ -61,7 +61,7 @@ export default defineConfig({
            * A developer browsing by hand still wants the /etc/hosts entries, which is why
            * docs/features/sign-in.md keeps them.
            */
-          args: ['--host-resolver-rules=MAP *.openhours.localhost 127.0.0.1'],
+          args: ['--host-resolver-rules=MAP *.clinicai.localhost 127.0.0.1'],
         },
       },
     },
@@ -75,7 +75,7 @@ export default defineConfig({
      * The readiness probe is loopback, not the name.
      *
      * This probe runs in Node, inside the Playwright process, which resolves host names
-     * through the operating system and therefore cannot resolve `*.openhours.localhost`
+     * through the operating system and therefore cannot resolve `*.clinicai.localhost`
      * either. Only Chromium has the resolver rules. Pointing the probe at the name made the
      * whole suite fail with "Timed out waiting 60000ms from config.webServer" while the dev
      * server was running perfectly.

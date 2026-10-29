@@ -6,7 +6,7 @@ import {
   TOO_MANY_REQUESTS_TYPE,
   UNAUTHORIZED_TYPE,
   FORBIDDEN_TYPE,
-} from '@openhours/api-client';
+} from '@clinicai/api-client';
 import { problem, renderWith, stubClient, user } from '../../test-support/harness';
 import { AppRoutes } from '../../app/routes';
 
@@ -89,13 +89,13 @@ describe('what a failure says', () => {
       loginError: problem(
         403,
         FORBIDDEN_TYPE,
-        'This account is for the OpenHours admin console. Please sign in there instead.',
+        'This account is for the ClinicAI admin console. Please sign in there instead.',
       ),
     });
     renderWith(<AppRoutes />, stub, ['/sign-in']);
     await screen.findByRole('button', { name: 'Sign in' });
 
-    await signIn('admin@openhours.test', 'password');
+    await signIn('admin@clinicai.test', 'password');
 
     // The whole point of the audience field: a platform user is told where to go rather
     // than signed in and left looking at nine pages of refusals.
@@ -224,7 +224,7 @@ describe('the password-change problem type', () => {
     // screen. Asserted here because the string is duplicated across the boundary until
     // M1-03 generates both sides from one document.
     expect(PASSWORD_CHANGE_REQUIRED_TYPE).toBe(
-      'https://openhours.health/problems/password-change-required',
+      'https://clinicai.health/problems/password-change-required',
     );
   });
 });

@@ -33,7 +33,7 @@ export const AuthLayout = ({
   <div className="grid min-h-screen grid-cols-1 bg-surface lg:grid-cols-[minmax(430px,44%)_minmax(550px,56%)]">
     <section
       className="relative hidden flex-col justify-between overflow-hidden px-16 py-14 text-inverse lg:flex"
-      style={{ background: 'var(--oh-gradient-brand)' }}
+      style={{ background: 'var(--ca-gradient-brand)' }}
     >
       {/* Decoration only: the prototype's `.auth-brand:before` and `:after`. */}
       <span
@@ -59,11 +59,11 @@ export const AuthLayout = ({
       </span>
 
       <div className="relative z-10 max-w-[510px]">
-        <span className="text-xl font-bold">OpenHours</span>
+        <span className="text-xl font-bold">ClinicAI</span>
         {/*
          * A paragraph, not an `h1`, even though it is the biggest text on the screen.
          *
-         * The page has one heading and it is "Sign in to OpenHours" in the form: that is
+         * The page has one heading and it is "Sign in to ClinicAI" in the form: that is
          * what the page is for and what a screen-reader user navigating by heading wants
          * to land on. This is marketing copy. Marking it up as an `h1` gave the page two
          * of them, which is a real defect rather than a lint preference: the document
@@ -73,7 +73,7 @@ export const AuthLayout = ({
          */}
         <p
           className="my-[22px] font-bold leading-[1.08] tracking-[-2px]"
-          style={{ fontSize: 'var(--oh-text-display)' }}
+          style={{ fontSize: 'var(--ca-text-display)' }}
         >
           {headline}
         </p>
@@ -85,7 +85,7 @@ export const AuthLayout = ({
       </p>
     </section>
 
-    <section className="grid place-items-center bg-gradient-to-b from-surface to-[var(--oh-white-050)] px-6 py-12 lg:p-[50px]">
+    <section className="grid place-items-center bg-gradient-to-b from-surface to-[var(--ca-white-050)] px-6 py-12 lg:p-[50px]">
       <div className="flex w-[min(430px,100%)] flex-col gap-4">{children}</div>
     </section>
   </div>

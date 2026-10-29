@@ -1,4 +1,4 @@
-import { isPermitted, type Action, type Resource } from '@openhours/shared';
+import { isPermitted, type Action, type Resource } from '@clinicai/shared';
 import { useRole } from '../app/AuthProvider';
 
 /**

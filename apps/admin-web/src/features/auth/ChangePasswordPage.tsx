@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Navigate } from 'react-router';
-import { ApiError } from '@openhours/api-client';
+import { ApiError } from '@clinicai/api-client';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Field } from '../../components/ui/Field';
@@ -80,7 +80,7 @@ export const ChangePasswordPage = () => {
   return (
     <AuthLayout
       headline="Every clinic on the platform, in one view."
-      subhead="Provisioning, monitoring and support for every OpenHours clinic, in one console."
+      subhead="Provisioning, monitoring and support for every ClinicAI clinic, in one console."
       footnote="Internal tool. Every action here is recorded in the audit log."
     >
       <Logo className="self-start lg:hidden" />

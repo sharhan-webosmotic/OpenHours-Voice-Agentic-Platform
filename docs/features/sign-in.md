@@ -1,6 +1,6 @@
 # Sign in and session
 
-How a person gets into OpenHours, how the session stays alive, and how it ends. Covers both
+How a person gets into ClinicAI, how the session stays alive, and how it ends. Covers both
 the clinic dashboard and the admin console.
 
 ## How the session works
@@ -45,7 +45,7 @@ cannot set on the victim's behalf, so there is nothing to forge and nothing to p
 
 Those two routes require **two things**:
 
-1. **A custom header, `X-OpenHours-Csrf`.** Any value: its presence is the signal. A
+1. **A custom header, `X-ClinicAI-Csrf`.** Any value: its presence is the signal. A
    cross-site HTML form cannot set a custom header at all, and a cross-site `fetch` that sets
    one triggers a CORS preflight that the API's origin allow-list refuses.
 2. **Acceptable provenance.** When `Origin` is present it must be in `CORS_ALLOWED_ORIGINS`.
@@ -156,18 +156,18 @@ The requirement is satisfied at the interface instead, and it was not skipped:
 arrangement that ships.
 
 **The Playwright tests do not need this step.** Chromium is launched with
-`--host-resolver-rules=MAP *.openhours.localhost 127.0.0.1`, so it resolves the names itself.
+`--host-resolver-rules=MAP *.clinicai.localhost 127.0.0.1`, so it resolves the names itself.
 The names are still sent, the browser still sees three origins, and SameSite is still applied
 on the shared registrable domain, so nothing about the test is weakened; it just does not
 require a machine that somebody set up by hand.
 
-**To browse by hand you do need it**, because `*.openhours.localhost` does not resolve on
+**To browse by hand you do need it**, because `*.clinicai.localhost` does not resolve on
 macOS. Add to `/etc/hosts`:
 
 ```
-127.0.0.1 app.openhours.localhost
-127.0.0.1 admin.openhours.localhost
-127.0.0.1 api.openhours.localhost
+127.0.0.1 app.clinicai.localhost
+127.0.0.1 admin.clinicai.localhost
+127.0.0.1 api.clinicai.localhost
 ```
 
 The dev servers bind `127.0.0.1` rather than the name, because `listen()` on an unresolvable
@@ -183,7 +183,7 @@ is the one setting the browser tests exist to exercise.
 ```
 docker compose up -d postgres
 pnpm db:migrate
-pnpm --filter @openhours/api dev
+pnpm --filter @clinicai/api dev
 ```
 
 The API needs `CORS_ALLOWED_ORIGINS` to include both application origins, and `COOKIE_SECURE`
@@ -208,11 +208,11 @@ again. It refuses to run against anything but a local database.
 ### 4. The applications
 
 ```
-pnpm --filter @openhours/clinic-web dev   # app.openhours.localhost:5173
-pnpm --filter @openhours/admin-web dev    # admin.openhours.localhost:5174
+pnpm --filter @clinicai/clinic-web dev   # app.clinicai.localhost:5173
+pnpm --filter @clinicai/admin-web dev    # admin.clinicai.localhost:5174
 ```
 
-Each needs `VITE_API_URL=http://api.openhours.localhost:3000`, parsed with zod at import, so
+Each needs `VITE_API_URL=http://api.clinicai.localhost:3000`, parsed with zod at import, so
 a missing value fails on load rather than as a fetch to `undefined/...`.
 
 ### 5. The browser tests
@@ -220,7 +220,7 @@ a missing value fails on load rather than as a fetch to `undefined/...`.
 ```
 E2E_EMAIL=owner@clinic-123456.test \
 E2E_TEMP_PASSWORD='ABCD-EFGH-...' \
-pnpm --filter @openhours/clinic-web e2e
+pnpm --filter @clinicai/clinic-web e2e
 ```
 
 The clinic suite walks the first-login change itself, so it **spends the temporary password**
@@ -231,9 +231,9 @@ The console suite needs a platform account, which only `pnpm db:seed` creates to
 ```
 E2E_EMAIL=owner@clinic-123456.test \
 E2E_CLINIC_PASSWORD='the-password-you-set-above' \
-E2E_ADMIN_EMAIL=super.admin@openhours.test \
-E2E_ADMIN_PASSWORD=openhours-dev-password \
-pnpm --filter @openhours/admin-web e2e
+E2E_ADMIN_EMAIL=super.admin@clinicai.test \
+E2E_ADMIN_PASSWORD=clinicai-dev-password \
+pnpm --filter @clinicai/admin-web e2e
 ```
 
 Each `test.describe` there skips itself if its variables are absent, so the clinic-refusal
@@ -244,7 +244,7 @@ test runs on its own without an admin account.
 Observed in Chromium, not inferred: the cookie is set `httpOnly`, `Secure`,
 `SameSite=Strict`, path `/api/v1/auth` on the API host; it is attached to a same-site fetch
 from a sibling subdomain; a reload destroys the in-memory access token and the session comes
-back anyway; the refresh request carries `X-OpenHours-Csrf` and an `Origin` the API accepts;
+back anyway; the refresh request carries `X-ClinicAI-Csrf` and an `Origin` the API accepts;
 `localStorage`, `sessionStorage` and `document.cookie` are all empty; signing out removes the
 cookie and a reload does not bring the session back; a deep link is returned to after signing
 in; and a clinic account at the admin console is refused **with no cookie set at all**, so it
@@ -278,7 +278,7 @@ revoked.
 
 **Nothing provisions a platform user properly.** `pnpm provision:clinic` creates clinic
 accounts only, and the console's own "Internal users" page is a placeholder. The only
-SUPER_ADMIN comes from `pnpm db:seed`, as `super.admin@openhours.test` with the password
+SUPER_ADMIN comes from `pnpm db:seed`, as `super.admin@clinicai.test` with the password
 written in that file's source and `mustChangePassword` left false. That is fine for
 development and is not an account-creation path: it would hand every installation the same
 known credential. A real one is owed with the platform users feature.

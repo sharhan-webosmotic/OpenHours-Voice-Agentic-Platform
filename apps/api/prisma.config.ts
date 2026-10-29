@@ -20,7 +20,7 @@ import { defineConfig } from 'prisma/config';
  *
  * Nothing in this repository loaded `.env` before, so `pnpm db:migrate`, `pnpm db:seed`
  * and `pnpm provision:clinic` all failed on a fresh shell with "expected string, received
- * undefined", and so did `pnpm --filter @openhours/api dev`. The documented local setup
+ * undefined", and so did `pnpm --filter @clinicai/api dev`. The documented local setup
  * could not be followed. Prisma 7 stopped reading `.env` itself once a `prisma.config.ts`
  * exists, which is what removed it.
  *

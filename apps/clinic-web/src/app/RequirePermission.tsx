@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import type { Action, Resource } from '@openhours/shared';
+import type { Action, Resource } from '@clinicai/shared';
 import { useCan } from '../lib/useCan';
 
 /**

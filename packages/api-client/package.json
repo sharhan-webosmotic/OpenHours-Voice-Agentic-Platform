@@ -1,5 +1,5 @@
 {
-  "name": "@openhours/api-client",
+  "name": "@clinicai/api-client",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -16,7 +16,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@openhours/shared": "workspace:*"
+    "@clinicai/shared": "workspace:*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "5.0.5",

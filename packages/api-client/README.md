@@ -1,6 +1,6 @@
-# @openhours/api-client
+# @clinicai/api-client
 
-The typed client for the OpenHours API. Both web applications talk to the API only
+The typed client for the ClinicAI API. Both web applications talk to the API only
 through this package.
 
 It owns three things no feature should have to remember:

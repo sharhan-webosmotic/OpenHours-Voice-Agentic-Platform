@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { screen } from '@testing-library/react';
-import { isPermitted, ROLES, type Role } from '@openhours/shared';
+import { isPermitted, ROLES, type Role } from '@clinicai/shared';
 import { renderWith, stubClient, user } from '../test-support/harness';
 import { CLINIC_NAV, landingPath } from './navigation';
 import { AppRoutes } from './routes';

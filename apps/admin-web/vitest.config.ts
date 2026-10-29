@@ -21,6 +21,6 @@ export default defineConfig({
   },
   define: {
     // The app parses its configuration at import, so the tests have to supply it.
-    'import.meta.env.VITE_API_URL': JSON.stringify('https://api.openhours.test'),
+    'import.meta.env.VITE_API_URL': JSON.stringify('https://api.clinicai.test'),
   },
 });

@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { registerRoute } from '../../common/route-registry.js';
 import { validate, validatedData } from '../../common/validate.js';
-import { isPlatformRole } from '@openhours/shared';
+import { isPlatformRole } from '@clinicai/shared';
 import {
   requireAuth,
   requirePasswordChangeComplete,

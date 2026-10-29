@@ -76,7 +76,7 @@ describe('assertLocalDatabase', () => {
 
   it.each([
     'postgresql://u:p@db.example.com:5432/prod',
-    'postgresql://u:p@openhours-prod.ap-south-1.rds.amazonaws.com:5432/prod',
+    'postgresql://u:p@clinicai-prod.ap-south-1.rds.amazonaws.com:5432/prod',
   ])('refuses %s', (url) => {
     // This script mints working credentials, so pointing it at a shared database by a
     // stray DATABASE_URL has to fail loudly rather than succeed quietly.

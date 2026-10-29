@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Role } from '@openhours/shared';
+import type { Role } from '@clinicai/shared';
 import { ForbiddenError, UnauthorizedError } from './errors.js';
 import { runWithContext } from './request-context.js';
 import {

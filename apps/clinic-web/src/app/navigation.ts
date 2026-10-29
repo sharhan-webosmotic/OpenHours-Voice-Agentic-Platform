@@ -1,4 +1,4 @@
-import { isPermitted, type Action, type Resource, type Role } from '@openhours/shared';
+import { isPermitted, type Action, type Resource, type Role } from '@clinicai/shared';
 
 /**
  * The menu, and the rule that decides who sees what.

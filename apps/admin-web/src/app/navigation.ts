@@ -4,7 +4,7 @@ import {
   type Action,
   type Resource,
   type Role,
-} from '@openhours/shared';
+} from '@clinicai/shared';
 
 /**
  * The admin console's menu, and the rule that decides who sees what.

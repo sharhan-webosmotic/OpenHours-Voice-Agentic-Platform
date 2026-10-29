@@ -1,7 +1,7 @@
 import { cn } from './cn';
 
 /**
- * The OpenHours mark and wordmark.
+ * The ClinicAI mark and wordmark.
  *
  * The mark draws from `currentColor` and the wrapper sets `text-accent`, so the logo
  * takes the accent of whichever application renders it with no per-app asset and no
@@ -27,7 +27,7 @@ export const Logo = ({
       />
     </svg>
     <span className="text-md font-bold text-default">
-      OpenHours
+      ClinicAI
       {subtitle !== undefined && <span className="font-medium text-muted"> {subtitle}</span>}
     </span>
   </span>

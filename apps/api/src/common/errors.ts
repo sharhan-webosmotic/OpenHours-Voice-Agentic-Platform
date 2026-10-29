@@ -15,7 +15,7 @@ export type FieldError = {
   readonly code?: string;
 };
 
-const PROBLEM_BASE = 'https://openhours.health/problems';
+const PROBLEM_BASE = 'https://clinicai.health/problems';
 
 /** Exported so both web apps can branch on it without matching a message. */
 export const PASSWORD_CHANGE_REQUIRED_TYPE = `${PROBLEM_BASE}/password-change-required`;

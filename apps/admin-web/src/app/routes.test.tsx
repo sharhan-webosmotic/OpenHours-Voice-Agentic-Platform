@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ROLES, type Role } from '@openhours/shared';
-import { FORBIDDEN_TYPE } from '@openhours/api-client';
+import { ROLES, type Role } from '@clinicai/shared';
+import { FORBIDDEN_TYPE } from '@clinicai/api-client';
 import { problem, renderWith, stubClient, user } from '../test-support/harness';
 import { ADMIN_NAV, landingPath, permits } from './navigation';
 import { AppRoutes } from './routes';
@@ -82,7 +82,7 @@ describe('a clinic account at the console sign-in', () => {
       loginError: problem(
         403,
         FORBIDDEN_TYPE,
-        'This account is for the OpenHours clinic dashboard. Please sign in there instead.',
+        'This account is for the ClinicAI clinic dashboard. Please sign in there instead.',
       ),
     });
     renderWith(<AppRoutes />, stub, ['/sign-in']);
@@ -106,6 +106,6 @@ describe('the sign-in screen', () => {
   it('names this application, so a user knows which one they are at', async () => {
     renderWith(<AppRoutes />, stubClient(), ['/sign-in']);
 
-    expect(await screen.findByText('OpenHours admin console')).toBeInTheDocument();
+    expect(await screen.findByText('ClinicAI admin console')).toBeInTheDocument();
   });
 });

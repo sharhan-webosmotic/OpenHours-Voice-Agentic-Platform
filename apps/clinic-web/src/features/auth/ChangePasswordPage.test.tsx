@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { UNAUTHORIZED_TYPE } from '@openhours/api-client';
+import { UNAUTHORIZED_TYPE } from '@clinicai/api-client';
 import { problem, renderWith, stubClient, user } from '../../test-support/harness';
 import { AppRoutes } from '../../app/routes';
 

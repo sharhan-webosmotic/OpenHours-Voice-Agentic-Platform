@@ -1,4 +1,4 @@
-# The OpenHours design system
+# The ClinicAI design system
 
 Two applications, one design. The clinic dashboard and the admin console hold their own
 copies of the token files and the component set (`docs/DECISIONS.md` D-009), and the only
@@ -22,22 +22,22 @@ had to be decided.
 
 | Token                                 | Value                 | Role                         |
 | ------------------------------------- | --------------------- | ---------------------------- |
-| `--oh-blue-500` / `--oh-blue-600`     | `#356ae6` / `#2457cf` | clinic accent, and its hover |
-| `--oh-violet-500`                     | `#8b6ae8`             | admin accent                 |
-| `--oh-violet-600`                     | `#7a57d1`             | **invented.** See below      |
-| `--oh-navy-900`                       | `#17264b`             | primary text                 |
-| `--oh-slate-600`                      | `#64728f`             | secondary text               |
-| `--oh-slate-400`                      | `#8d98ae`             | tertiary text, scrollbars    |
-| `--oh-slate-100`                      | `#e6eaf4`             | borders                      |
-| `--oh-slate-050`                      | `#f3f5fd`             | page background              |
-| `--oh-white`                          | `#ffffff`             | surfaces                     |
-| `--oh-green-500` / `--oh-green-050`   | `#20b486` / `#e7f8f2` | success                      |
-| `--oh-orange-500` / `--oh-orange-050` | `#bd7218` / `#fff5e8` | warning                      |
-| `--oh-red-500` / `--oh-red-050`       | `#df4f5d` / `#fff0f2` | danger                       |
+| `--ca-blue-500` / `--ca-blue-600`     | `#356ae6` / `#2457cf` | clinic accent, and its hover |
+| `--ca-violet-500`                     | `#8b6ae8`             | admin accent                 |
+| `--ca-violet-600`                     | `#7a57d1`             | **invented.** See below      |
+| `--ca-navy-900`                       | `#17264b`             | primary text                 |
+| `--ca-slate-600`                      | `#64728f`             | secondary text               |
+| `--ca-slate-400`                      | `#8d98ae`             | tertiary text, scrollbars    |
+| `--ca-slate-100`                      | `#e6eaf4`             | borders                      |
+| `--ca-slate-050`                      | `#f3f5fd`             | page background              |
+| `--ca-white`                          | `#ffffff`             | surfaces                     |
+| `--ca-green-500` / `--ca-green-050`   | `#20b486` / `#e7f8f2` | success                      |
+| `--ca-orange-500` / `--ca-orange-050` | `#bd7218` / `#fff5e8` | warning                      |
+| `--ca-red-500` / `--ca-red-050`       | `#df4f5d` / `#fff0f2` | danger                       |
 
 **One colour is invented, and it is the only one.** The prototype has a single violet and no
 darker companion, because it never built the admin console, so there was no violet hover
-state to copy. `--oh-violet-600` was derived by applying the blue pair's own delta
+state to copy. `--ca-violet-600` was derived by applying the blue pair's own delta
 (`-17, -19, -23`) to the violet, so both accents behave identically on hover. If a designer
 disagrees, this is the value to change.
 
@@ -53,13 +53,13 @@ round to the nearest step, and **nothing moved by more than 2 pixels.**
 
 | Token            | Size | Prototype sizes it absorbed         |
 | ---------------- | ---- | ----------------------------------- |
-| `--oh-text-xs`   | 12px | 12 (76 declarations: the body size) |
-| `--oh-text-sm`   | 13px | 13                                  |
-| `--oh-text-base` | 14px | 14                                  |
-| `--oh-text-md`   | 16px | 16                                  |
-| `--oh-text-lg`   | 18px | 18, 19, 20                          |
-| `--oh-text-xl`   | 22px | 21, 22, 23, 24                      |
-| `--oh-text-2xl`  | 28px | 27, 28, 29, 30                      |
+| `--ca-text-xs`   | 12px | 12 (76 declarations: the body size) |
+| `--ca-text-sm`   | 13px | 13                                  |
+| `--ca-text-base` | 14px | 14                                  |
+| `--ca-text-md`   | 16px | 16                                  |
+| `--ca-text-lg`   | 18px | 18, 19, 20                          |
+| `--ca-text-xl`   | 22px | 21, 22, 23, 24                      |
+| `--ca-text-2xl`  | 28px | 27, 28, 29, 30                      |
 
 Weights are Inter 400, 500, 600 and 700. The prototype also loads a 900, which nothing used.
 
@@ -70,27 +70,27 @@ problem and the same treatment.
 
 | Token              | Size  | Prototype radii it absorbed |
 | ------------------ | ----- | --------------------------- |
-| `--oh-radius-sm`   | 8px   | 5, 6, 7, 8                  |
-| `--oh-radius-md`   | 10px  | 9, 10, 11                   |
-| `--oh-radius-lg`   | 12px  | 12, 13                      |
-| `--oh-radius-xl`   | 16px  | 14, 15, 16, 18, 20, 24      |
-| `--oh-radius-full` | 999px | 99, 999                     |
+| `--ca-radius-sm`   | 8px   | 5, 6, 7, 8                  |
+| `--ca-radius-md`   | 10px  | 9, 10, 11                   |
+| `--ca-radius-lg`   | 12px  | 12, 13                      |
+| `--ca-radius-xl`   | 16px  | 14, 15, 16, 18, 20, 24      |
+| `--ca-radius-full` | 999px | 99, 999                     |
 
 ## The two layers, and why dark mode is cheap later
 
-`src/styles/tokens.css` has primitives (`--oh-blue-500`) and semantic tokens
-(`--oh-color-accent`). **A component may only read a semantic token.** It asks for "the
+`src/styles/tokens.css` has primitives (`--ca-blue-500`) and semantic tokens
+(`--ca-color-accent`). **A component may only read a semantic token.** It asks for "the
 danger text colour" and the token layer decides what that is.
 
 Dark mode is not built, as agreed. The point of the indirection is that adding it is a
 second definition of the semantic block under `[data-theme='dark']`, and no component, test
-or screen changes. Had components named `--oh-navy-900` directly, dark mode would have been a
+or screen changes. Had components named `--ca-navy-900` directly, dark mode would have been a
 rewrite of every component instead.
 
 `src/styles/theme.css` maps the semantic tokens onto Tailwind's namespaces with
 `@theme inline`, so `bg-surface` and `text-muted` are generated utilities. **`inline` is
 required**: without it Tailwind copies each value into the utility at build time and
-`[data-theme='dark']` would have nothing to override. The `--oh-` prefix exists because
+`[data-theme='dark']` would have nothing to override. The `--ca-` prefix exists because
 Tailwind treats `--color-*` as its own namespace, so a token named `--color-surface` would be
 both the source and the target of the mapping.
 
@@ -100,9 +100,9 @@ Each application's `src/styles/app.css` imports the theme and overrides three to
 
 ```css
 :root {
-  --oh-color-accent: var(--oh-blue-500); /* --oh-violet-500 in the console */
-  --oh-color-accent-strong: var(--oh-blue-600);
-  --oh-color-accent-ring: rgba(53, 106, 230, 0.2);
+  --ca-color-accent: var(--ca-blue-500); /* --ca-violet-500 in the console */
+  --ca-color-accent-strong: var(--ca-blue-600);
+  --ca-color-accent-ring: rgba(53, 106, 230, 0.2);
 }
 ```
 

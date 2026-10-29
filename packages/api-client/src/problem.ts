@@ -21,7 +21,7 @@ export type ProblemDetails = {
   readonly errors?: readonly FieldError[];
 };
 
-const PROBLEM_BASE = 'https://openhours.health/problems';
+const PROBLEM_BASE = 'https://clinicai.health/problems';
 
 /**
  * The problem types a caller branches on.

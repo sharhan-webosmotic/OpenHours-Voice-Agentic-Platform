@@ -6,14 +6,14 @@
  * WHY `@theme inline`. Without `inline`, Tailwind would copy each token's VALUE into the
  * utility at build time, and `[data-theme='dark']` would have nothing to override: the
  * colour would already be baked into `.bg-surface`. With `inline`, the utility emits
- * `background-color: var(--oh-color-surface)`, which resolves in the browser, so
+ * `background-color: var(--ca-color-surface)`, which resolves in the browser, so
  * redefining that one custom property re-themes every utility at once. That is the whole
  * mechanism behind "dark mode later touches tokens.css and nothing else".
  *
- * WHY THE TOKENS ARE PREFIXED `--oh-`. Tailwind 4 treats `--color-*` as its own
+ * WHY THE TOKENS ARE PREFIXED `--ca-`. Tailwind 4 treats `--color-*` as its own
  * namespace, so a token literally named `--color-surface` would be both the source and
  * the target of this mapping and resolve to itself. The prefix keeps our definitions and
- * Tailwind's generated names distinct, which is why `tokens.css` reads `--oh-color-surface`
+ * Tailwind's generated names distinct, which is why `tokens.css` reads `--ca-color-surface`
  * and this file maps it to Tailwind's `--color-surface`.
  */
 
@@ -22,49 +22,49 @@
 
 @theme inline {
   /* Surfaces and borders. */
-  --color-background: var(--oh-color-background);
-  --color-surface: var(--oh-color-surface);
-  --color-border: var(--oh-color-border);
+  --color-background: var(--ca-color-background);
+  --color-surface: var(--ca-color-surface);
+  --color-border: var(--ca-color-border);
 
   /* Text. `text-default` rather than `text-text`, which reads like a typo. */
-  --color-default: var(--oh-color-text);
-  --color-muted: var(--oh-color-text-muted);
-  --color-subtle: var(--oh-color-text-subtle);
-  --color-inverse: var(--oh-color-text-inverse);
+  --color-default: var(--ca-color-text);
+  --color-muted: var(--ca-color-text-muted);
+  --color-subtle: var(--ca-color-text-subtle);
+  --color-inverse: var(--ca-color-text-inverse);
 
   /* Accent: the three tokens each application overrides, and the only three. */
-  --color-accent: var(--oh-color-accent);
-  --color-accent-strong: var(--oh-color-accent-strong);
-  --color-accent-ring: var(--oh-color-accent-ring);
+  --color-accent: var(--ca-color-accent);
+  --color-accent-strong: var(--ca-color-accent-strong);
+  --color-accent-ring: var(--ca-color-accent-ring);
 
   /* Status. */
-  --color-success: var(--oh-color-success);
-  --color-success-surface: var(--oh-color-success-surface);
-  --color-warning: var(--oh-color-warning);
-  --color-warning-surface: var(--oh-color-warning-surface);
-  --color-danger: var(--oh-color-danger);
-  --color-danger-surface: var(--oh-color-danger-surface);
+  --color-success: var(--ca-color-success);
+  --color-success-surface: var(--ca-color-success-surface);
+  --color-warning: var(--ca-color-warning);
+  --color-warning-surface: var(--ca-color-warning-surface);
+  --color-danger: var(--ca-color-danger);
+  --color-danger-surface: var(--ca-color-danger-surface);
 
   /* Type: the seven snapped steps. */
-  --text-xs: var(--oh-text-xs);
-  --text-sm: var(--oh-text-sm);
-  --text-base: var(--oh-text-base);
-  --text-md: var(--oh-text-md);
-  --text-lg: var(--oh-text-lg);
-  --text-xl: var(--oh-text-xl);
-  --text-2xl: var(--oh-text-2xl);
+  --text-xs: var(--ca-text-xs);
+  --text-sm: var(--ca-text-sm);
+  --text-base: var(--ca-text-base);
+  --text-md: var(--ca-text-md);
+  --text-lg: var(--ca-text-lg);
+  --text-xl: var(--ca-text-xl);
+  --text-2xl: var(--ca-text-2xl);
 
-  --font-sans: var(--oh-font-sans);
+  --font-sans: var(--ca-font-sans);
 
   /* Radius: the five snapped steps. */
-  --radius-sm: var(--oh-radius-sm);
-  --radius-md: var(--oh-radius-md);
-  --radius-lg: var(--oh-radius-lg);
-  --radius-xl: var(--oh-radius-xl);
-  --radius-full: var(--oh-radius-full);
+  --radius-sm: var(--ca-radius-sm);
+  --radius-md: var(--ca-radius-md);
+  --radius-lg: var(--ca-radius-lg);
+  --radius-xl: var(--ca-radius-xl);
+  --radius-full: var(--ca-radius-full);
 
   /* Elevation. */
-  --shadow-card: var(--oh-shadow-card);
-  --shadow-popover: var(--oh-shadow-popover);
-  --shadow-modal: var(--oh-shadow-modal);
+  --shadow-card: var(--ca-shadow-card);
+  --shadow-popover: var(--ca-shadow-popover);
+  --shadow-modal: var(--ca-shadow-modal);
 }

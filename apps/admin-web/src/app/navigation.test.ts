@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PERMISSIONS, PLATFORM_ROLES, ROLES, isPermitted, isPlatformRole } from '@openhours/shared';
+import { PERMISSIONS, PLATFORM_ROLES, ROLES, isPermitted, isPlatformRole } from '@clinicai/shared';
 import { ADMIN_NAV, landingPath, permits, visibleNavigation } from './navigation';
 
 /**

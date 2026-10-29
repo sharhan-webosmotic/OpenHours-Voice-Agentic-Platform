@@ -3,10 +3,10 @@
  *
  * Identical to the clinic dashboard's but for the three accent tokens below. That is the
  * whole of "only the accent colour and the logo differ": the logo takes its colour from
- * `--oh-color-accent` through `currentColor`, so changing the accent changes the logo too
+ * `--ca-color-accent` through `currentColor`, so changing the accent changes the logo too
  * and there is no second asset to keep in step.
  *
- * The violet is the prototype's `--oh-violet-500`. Its darker companion is the one invented
+ * The violet is the prototype's `--ca-violet-500`. Its darker companion is the one invented
  * colour in the token file: the prototype never built this console, so there was no violet
  * hover state to copy, and it was derived by applying the blue pair's own delta to the
  * violet so both accents behave identically on hover. See src/styles/tokens.css.
@@ -16,9 +16,9 @@
 @import './theme.css';
 
 :root {
-  --oh-color-accent: var(--oh-violet-500);
-  --oh-color-accent-strong: var(--oh-violet-600);
-  --oh-color-accent-ring: rgba(139, 106, 232, 0.2);
+  --ca-color-accent: var(--ca-violet-500);
+  --ca-color-accent-strong: var(--ca-violet-600);
+  --ca-color-accent-ring: rgba(139, 106, 232, 0.2);
 
   /**
    * The sign-in panel's gradient. A fourth per-application value, alongside the three
@@ -26,10 +26,10 @@
    * The clinic reads blue into violet, as the prototype draws it; the console reverses it
    * so the two are distinguishable at a glance from across a room.
    */
-  --oh-gradient-brand: linear-gradient(
+  --ca-gradient-brand: linear-gradient(
     145deg,
-    var(--oh-violet-600),
-    var(--oh-violet-500) 55%,
-    var(--oh-blue-500)
+    var(--ca-violet-600),
+    var(--ca-violet-500) 55%,
+    var(--ca-blue-500)
   );
 }

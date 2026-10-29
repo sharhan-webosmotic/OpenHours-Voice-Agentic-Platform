@@ -15,7 +15,7 @@ cat > "$CONFIG" <<JSON
 {
   "identities": [
     {
-      "name": "openhours-local",
+      "name": "clinicai-local",
       "credentials": [
         {
           "accessKey": "${AWS_ACCESS_KEY_ID}",

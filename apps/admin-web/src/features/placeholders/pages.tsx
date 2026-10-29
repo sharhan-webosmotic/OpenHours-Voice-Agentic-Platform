@@ -18,7 +18,7 @@ export const ClinicsPage = () => (
 export const InternalUsersPage = () => (
   <PlaceholderPage
     title="Internal users"
-    description="OpenHours staff with access to the platform."
+    description="ClinicAI staff with access to the platform."
     next="Inviting and deactivating internal users arrives with the platform users feature. Only a super admin sees this page: the matrix gives platform_users to that role alone."
   />
 );

@@ -17,8 +17,8 @@ import { signAccessToken, verifyAccessToken } from './auth.tokens.js';
  * succeeds and the shape check is genuinely what refuses them.
  */
 
-const ISSUER = 'openhours';
-const AUDIENCE = 'openhours-api';
+const ISSUER = 'clinicai';
+const AUDIENCE = 'clinicai-api';
 
 const secret = (): Uint8Array => new TextEncoder().encode(config.JWT_SECRET);
 

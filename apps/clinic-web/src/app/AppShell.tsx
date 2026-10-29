@@ -15,7 +15,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
-import type { Role } from '@openhours/shared';
+import type { Role } from '@clinicai/shared';
 import { Button } from '../components/ui/Button';
 import { Logo } from '../components/ui/Logo';
 import { cn } from '../components/ui/cn';

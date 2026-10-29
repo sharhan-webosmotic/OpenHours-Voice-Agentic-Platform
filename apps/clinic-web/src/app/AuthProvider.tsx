@@ -8,9 +8,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { ApiClient, CurrentUser } from '@openhours/api-client';
-import { ApiError, PASSWORD_CHANGE_REQUIRED_TYPE } from '@openhours/api-client';
-import { isRole, type Role } from '@openhours/shared';
+import type { ApiClient, CurrentUser } from '@clinicai/api-client';
+import { ApiError, PASSWORD_CHANGE_REQUIRED_TYPE } from '@clinicai/api-client';
+import { isRole, type Role } from '@clinicai/shared';
 import type { SessionBus } from './sessionBus';
 
 /**

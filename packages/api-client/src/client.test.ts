@@ -33,7 +33,7 @@ const json = (body: unknown, status = 200): Response =>
     headers: { 'Content-Type': 'application/json' },
   });
 
-const problem = (status: number, type = 'https://openhours.health/problems/unauthorized') =>
+const problem = (status: number, type = 'https://clinicai.health/problems/unauthorized') =>
   new Response(JSON.stringify({ type, title: 'Nope', status, detail: 'Please sign in again.' }), {
     status,
     headers: { 'Content-Type': 'application/problem+json' },
@@ -121,7 +121,7 @@ describe('login', () => {
       '/api/v1/auth/login': () =>
         json(
           {
-            type: 'https://openhours.health/problems/validation-failed',
+            type: 'https://clinicai.health/problems/validation-failed',
             title: 'Validation failed',
             status: 400,
             detail: 'Check the form.',

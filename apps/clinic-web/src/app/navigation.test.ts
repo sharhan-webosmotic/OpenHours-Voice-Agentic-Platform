@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PERMISSIONS, ROLES, isPermitted, type Role } from '@openhours/shared';
+import { PERMISSIONS, ROLES, isPermitted, type Role } from '@clinicai/shared';
 import { CLINIC_NAV, landingPath, visibleNavigation } from './navigation';
 
 /**

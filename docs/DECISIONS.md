@@ -173,6 +173,41 @@ typing the path.
 
 ---
 
+## D-011 The product is ClinicAI, and the rename went all the way down
+
+The product, the packages, the cookie, the CSRF header, the problem-type URLs and the
+development host names all read ClinicAI. `@clinicai/*`, `clinicai_refresh`,
+`X-ClinicAI-Csrf`, `https://clinicai.health/problems/...`, `*.clinicai.localhost`.
+
+**This supersedes the sign-in brief**, which said "Product name in the UI: ClinicAI. One
+name everywhere, matching the repo, packages and cookie" with the name ClinicAI in place of
+an earlier one. The instruction to use one name everywhere is unchanged and is now honoured
+literally: there is no second name anywhere in the tree.
+
+**Two identifiers were deliberately left alone, both because renaming them has a data
+consequence rather than a cosmetic one.**
+
+`_openhours_sql_migrations` is a table recording which hand-written SQL files have been
+applied. Renaming it leaves the new table empty on any existing database, so every SQL file
+re-runs. Closing that needs a migration that copies the rows, not a search and replace. It
+is invisible to users and to the API, which never reads it.
+
+The `docker-compose.yml` project name is still `openhours`, which scopes the volume holding
+a developer's local database. Renaming it points compose at a fresh empty volume. The old
+data is not destroyed, but it looks destroyed, and no developer should discover that by
+surprise. Both are worth closing deliberately, together, with the volume rename written
+down first.
+
+**The prototype directory keeps its own name**, `ClinicFlow Interactive Prototype`. It is a
+third-party artefact kept as the design system's provenance and is not product code.
+
+**One thing the rename surfaced:** `prisma/seed.ts` upserts by email but assigns fixed ids,
+so changing a seed email on an existing database fails with a primary-key collision rather
+than updating the row. It only bites a developer who re-seeds across a rename, and the fix
+is to upsert by id. Not fixed here, because the database it affects is disposable.
+
+---
+
 ## What no automated test currently covers
 
 **That the refresh cookie is actually sent: NOW VERIFIED.** This was the open item here and it

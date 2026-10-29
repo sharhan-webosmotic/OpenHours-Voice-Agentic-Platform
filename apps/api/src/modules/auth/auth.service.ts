@@ -1,4 +1,4 @@
-import { roleBelongsInAudience, type LoginAudience, type Role } from '@openhours/shared';
+import { roleBelongsInAudience, type LoginAudience, type Role } from '@clinicai/shared';
 import { config } from '../../config.js';
 import { logger } from '../../common/logger.js';
 import { ForbiddenError, UnauthorizedError, ValidationError } from '../../common/errors.js';
@@ -216,8 +216,8 @@ export const login = async (
     throw new ForbiddenError(
       `${outcome.role} signed in to the ${outcome.audience} application`,
       outcome.audience === 'admin'
-        ? 'This console is for OpenHours staff. Please sign in to your clinic dashboard instead.'
-        : 'This dashboard is for clinic staff. Please sign in to the OpenHours admin console instead.',
+        ? 'This console is for ClinicAI staff. Please sign in to your clinic dashboard instead.'
+        : 'This dashboard is for clinic staff. Please sign in to the ClinicAI admin console instead.',
     );
   }
 

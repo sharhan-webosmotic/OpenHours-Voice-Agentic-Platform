@@ -1,8 +1,8 @@
-# OpenHours Voice Agentic Platform
+# ClinicAI Voice Agentic Platform
 
 Multi-tenant SaaS for clinics: an AI voice receptionist (Sarvam) that books, reschedules and
 cancels appointments and answers clinic information questions, plus the dashboards clinic
-staff and OpenHours staff use to run it.
+staff and ClinicAI staff use to run it.
 
 The platform stores patient health data. Every change is production code in a regulated
 domain — read [`CLAUDE.md`](CLAUDE.md) before contributing, and the per-app `CLAUDE.md`

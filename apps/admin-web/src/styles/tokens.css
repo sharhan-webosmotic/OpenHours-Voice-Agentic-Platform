@@ -8,8 +8,8 @@
  * fifteen distinct font sizes and seventeen distinct radii, so those were snapped to a
  * scale. See docs/design-system.md for the table of what moved and by how much.
  *
- * TWO LAYERS, AND THE SPLIT IS THE POINT. Primitives (`--oh-*`) are the palette. Semantic
- * tokens (`--oh-color-*`, `--oh-text-*`, `--oh-radius-*`) are what a component is allowed to read.
+ * TWO LAYERS, AND THE SPLIT IS THE POINT. Primitives (`--ca-*`) are the palette. Semantic
+ * tokens (`--ca-color-*`, `--ca-text-*`, `--ca-radius-*`) are what a component is allowed to read.
  * A component never names a primitive, so a component never names a colour: it asks for
  * "the danger text colour" and the token layer decides what that is today.
  *
@@ -17,9 +17,9 @@
  * whole point of the indirection is that adding it later touches this file and nothing
  * else. A dark theme is a second definition of the semantic block under
  * `[data-theme='dark']`, and no component, test or screen changes. Had components read
- * `--oh-navy` directly, dark mode would have been a rewrite of every component instead.
+ * `--ca-navy` directly, dark mode would have been a rewrite of every component instead.
  *
- * THE ACCENT IS PER APPLICATION. `--oh-color-accent` and its two companions are the only
+ * THE ACCENT IS PER APPLICATION. `--ca-color-accent` and its two companions are the only
  * tokens the two applications disagree about: the clinic dashboard is blue, the admin
  * console violet. Each app overrides exactly these three in its own entry stylesheet, so
  * "only the accent colour and the logo differ" is enforced by there being nothing else to
@@ -28,83 +28,83 @@
 
 :root {
   /* ---- Primitives: the prototype's palette, verbatim. ---- */
-  --oh-blue-500: #356ae6;
-  --oh-blue-600: #2457cf;
-  --oh-violet-500: #8b6ae8;
+  --ca-blue-500: #356ae6;
+  --ca-blue-600: #2457cf;
+  --ca-violet-500: #8b6ae8;
   /**
    * The prototype has one violet and no darker companion, because it never built the
    * admin console. This is the one invented colour in the file, derived by applying the
    * blue pair's own delta to the violet so the two accents behave identically on hover.
    */
-  --oh-violet-600: #7a57d1;
+  --ca-violet-600: #7a57d1;
 
   /**
    * The two ends of the sign-in panel's gradient, which the prototype declares inline as
    * `linear-gradient(145deg, #214fc2, #356ae6 55%, #8068df)`. Neither end is one of the
-   * palette colours above: the blue is darker than `--oh-blue-600` and the violet sits
-   * between `--oh-violet-500` and `--oh-violet-600`. They are kept as their own primitives
+   * palette colours above: the blue is darker than `--ca-blue-600` and the violet sits
+   * between `--ca-violet-500` and `--ca-violet-600`. They are kept as their own primitives
    * rather than rounded to a neighbour, because a gradient is the one place a two-step
    * colour shift is visible as banding.
    */
-  --oh-blue-800: #214fc2;
-  --oh-violet-550: #8068df;
+  --ca-blue-800: #214fc2;
+  --ca-violet-550: #8068df;
 
-  /** The faint wash behind the sign-in form. Not `--oh-slate-050`, which is bluer. */
-  --oh-white-050: #fafbff;
+  /** The faint wash behind the sign-in form. Not `--ca-slate-050`, which is bluer. */
+  --ca-white-050: #fafbff;
 
-  --oh-navy-900: #17264b;
-  --oh-slate-600: #64728f;
-  --oh-slate-400: #8d98ae;
-  --oh-slate-100: #e6eaf4;
-  --oh-slate-050: #f3f5fd;
-  --oh-white: #ffffff;
+  --ca-navy-900: #17264b;
+  --ca-slate-600: #64728f;
+  --ca-slate-400: #8d98ae;
+  --ca-slate-100: #e6eaf4;
+  --ca-slate-050: #f3f5fd;
+  --ca-white: #ffffff;
 
-  --oh-green-500: #20b486;
-  --oh-green-050: #e7f8f2;
-  --oh-orange-500: #bd7218;
-  --oh-orange-050: #fff5e8;
-  --oh-red-500: #df4f5d;
-  --oh-red-050: #fff0f2;
+  --ca-green-500: #20b486;
+  --ca-green-050: #e7f8f2;
+  --ca-orange-500: #bd7218;
+  --ca-orange-050: #fff5e8;
+  --ca-red-500: #df4f5d;
+  --ca-red-050: #fff0f2;
 
   /* ---- Semantic: everything a component may read. ---- */
 
   /* Surfaces. */
-  --oh-color-background: var(--oh-slate-050);
-  --oh-color-surface: var(--oh-white);
-  --oh-color-border: var(--oh-slate-100);
+  --ca-color-background: var(--ca-slate-050);
+  --ca-color-surface: var(--ca-white);
+  --ca-color-border: var(--ca-slate-100);
 
   /* Text, three levels. Nothing in the design needs a fourth. */
-  --oh-color-text: var(--oh-navy-900);
-  --oh-color-text-muted: var(--oh-slate-600);
-  --oh-color-text-subtle: var(--oh-slate-400);
+  --ca-color-text: var(--ca-navy-900);
+  --ca-color-text-muted: var(--ca-slate-600);
+  --ca-color-text-subtle: var(--ca-slate-400);
   /* For text sitting on a filled accent or status surface. */
-  --oh-color-text-inverse: var(--oh-white);
+  --ca-color-text-inverse: var(--ca-white);
 
   /**
-   * Accent. Overridden per application, and the only tokens that are. `--oh-color-accent-ring`
+   * Accent. Overridden per application, and the only tokens that are. `--ca-color-accent-ring`
    * is kept separate from the accent itself because a focus ring is a translucent wash of
    * it, and a component must not be computing alpha from a colour it cannot see.
    */
-  --oh-color-accent: var(--oh-blue-500);
-  --oh-color-accent-strong: var(--oh-blue-600);
-  --oh-color-accent-ring: rgba(53, 106, 230, 0.2);
+  --ca-color-accent: var(--ca-blue-500);
+  --ca-color-accent-strong: var(--ca-blue-600);
+  --ca-color-accent-ring: rgba(53, 106, 230, 0.2);
 
   /* Status, each a foreground and the wash it sits on. */
-  --oh-color-success: var(--oh-green-500);
-  --oh-color-success-surface: var(--oh-green-050);
-  --oh-color-warning: var(--oh-orange-500);
-  --oh-color-warning-surface: var(--oh-orange-050);
-  --oh-color-danger: var(--oh-red-500);
-  --oh-color-danger-surface: var(--oh-red-050);
+  --ca-color-success: var(--ca-green-500);
+  --ca-color-success-surface: var(--ca-green-050);
+  --ca-color-warning: var(--ca-orange-500);
+  --ca-color-warning-surface: var(--ca-orange-050);
+  --ca-color-danger: var(--ca-red-500);
+  --ca-color-danger-surface: var(--ca-red-050);
 
   /* ---- Type. Seven steps, snapped from the prototype's fifteen. ---- */
-  --oh-text-xs: 0.75rem; /* 12px, the body size: 76 of the prototype's declarations. */
-  --oh-text-sm: 0.8125rem; /* 13px */
-  --oh-text-base: 0.875rem; /* 14px */
-  --oh-text-md: 1rem; /* 16px */
-  --oh-text-lg: 1.125rem; /* 18px */
-  --oh-text-xl: 1.375rem; /* 22px */
-  --oh-text-2xl: 1.75rem; /* 28px */
+  --ca-text-xs: 0.75rem; /* 12px, the body size: 76 of the prototype's declarations. */
+  --ca-text-sm: 0.8125rem; /* 13px */
+  --ca-text-base: 0.875rem; /* 14px */
+  --ca-text-md: 1rem; /* 16px */
+  --ca-text-lg: 1.125rem; /* 18px */
+  --ca-text-xl: 1.375rem; /* 22px */
+  --ca-text-2xl: 1.75rem; /* 28px */
   /**
    * The marketing headline on the sign-in panel, and the only place it is used.
    *
@@ -113,29 +113,29 @@
    * hold a half-width panel at any window size, so it is fluid. The prototype declares
    * `clamp(38px, 4vw, 60px)` and that is carried over unchanged.
    */
-  --oh-text-display: clamp(2.375rem, 4vw, 3.75rem);
+  --ca-text-display: clamp(2.375rem, 4vw, 3.75rem);
 
-  --oh-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --oh-font-weight-normal: 400;
-  --oh-font-weight-medium: 500;
-  --oh-font-weight-semibold: 600;
-  --oh-font-weight-bold: 700;
+  --ca-font-sans: Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ca-font-weight-normal: 400;
+  --ca-font-weight-medium: 500;
+  --ca-font-weight-semibold: 600;
+  --ca-font-weight-bold: 700;
 
   /* ---- Radius. Five steps, snapped from the prototype's seventeen. ---- */
-  --oh-radius-sm: 0.5rem; /* 8px */
-  --oh-radius-md: 0.625rem; /* 10px */
-  --oh-radius-lg: 0.75rem; /* 12px */
-  --oh-radius-xl: 1rem; /* 16px */
-  --oh-radius-full: 999px;
+  --ca-radius-sm: 0.5rem; /* 8px */
+  --ca-radius-md: 0.625rem; /* 10px */
+  --ca-radius-lg: 0.75rem; /* 12px */
+  --ca-radius-xl: 1rem; /* 16px */
+  --ca-radius-full: 999px;
 
   /* ---- Elevation. The prototype's card shadow, and two it uses for overlays. ---- */
-  --oh-shadow-card: 0 8px 26px rgba(31, 48, 89, 0.06);
-  --oh-shadow-popover: 0 2px 8px rgba(30, 49, 90, 0.08);
-  --oh-shadow-modal: 0 24px 70px rgba(20, 34, 68, 0.2);
+  --ca-shadow-card: 0 8px 26px rgba(31, 48, 89, 0.06);
+  --ca-shadow-popover: 0 2px 8px rgba(30, 49, 90, 0.08);
+  --ca-shadow-modal: 0 24px 70px rgba(20, 34, 68, 0.2);
 
   /* ---- Focus. One ring, every interactive element, no exceptions. ---- */
-  --oh-focus-ring-width: 3px;
-  --oh-focus-ring-offset: 2px;
+  --ca-focus-ring-width: 3px;
+  --ca-focus-ring-offset: 2px;
 
   color-scheme: light;
 }
@@ -167,16 +167,16 @@
 @layer base {
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--oh-slate-400) transparent;
+    scrollbar-color: var(--ca-slate-400) transparent;
   }
 
   body {
     margin: 0;
-    background: var(--oh-color-background);
-    color: var(--oh-color-text);
-    font-family: var(--oh-font-sans);
-    font-size: var(--oh-text-xs);
-    font-weight: var(--oh-font-weight-normal);
+    background: var(--ca-color-background);
+    color: var(--ca-color-text);
+    font-family: var(--ca-font-sans);
+    font-size: var(--ca-text-xs);
+    font-weight: var(--ca-font-weight-normal);
     -webkit-font-smoothing: antialiased;
   }
 
@@ -190,8 +190,8 @@
   }
 
   :where(a, button, input, select, textarea, [tabindex]):focus-visible {
-    outline: var(--oh-focus-ring-width) solid var(--oh-color-accent-ring);
-    outline-offset: var(--oh-focus-ring-offset);
+    outline: var(--ca-focus-ring-width) solid var(--ca-color-accent-ring);
+    outline-offset: var(--ca-focus-ring-offset);
   }
 
   /**

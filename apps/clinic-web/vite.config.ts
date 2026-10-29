@@ -26,7 +26,7 @@ const INITIAL_JS_BUDGET_BYTES = 450 * 1024;
  * split that makes the initial load small.
  */
 const bundleBudget = (): Plugin => ({
-  name: 'openhours-bundle-budget',
+  name: 'clinicai-bundle-budget',
   apply: 'build',
   closeBundle() {
     const assets = join(import.meta.dirname, 'dist', 'assets');
@@ -64,7 +64,7 @@ export default defineConfig({
     /**
      * Binds the loopback address, not the name.
      *
-     * `*.openhours.localhost` does not resolve on macOS without an /etc/hosts entry, and
+     * `*.clinicai.localhost` does not resolve on macOS without an /etc/hosts entry, and
      * `listen()` on an unresolvable name fails with ENOTFOUND, so binding the name made the
      * dev server unstartable on a machine that had not been set up by hand. The loopback
      * address always binds, and `allowedHosts` is what lets the named host reach it.
@@ -79,7 +79,7 @@ export default defineConfig({
      * domain and `localhost:5173` would make the browser tests prove nothing about the
      * arrangement that ships.
      */
-    allowedHosts: ['app.openhours.localhost'],
+    allowedHosts: ['app.clinicai.localhost'],
   },
   build: {
     // Sourcemaps are produced but not served in production: they would let anyone read the
