@@ -2,5 +2,24 @@
   "name": "@openhours/api-client",
   "version": "0.1.0",
   "private": true,
-  "type": "module"
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc --build tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@openhours/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "5.0.5",
+    "vitest": "5.0.5"
+  }
 }
