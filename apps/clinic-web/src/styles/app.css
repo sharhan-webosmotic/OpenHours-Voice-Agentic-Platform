@@ -1,0 +1,24 @@
+/**
+ * The clinic dashboard's entry stylesheet.
+ *
+ * Imports the shared theme and then overrides the accent, which is the ONLY thing this
+ * application changes about the design system. The admin console's equivalent file is
+ * identical but for these three values. Keeping the override to a named block here, rather
+ * than letting components choose a blue, is what makes "only the accent and the logo
+ * differ" checkable rather than aspirational.
+ *
+ * Inter is self-hosted through `@fontsource-variable/inter` rather than loaded from a CDN.
+ * The prototype pulls it from `static.figma.com`, which is fine in a prototype: in
+ * production it would mean every page load tells a third party that a clinic user is using
+ * the product, and a font that fails to load is a layout that collapses.
+ */
+
+@import '@fontsource-variable/inter';
+@import './theme.css';
+
+:root {
+  /* The clinic accent: the prototype's blue, verbatim. */
+  --oh-color-accent: var(--oh-blue-500);
+  --oh-color-accent-strong: var(--oh-blue-600);
+  --oh-color-accent-ring: rgba(53, 106, 230, 0.2);
+}
