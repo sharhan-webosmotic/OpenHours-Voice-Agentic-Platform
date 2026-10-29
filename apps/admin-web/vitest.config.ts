@@ -7,6 +7,9 @@ export default defineConfig({
     // jsdom rather than happy-dom: slower, and markedly more faithful on focus management
     // and form behaviour, which is most of what these tests assert.
     environment: 'jsdom',
+    // Headroom over the 5s asyncUtilTimeout in the setup file, so a genuinely stuck test
+    // fails as a timeout rather than being killed mid-assertion.
+    testTimeout: 15_000,
     globals: false,
     setupFiles: ['./src/test-support/setup.ts'],
     include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
