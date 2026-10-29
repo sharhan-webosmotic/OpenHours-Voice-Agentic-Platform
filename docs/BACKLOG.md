@@ -37,3 +37,32 @@ sign-in feature added for the five auth endpoints.
 open "VERIFY zod 4 compatibility on Day 1" item in `docs/STACK.md`, and it is the first
 thing M1-03 has to settle, because an incompatible generator changes the approach rather
 than the schedule.
+
+---
+
+## I10 Uniform login timing is claimed as a control and asserted nowhere
+
+**Due: with the M7 security audit.**
+
+`apps/api/src/common/passwords.ts`, `docs/FOUNDATION-REPORT.md` and the M1-01 ticket all treat
+equal response timing between an unknown email and a wrong password as a control that stops an
+attacker enumerating which addresses hold accounts. No test measures it. The test that covers
+the two cases compares status, title and detail only, and the sole timing assertion anywhere in
+the repository is in `src/common/uuid.test.ts`.
+
+**Why it is owed:** two real asymmetries exist and are unmeasured. The known-email path performs
+a database write, `recordFailedLogin`, that the unknown path does not. The decoy hash the
+unknown path verifies against is built lazily on first use, so the first unknown-email request
+in a fresh process pays an argon2 hash on top of the verify. Either could be large enough to
+distinguish the paths, and neither is bounded by anything.
+
+**Deliberately not fixed in the sign-in feature.** A timing test needs a tolerance, and a
+tolerance picked without measuring on representative hardware is either so wide it asserts
+nothing or so narrow it fails intermittently in CI, which is worse than no test. The decision
+was to leave the behaviour as it stands rather than add a test of that shape mid-feature.
+
+**What landing it means:** either add a test with an explicit, measured tolerance and warm the
+decoy hash at startup so the first request is not an outlier, or stop describing uniform timing
+as a verified control and record it in the source and the report as a best-effort mitigation.
+One of the two must happen. What must not survive the audit is the present state, where the
+comments claim a control the suite does not check.
