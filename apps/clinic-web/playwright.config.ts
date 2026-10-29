@@ -43,7 +43,29 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    {
+      name: 'chromium',
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          /**
+           * Chromium resolves `*.openhours.localhost` itself, so these tests need no
+           * /etc/hosts entry and no sudo.
+           *
+           * This is not a shortcut around the hostnames: the browser still sends those
+           * names, still sees three distinct origins, and still applies SameSite on the
+           * shared registrable domain, which is the whole thing under test. It only
+           * removes a machine-setup step that silently made the suite unrunnable.
+           *
+           * A developer browsing by hand still wants the /etc/hosts entries, which is why
+           * docs/features/sign-in.md keeps them.
+           */
+          args: ['--host-resolver-rules=MAP *.openhours.localhost 127.0.0.1'],
+        },
+      },
+    },
+  ],
   webServer: {
     // Only the dashboard. The API is started separately, because it needs a database and
     // migrations, and a test runner that silently starts infrastructure hides what it

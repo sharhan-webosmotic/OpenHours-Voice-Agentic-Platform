@@ -61,9 +61,25 @@ export default defineConfig({
     // Named host rather than localhost: the API sets a SameSite=Strict cookie, and
     // same-site is evaluated on the registrable domain, so the dashboard and the API have
     // to be siblings under one. See docs/features/sign-in.md for the hosts file entry.
-    host: 'app.openhours.localhost',
+    /**
+     * Binds the loopback address, not the name.
+     *
+     * `*.openhours.localhost` does not resolve on macOS without an /etc/hosts entry, and
+     * `listen()` on an unresolvable name fails with ENOTFOUND, so binding the name made the
+     * dev server unstartable on a machine that had not been set up by hand. The loopback
+     * address always binds, and `allowedHosts` is what lets the named host reach it.
+     */
+    host: '127.0.0.1',
     port: 5173,
     strictPort: true,
+    /**
+     * Vite refuses a Host header it does not recognise, which is correct: it is what stops a
+     * DNS-rebinding attack reaching a developer's dev server. The name is listed so the
+     * browser can use it, which it must, because SameSite is evaluated on the registrable
+     * domain and `localhost:5173` would make the browser tests prove nothing about the
+     * arrangement that ships.
+     */
+    allowedHosts: ['app.openhours.localhost'],
   },
   build: {
     // Sourcemaps are produced but not served in production: they would let anyone read the

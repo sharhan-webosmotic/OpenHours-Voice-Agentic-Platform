@@ -149,17 +149,30 @@ The requirement is satisfied at the interface instead, and it was not skipped:
 
 ## Running it locally
 
-### 1. Two host names, once
+### 1. Two host names, for browsing by hand
 
 `SameSite` needs the applications and the API to be siblings under one registrable domain.
-`localhost:5173` and `localhost:3000` are the same host and would make the browser tests prove
-nothing about the arrangement that ships. Add to `/etc/hosts`:
+`localhost:5173` and `localhost:3000` are the same host and would prove nothing about the
+arrangement that ships.
+
+**The Playwright tests do not need this step.** Chromium is launched with
+`--host-resolver-rules=MAP *.openhours.localhost 127.0.0.1`, so it resolves the names itself.
+The names are still sent, the browser still sees three origins, and SameSite is still applied
+on the shared registrable domain, so nothing about the test is weakened; it just does not
+require a machine that somebody set up by hand.
+
+**To browse by hand you do need it**, because `*.openhours.localhost` does not resolve on
+macOS. Add to `/etc/hosts`:
 
 ```
 127.0.0.1 app.openhours.localhost
 127.0.0.1 admin.openhours.localhost
 127.0.0.1 api.openhours.localhost
 ```
+
+The dev servers bind `127.0.0.1` rather than the name, because `listen()` on an unresolvable
+name fails with `ENOTFOUND` and that made the dev server unstartable on a fresh machine. Vite
+accepts the name through `server.allowedHosts`.
 
 Browsers treat `*.localhost` as a trustworthy origin, so a `Secure` cookie does set over
 plain HTTP there. **Do not set `COOKIE_SECURE=false` to work around a cookie problem**: that
@@ -175,6 +188,12 @@ pnpm --filter @openhours/api dev
 
 The API needs `CORS_ALLOWED_ORIGINS` to include both application origins, and `COOKIE_SECURE`
 left true.
+
+`.env` lives at the repository root and is read by `prisma.config.ts` and by the `tsx`-based
+scripts through `--env-file-if-exists`. Nothing loaded it before, so every one of these
+commands failed on a fresh shell with "expected string, received undefined". `pnpm start`
+deliberately does not load it: in production the environment comes from the secret manager
+and a file must not be consulted.
 
 ### 3. A clinic to sign in to
 
