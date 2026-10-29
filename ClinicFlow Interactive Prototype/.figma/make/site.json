@@ -1,0 +1,10 @@
+{
+  "description": "Manage appointments, patients, AI receptionist calls, reminders, and reporting for a single-doctor clinic with a seamless, interactive scheduling system.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
