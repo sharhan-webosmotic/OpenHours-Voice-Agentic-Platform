@@ -71,7 +71,18 @@ export default defineConfig({
     // migrations, and a test runner that silently starts infrastructure hides what it
     // depends on.
     command: 'pnpm dev',
-    url: CONSOLE_URL,
+    /**
+     * The readiness probe is loopback, not the name.
+     *
+     * This probe runs in Node, inside the Playwright process, which resolves host names
+     * through the operating system and therefore cannot resolve `*.openhours.localhost`
+     * either. Only Chromium has the resolver rules. Pointing the probe at the name made the
+     * whole suite fail with "Timed out waiting 60000ms from config.webServer" while the dev
+     * server was running perfectly.
+     *
+     * `baseURL` above stays the named host, because that is what the browser must use.
+     */
+    url: 'http://127.0.0.1:5174',
     reuseExistingServer: true,
     timeout: 60_000,
   },

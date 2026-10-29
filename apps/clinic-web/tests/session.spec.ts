@@ -68,7 +68,9 @@ test.describe('the first sign-in with an administrator-issued password', () => {
     await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0);
 
     await page.getByLabel('Temporary password').fill(TEMPORARY_PASSWORD!);
-    await page.getByLabel('New password').fill(PASSWORD);
+    // `exact`, because "New password" is also a substring of "Confirm new password" and
+    // Playwright's strict mode refuses an ambiguous locator rather than picking one.
+    await page.getByLabel('New password', { exact: true }).fill(PASSWORD);
     await page.getByLabel('Confirm new password').fill(PASSWORD);
     await page.getByRole('button', { name: 'Change password' }).click();
 
@@ -148,11 +150,20 @@ test.describe('the refresh cookie', () => {
     await page.reload();
 
     const request = await refreshCall;
+    /**
+     * `allHeaders()`, not `headers()`. `headers()` returns only what the page set; `Origin`
+     * is added by the browser's own network stack and is absent from it, which made this
+     * assertion fail against a request that did carry the header.
+     */
+    const headers = await request.allHeaders();
+
     // ADR-0001: a cross-site HTML form cannot set a custom header, and a cross-site fetch
     // that does triggers a preflight the API's origin allow-list refuses. The client sends
     // it so no feature has to remember to.
-    expect(request.headers()['x-openhours-csrf']).toBeDefined();
-    expect(request.headers()['origin']).toContain('app.openhours.localhost');
+    expect(headers['x-openhours-csrf']).toBeDefined();
+    // The browser's own statement of where the request came from, which is the layer that
+    // catches a sibling subdomain SameSite=Strict would have let through.
+    expect(headers['origin']).toContain('app.openhours.localhost');
   });
 });
 

@@ -83,12 +83,27 @@ export const AuthProvider = ({
    * the sign-in screen they are already looking at.
    */
   const live = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    /**
+     * RE-ARMED IN THE EFFECT BODY, NOT ONLY CLEARED IN THE CLEANUP. This is the whole fix
+     * for a bug a browser run found and no unit test did.
+     *
+     * React's StrictMode runs an effect, then its cleanup, then the effect again. With only
+     * a cleanup, the first teardown set this to false and nothing ever set it back, so
+     * `clear()` became a permanent no-op in development: signing out revoked the session on
+     * the server, logged "revoked: 1", returned 204, and left the user sitting in the
+     * dashboard with the button spinning. The same no-op silently swallowed the sign-out
+     * that must follow a password change.
+     *
+     * jsdom did not catch it because the component suite does not render through
+     * StrictMode, and the API suite could not: the server did its half correctly.
+     */
+    live.current = true;
+
+    return () => {
       live.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   /**
    * The current status, for the bus listener to read.

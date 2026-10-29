@@ -38,11 +38,12 @@ always exited 0, and a gate that always passes is worse than no gate. The real o
 arrives with M1-03, tracked in `docs/BACKLOG.md`.
 
 **The browser tests are not in the gate either.** `pnpm e2e` in either web app needs the
-API, a database and three `*.openhours.localhost` host names, so it cannot run on a clean
-checkout. It is also the only thing that can prove the refresh cookie is actually sent:
-supertest sends no `Origin` header and jsdom has no shared cookie jar. Until a run is
-green on a machine, say the cookie arrangement is reasoned rather than verified. Setup is
-in `docs/features/sign-in.md`.
+API, a database and a provisioned clinic, so it cannot run on a clean checkout. It is also
+the only thing that can prove the refresh cookie is actually sent: supertest sends no
+`Origin` header and jsdom has no shared cookie jar. Both suites are green as of 2026-10-29,
+12 of 12, so the cookie arrangement is verified rather than reasoned. It is also the layer
+that caught a StrictMode bug which made sign-out a silent no-op, so run it after any change
+to the session. Setup is in `docs/features/sign-in.md`.
 
 ## How to work on every task
 1. Read `docs/DECISIONS.md` and the relevant skill(s) below, then PLAN: files to touch, tests to add, risks. Wait for approval on anything that changes schema, auth, permissions or tenancy.

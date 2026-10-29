@@ -239,14 +239,37 @@ pnpm --filter @openhours/admin-web e2e
 Each `test.describe` there skips itself if its variables are absent, so the clinic-refusal
 test runs on its own without an admin account.
 
+## What the browser run proved, and the bug it found
+
+Observed in Chromium, not inferred: the cookie is set `httpOnly`, `Secure`,
+`SameSite=Strict`, path `/api/v1/auth` on the API host; it is attached to a same-site fetch
+from a sibling subdomain; a reload destroys the in-memory access token and the session comes
+back anyway; the refresh request carries `X-OpenHours-Csrf` and an `Origin` the API accepts;
+`localStorage`, `sessionStorage` and `document.cookie` are all empty; signing out removes the
+cookie and a reload does not bring the session back; a deep link is returned to after signing
+in; and a clinic account at the admin console is refused **with no cookie set at all**, so it
+is not left half signed in.
+
+**The defect it found.** `clear()` in the auth provider was guarded by a `live` ref whose
+effect had only a cleanup function. React's StrictMode runs an effect, then its cleanup, then
+the effect again, so the first teardown set the ref to false and nothing ever set it back:
+`clear()` was a permanent no-op in development. Signing out revoked the session on the server,
+logged `revoked: 1` and returned 204, and left the user in the dashboard with the button
+spinning. The same no-op swallowed the sign-out that must follow a password change.
+
+Neither other suite could have caught it. jsdom does not render through StrictMode, and the
+API was behaving correctly. That is the case for keeping these tests and running them after
+any change to the session.
+
 ## Known gaps
 
-🔴 **The browser tests have never been run.** They are written and they typecheck, and they
-are the only thing that can prove the cookie is actually sent, because supertest sends no
-`Origin` header and jsdom has no cookie jar shared with a server. Until a run is green on a
-machine, **the cookie arrangement is reasoned and not verified.** They are not in
-`pnpm check`, because they need the API, a database and the host names above, and a gate leg
-that cannot run on a clean checkout is one that gets skipped.
+**The browser tests are green, so this is no longer a gap.** 12 of 12 on 2026-10-29: 8 in the
+clinic dashboard and 4 in the admin console, against a throwaway PostgreSQL container with the
+real migrations, the real row-level-security SQL and a provisioned clinic. They are still not
+in `pnpm check`, because they need the API, a database and a provisioned clinic, and a gate leg
+that cannot run on a clean checkout is one that gets skipped. Run them after any change to the
+session: they are the only layer that exercises the browser and the server together, and the
+first run proved it by finding a defect both other suites missed. See the section above.
 
 **A demoted user keeps their old access for up to 15 minutes.** A role change takes effect at
 the next refresh, not immediately, because the role is a claim in the access token. This is

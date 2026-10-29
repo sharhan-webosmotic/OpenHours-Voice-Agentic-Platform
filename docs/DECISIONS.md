@@ -175,17 +175,31 @@ typing the path.
 
 ## What no automated test currently covers
 
-**That the refresh cookie is actually sent.** The API suite drives the app with supertest,
-which sends no `Origin` header, so `SameSite` is never evaluated by anything, and the web
-tests run in jsdom, which has no cookie jar shared with a server. Neither says whether a real
-browser would attach the cookie. D-002 is therefore correct by reasoning and unproven by
-execution.
+**That the refresh cookie is actually sent: NOW VERIFIED.** This was the open item here and it
+is closed. On 2026-10-29 both Playwright suites ran green against a throwaway PostgreSQL
+container with the real migrations, the real row-level-security SQL and a provisioned clinic:
+8 of 8 in the clinic dashboard, 4 of 4 in the admin console. A real browser was observed
+setting the cookie `httpOnly`, `Secure`, `SameSite=Strict`, path `/api/v1/auth`; attaching it
+to a same-site fetch from a sibling subdomain; and restoring a session after a reload had
+destroyed the in-memory access token. D-002 is now correct by execution, not only by
+reasoning.
 
-The Playwright tests in each application's `tests/` directory are what close it. They are not
-part of `pnpm check`, because they need the API, a database and two named hosts running. Run
-them with `pnpm e2e` from an application directory, against a local stack. **Until a
-Playwright run is green on a machine, treat the cookie arrangement as reasoned rather than
-verified**, and say so rather than implying the suite covers it.
+**The run found a defect nothing else could have.** `clear()` in the auth provider was guarded
+by a `live` ref whose effect had only a cleanup function. React's StrictMode runs an effect,
+then its cleanup, then the effect again, so the first teardown set the ref to false and nothing
+set it back: `clear()` became a permanent no-op in development. Signing out revoked the session
+on the server, logged `revoked: 1`, returned 204, and left the user sitting in the dashboard
+with the button spinning. The same no-op swallowed the sign-out that must follow a password
+change. jsdom could not catch it, because the component suite does not render through
+StrictMode, and the API suite could not, because the server did its half correctly. **That is
+the argument for keeping the browser tests**: they are the only layer that exercises the two
+halves together, so run them after any change to the session.
+
+They remain outside `pnpm check`, because they need the API, a database and a provisioned
+clinic, and a gate leg that cannot run on a clean checkout is one that gets skipped. Run them
+with `pnpm e2e` from an application directory. The runbook is in `docs/features/sign-in.md`,
+and it now works, which it did not before: nothing in the repository loaded `.env`, so every
+command in it failed on a fresh shell.
 
 **That a demoted user loses access immediately.** They do not. A role change takes effect at
 the next refresh, so a demoted user keeps their previous access for up to the access-token

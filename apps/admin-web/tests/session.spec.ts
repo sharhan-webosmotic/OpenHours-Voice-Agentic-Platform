@@ -73,8 +73,9 @@ test.describe('a platform account', () => {
   test('signs in and keeps the session across a reload', async ({ page }) => {
     await signIn(page, ADMIN_EMAIL!, ADMIN_PASSWORD!);
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
-    // The one word of copy that distinguishes the two applications to a user.
-    await expect(page.getByText('Admin')).toBeVisible();
+    // The one word of copy that distinguishes the two applications to a user. `exact`,
+    // because the role line in the top bar reads "Super admin" and would match too.
+    await expect(page.getByText('Admin', { exact: true })).toBeVisible();
 
     const cookie = await refreshCookie(page);
     expect(cookie).toBeDefined();
