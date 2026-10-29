@@ -78,6 +78,31 @@ const refreshLimiter = createRateLimiter({
 });
 
 /**
+ * Change-password, keyed on the signed-in user rather than the address.
+ *
+ * WHY IT EXISTS. This route verifies the current password with argon2id at 64 MiB per
+ * call and had no limiter at all, while `/login` carries two for exactly that reason.
+ * Fifteen consecutive wrong guesses returned fifteen 403s with no throttle and no lockout.
+ * That is two problems in one: unbounded concurrent 64 MiB allocations are a memory
+ * amplification attack available to any authenticated caller, and a holder of a stolen
+ * access token could guess the current password unobserved for the token's 15 minute life,
+ * where a correct guess revokes every session and takes the account. Review finding I5.
+ *
+ * KEYED ON THE USER, NOT THE IP, which is why it is mounted after `requireAuth`: the
+ * context has no user id before that. An IP bucket would be wrong in both directions here,
+ * throttling a whole clinic behind one address while leaving an attacker free to rotate
+ * addresses against one account.
+ *
+ * The limit mirrors the login lockout (`LOGIN_MAX_FAILURES` over `LOCKOUT_MINUTES`),
+ * because the thing being bounded is the same thing: guesses at a password.
+ */
+const changePasswordLimiter = createRateLimiter({
+  windowMs: config.LOCKOUT_MINUTES * 60_000,
+  limit: config.LOGIN_MAX_FAILURES,
+  keyGenerator: () => getContext()?.userId ?? 'anonymous',
+});
+
+/**
  * The API surface is static, so routes are registered once at import. Registering
  * inside authRouter() would throw on a second call, and the registry is right to refuse:
  * two registrations of one path would leave the generated OpenAPI describing only one.
@@ -127,12 +152,15 @@ export type AuthRouterOptions = {
   /** Overridable so a test can mount a deliberately low limit and assert the 429. */
   readonly ipLimiter?: RequestHandler;
   readonly emailLimiter?: RequestHandler;
+  /** Overridable for the same reason: a test needs a limit it can actually reach. */
+  readonly changePasswordLimiter?: RequestHandler;
 };
 
 export const authRouter = (options: AuthRouterOptions = {}): Router => {
   const router = Router();
   const ipLimiter = options.ipLimiter ?? loginIpLimiter;
   const emailLimiter = options.emailLimiter ?? loginEmailLimiter;
+  const passwordLimiter = options.changePasswordLimiter ?? changePasswordLimiter;
 
   router.post(
     '/login',
@@ -202,6 +230,8 @@ export const authRouter = (options: AuthRouterOptions = {}): Router => {
     '/change-password',
     requireAuth,
     requireUser,
+    // After requireAuth, because the limiter keys on the context user id.
+    passwordLimiter,
     validate({ body: changePasswordBodySchema }),
     async (req: Request, res: Response) => {
       const { body } = validatedData<

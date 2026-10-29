@@ -11,6 +11,7 @@ import { CSRF_HEADER } from '../src/common/csrf.js';
 import { createRateLimiter } from '../src/common/rate-limit.js';
 import { PROBLEM_JSON_CONTENT_TYPE, toProblemDetails } from '../src/common/problem-details.js';
 import { requestContextMiddleware } from '../src/common/request-context.middleware.js';
+import { getContext } from '../src/common/request-context.js';
 import { signAccessToken } from '../src/modules/auth/auth.tokens.js';
 import { asPlatform, disconnectAll, ownerClient } from './support/db.js';
 import { jsonBody, problemBody } from '../src/test-support/http.js';
@@ -108,6 +109,18 @@ describe('login', () => {
     const setCookie = String(response.headers['set-cookie']);
     expect(setCookie).toContain('HttpOnly');
     expect(setCookie).toContain('SameSite=Strict');
+    /**
+     * The PATH, which nothing asserted until review finding I4. Widening it to `/` left all
+     * 536 tests in this suite green while the browser attached the long-lived refresh token
+     * to every request to every endpoint, including the patient routes still to come,
+     * instead of only the five auth routes.
+     *
+     * `Secure` is deliberately absent from this list and cannot be added here: supertest
+     * speaks plain HTTP, so `tests/support/setup-env.ts` sets COOKIE_SECURE=false and a
+     * `Secure` cookie would never come back. The browser suite asserts it instead, in
+     * apps/clinic-web/tests/session.spec.ts.
+     */
+    expect(setCookie).toContain('Path=/api/v1/auth');
     // The refresh token must never be readable by browser JavaScript, and must not be
     // echoed into the response body alongside the access token.
     expect(JSON.stringify(jsonBody<LoginBody>(response))).not.toContain(
@@ -973,6 +986,144 @@ describe('change password', () => {
 
     const after = await login(email, 'chosen-by-the-user-now');
     expect(jsonBody<LoginBody>(after).mustChangePassword).toBe(false);
+  });
+});
+
+describe('change password is throttled per user and records its refusals', () => {
+  const makeUser = async (): Promise<string> => {
+    const email = `auth.pwlimit.${Date.now()}.${Math.random().toString(36).slice(2, 8)}@test.invalid`;
+    await asPlatform(ownerClient(), async (tx) =>
+      tx.user.create({
+        data: {
+          id: uuidV7(),
+          organisationId: org.organisationId,
+          email,
+          passwordHash: await hashPassword(PASSWORD),
+          fullName: 'Password Limiter',
+          role: 'STAFF',
+          status: 'ACTIVE',
+        },
+      }),
+    );
+    return email;
+  };
+
+  /**
+   * Review finding I5. This route verifies the current password with argon2id at 64 MiB a
+   * call and carried no limiter at all, so fifteen consecutive wrong guesses returned
+   * fifteen 403s. Two tests, because the fix has two halves: a bound on the guessing, and
+   * a trace of it.
+   */
+  it('returns 429 once the per-user bucket is spent', async () => {
+    // A deliberately low limiter mounted on the real route, so what is proven is the
+    // wiring rather than the factory, and the keyGenerator reading the context user id.
+    const throttled = express();
+    throttled.use(requestContextMiddleware);
+    throttled.use(express.json());
+    throttled.use(
+      '/api/v1/auth',
+      authRouter({
+        changePasswordLimiter: createRateLimiter({
+          windowMs: 60_000,
+          limit: 2,
+          keyGenerator: () => getContext()?.userId ?? 'anonymous',
+        }),
+      }),
+    );
+    throttled.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+      const problem = toProblemDetails(error);
+      res.status(problem.status).type(PROBLEM_JSON_CONTENT_TYPE).json(problem);
+    });
+
+    const email = await makeUser();
+    const token = jsonBody<LoginBody>(await login(email, PASSWORD)).accessToken;
+    const attempt = () =>
+      request(throttled)
+        .post('/api/v1/auth/change-password')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ currentPassword: WRONG_PASSWORD, newPassword: 'another-long-password-z' });
+
+    expect((await attempt()).status).toBe(403);
+    expect((await attempt()).status).toBe(403);
+
+    const throttledResponse = await attempt();
+    expect(throttledResponse.status).toBe(429);
+    expect(throttledResponse.headers['content-type']).toContain('application/problem+json');
+  });
+
+  it('buckets per user, so one account cannot throttle another', async () => {
+    const throttled = express();
+    throttled.use(requestContextMiddleware);
+    throttled.use(express.json());
+    throttled.use(
+      '/api/v1/auth',
+      authRouter({
+        changePasswordLimiter: createRateLimiter({
+          windowMs: 60_000,
+          limit: 1,
+          keyGenerator: () => getContext()?.userId ?? 'anonymous',
+        }),
+      }),
+    );
+    throttled.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+      const problem = toProblemDetails(error);
+      res.status(problem.status).type(PROBLEM_JSON_CONTENT_TYPE).json(problem);
+    });
+
+    const first = await makeUser();
+    const second = await makeUser();
+    const tokenFor = async (email: string) =>
+      jsonBody<LoginBody>(await login(email, PASSWORD)).accessToken;
+    const attempt = (token: string) =>
+      request(throttled)
+        .post('/api/v1/auth/change-password')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ currentPassword: WRONG_PASSWORD, newPassword: 'another-long-password-q' });
+
+    const firstToken = await tokenFor(first);
+    expect((await attempt(firstToken)).status).toBe(403);
+    // First user's bucket is now spent.
+    expect((await attempt(firstToken)).status).toBe(429);
+
+    // The second user is unaffected, which an IP-keyed limiter would have got wrong.
+    expect((await attempt(await tokenFor(second))).status).toBe(403);
+  });
+
+  it('writes an audit row for a rejected change, and the row survives the refusal', async () => {
+    const email = await makeUser();
+    const token = jsonBody<LoginBody>(await login(email, PASSWORD)).accessToken;
+
+    const response = await request(app)
+      .post('/api/v1/auth/change-password')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ currentPassword: WRONG_PASSWORD, newPassword: 'another-long-password-w' });
+
+    expect(response.status).toBe(403);
+
+    const rows = await asPlatform(ownerClient(), (tx) =>
+      tx.auditLog.findMany({
+        where: { action: 'auth.change-password.rejected' },
+        orderBy: { id: 'desc' },
+        take: 20,
+      }),
+    );
+
+    const userId = jsonBody<LoginBody>(await login(email, PASSWORD)).user.id;
+    const mine = rows.filter((row) => row.entityId === userId);
+
+    /**
+     * The row has to COMMIT. An earlier shape threw inside `asSystem`, which rolled the
+     * transaction back and took the audit row with it, so the refusal left no trace at
+     * all. That is why `changePassword` returns an outcome and throws outside the
+     * transaction. Sabotaging it back fails this assertion with "expected 0 to be 1".
+     */
+    expect(mine).toHaveLength(1);
+    expect(mine[0]?.actorUserId).toBe(userId);
+
+    // No credential and no patient data in the payload: a reason, and nothing else.
+    expect(mine[0]?.metadata).toEqual({ reason: 'current-password-incorrect' });
+    expect(JSON.stringify(mine[0])).not.toContain(WRONG_PASSWORD);
+    expect(JSON.stringify(mine[0])).not.toContain(PASSWORD);
   });
 });
 

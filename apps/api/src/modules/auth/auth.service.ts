@@ -11,6 +11,7 @@ import {
 } from '../../common/passwords.js';
 import { generateOpaqueToken, hashToken } from '../../common/tokens.js';
 import { asSystem } from '../../db/tenant-client.js';
+import * as audit from '../audit/audit.service.js';
 import { signAccessToken } from './auth.tokens.js';
 import * as repository from './auth.repository.js';
 
@@ -342,40 +343,79 @@ export const logout = async (presentedToken: string | undefined): Promise<void> 
     logger.info({ userId: stored.userId, revoked }, 'logout');
   });
 
+/**
+ * Why this returns an outcome instead of throwing on a wrong current password.
+ *
+ * The refusal has to leave a trace. Throwing inside `asSystem` rolls the transaction back,
+ * which would discard the audit row written alongside it, and a rejected password change is
+ * one of the three events an investigator most wants (the same reasoning as the login and
+ * refresh outcomes above, and as the `system.scope.used` row in db/tenant-client.ts). So
+ * the transaction records the refusal and commits, and the error is thrown after it.
+ */
+type ChangePasswordOutcome = { readonly kind: 'ok' } | { readonly kind: 'wrong-current-password' };
+
 export const changePassword = async (
   userId: string,
   currentPassword: string,
   newPassword: string,
-): Promise<void> =>
-  asSystem('auth.change-password', async (db) => {
-    if (newPassword.length < MINIMUM_PASSWORD_LENGTH) {
-      throw new ValidationError('password too short', 'The new password is too short.', [
-        {
-          field: 'body.newPassword',
-          message: `Must be at least ${MINIMUM_PASSWORD_LENGTH} characters`,
-        },
-      ]);
-    }
+): Promise<void> => {
+  const outcome = await asSystem(
+    'auth.change-password',
+    async (db): Promise<ChangePasswordOutcome> => {
+      if (newPassword.length < MINIMUM_PASSWORD_LENGTH) {
+        // Thrown rather than returned: nothing has been written, and a request that never
+        // reached the password check is a validation failure rather than a security event.
+        throw new ValidationError('password too short', 'The new password is too short.', [
+          {
+            field: 'body.newPassword',
+            message: `Must be at least ${MINIMUM_PASSWORD_LENGTH} characters`,
+          },
+        ]);
+      }
 
-    const user = await repository.findUserById(db, userId);
-    if (user === null) {
-      throw new UnauthorizedError('user not found', 'Please sign in again.');
-    }
+      const user = await repository.findUserById(db, userId);
+      if (user === null) {
+        throw new UnauthorizedError('user not found', 'Please sign in again.');
+      }
 
-    if (!(await verifyPassword(user.passwordHash, currentPassword))) {
-      logger.warn({ userId }, 'password change rejected: current password incorrect');
-      throw new ForbiddenError('current password incorrect', 'Current password is incorrect.');
-    }
+      if (!(await verifyPassword(user.passwordHash, currentPassword))) {
+        /**
+         * Audited, so repeated wrong current passwords are visible to someone reading the
+         * trail. Review finding I5: this route verifies a password with argon2 and had
+         * neither a throttle nor any record of a failure, so an attacker holding a stolen
+         * access token could guess unobserved for the token's whole life, and a successful
+         * guess revokes every session and takes the account. The throttle is the limiter on
+         * the route; this is the visibility half.
+         *
+         * No password, no hash and no patient data in the payload: the user id is the
+         * actor, taken from context by `audit.record`, and that is the whole record.
+         */
+        await audit.record(db, {
+          action: 'auth.change-password.rejected',
+          entityType: 'user',
+          entityId: userId,
+          metadata: { reason: 'current-password-incorrect' },
+        });
+        logger.warn({ userId }, 'password change rejected: current password incorrect');
+        return { kind: 'wrong-current-password' };
+      }
 
-    await repository.updatePassword(db, userId, await hashPassword(newPassword));
+      await repository.updatePassword(db, userId, await hashPassword(newPassword));
 
-    // Changing a password ends every session for this user, not just this family: if
-    // the reason for the change was a compromise, leaving other sessions alive defeats
-    // it. (An earlier version passed the user id to the family revoker, which matches
-    // no family and would have revoked nothing.)
-    const revoked = await repository.revokeAllTokensForUser(db, userId);
-    logger.info({ userId, revoked }, 'password changed');
-  });
+      // Changing a password ends every session for this user, not just this family: if
+      // the reason for the change was a compromise, leaving other sessions alive defeats
+      // it. (An earlier version passed the user id to the family revoker, which matches
+      // no family and would have revoked nothing.)
+      const revoked = await repository.revokeAllTokensForUser(db, userId);
+      logger.info({ userId, revoked }, 'password changed');
+      return { kind: 'ok' };
+    },
+  );
+
+  if (outcome.kind === 'wrong-current-password') {
+    throw new ForbiddenError('current password incorrect', 'Current password is incorrect.');
+  }
+};
 
 export const currentUser = async (userId: string) =>
   asSystem('auth.me', async (db) => {
