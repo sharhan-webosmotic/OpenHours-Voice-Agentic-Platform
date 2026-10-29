@@ -30,6 +30,12 @@ const CONSOLE_URL = 'http://admin.clinicai.localhost:5174';
 
 export default defineConfig({
   testDir: './tests',
+  /**
+   * Provisions this suite's own clinic account. See tests/support/accounts.ts and review
+   * finding I3: taking it from the environment coupled this suite to a password the
+   * dashboard's suite had chosen in some earlier run.
+   */
+  globalSetup: './tests/global-setup.ts',
   // One worker: the tests share one provisioned account, and signing out in one would end
   // the session another is using.
   workers: 1,

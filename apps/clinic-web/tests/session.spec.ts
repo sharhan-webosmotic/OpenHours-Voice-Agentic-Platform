@@ -1,4 +1,6 @@
+import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { readAccounts, type ReadyAccount } from './support/accounts.js';
 
 /**
  * The claim D-002 makes, checked in a real browser.
@@ -24,39 +26,68 @@ import { expect, test, type Page } from '@playwright/test';
  * in the config are what make the ordering real rather than hopeful.
  */
 
-const EMAIL = process.env.E2E_EMAIL;
-/** The one-time password `pnpm provision:clinic` printed. Spent by the first test. */
-const TEMPORARY_PASSWORD = process.env.E2E_TEMP_PASSWORD;
 const API_HOST = process.env.E2E_API_HOST ?? 'api.clinicai.localhost';
-
-/** Chosen here, not configured: it exists only between the first test and the last. */
-const PASSWORD = 'e2e-replacement-password';
-
-test.skip(
-  EMAIL === undefined || TEMPORARY_PASSWORD === undefined,
-  'Set E2E_EMAIL and E2E_TEMP_PASSWORD from `pnpm provision:clinic`. See docs/features/sign-in.md.',
-);
-
-// Ordered, because the first test spends the temporary password the rest depend on.
-test.describe.configure({ mode: 'serial' });
-
 const REFRESH_COOKIE = 'clinicai_refresh';
+
+/**
+ * ONE ACCOUNT PER TEST, provisioned by `tests/global-setup.ts`.
+ *
+ * These used to come from `E2E_EMAIL` and `E2E_TEMP_PASSWORD`, so every test below signed
+ * in as the same email. Eight sign-ins in one sixty-second window against a documented
+ * per-email limit of five meant the suite threw a 429 at itself and failed partway through,
+ * which is review finding I3. The limits are deliberately NOT raised: they are a control,
+ * and this is the only layer that exercises them through a real browser. Each test taking
+ * its own email removes the collision instead.
+ */
+const accounts = readAccounts(resolve(import.meta.dirname, '..'));
+
+/** The account reserved for the first-login tests, still holding its temporary password. */
+const firstLogin = accounts.firstLogin;
+
+/**
+ * The account for one specific test, by index.
+ *
+ * Indexed rather than popped from a shared queue so a test's account does not depend on
+ * which tests ran before it, which is what makes these tests independent of each other
+ * now that they no longer share a credential.
+ */
+const ready = (index: number): ReadyAccount => {
+  const account = accounts.ready[index];
+
+  if (account === undefined) {
+    throw new Error(
+      `no prepared account at index ${index}. Raise READY_ACCOUNTS in tests/global-setup.ts.`,
+    );
+  }
+
+  return account;
+};
 
 const refreshCookie = async (page: Page) => {
   const cookies = await page.context().cookies();
   return cookies.find((cookie) => cookie.name === REFRESH_COOKIE);
 };
 
-const signIn = async (page: Page, password = PASSWORD) => {
+const signInAs = async (page: Page, email: string, password: string) => {
   await page.goto('/sign-in');
-  await page.getByLabel('Email address').fill(EMAIL!);
+  await page.getByLabel('Email address').fill(email);
   await page.getByLabel('Password').fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
 };
 
+/**
+ * Ordered, and the only describe that needs to be: the first test spends the temporary
+ * password the second one then proves is dead. Every other test below owns its own account
+ * and depends on nothing that ran before it.
+ */
+test.describe.configure({ mode: 'serial' });
+
 test.describe('the first sign-in with an administrator-issued password', () => {
+  /** Chosen here: it exists only between these two tests. */
+  const CHOSEN = 'e2e-chosen-password';
+
   test('is gated until the password is replaced, and then works', async ({ page }) => {
-    await signIn(page, TEMPORARY_PASSWORD);
+    await signInAs(page, firstLogin.email, firstLogin.temporaryPassword);
 
     /**
      * Not the dashboard. The API refuses this user every route but the four that lead out of
@@ -67,11 +98,11 @@ test.describe('the first sign-in with an administrator-issued password', () => {
     await expect(page.getByRole('heading', { name: 'Choose a new password' })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Main' })).toHaveCount(0);
 
-    await page.getByLabel('Temporary password').fill(TEMPORARY_PASSWORD!);
+    await page.getByLabel('Temporary password').fill(firstLogin.temporaryPassword);
     // `exact`, because "New password" is also a substring of "Confirm new password" and
     // Playwright's strict mode refuses an ambiguous locator rather than picking one.
-    await page.getByLabel('New password', { exact: true }).fill(PASSWORD);
-    await page.getByLabel('Confirm new password').fill(PASSWORD);
+    await page.getByLabel('New password', { exact: true }).fill(CHOSEN);
+    await page.getByLabel('Confirm new password').fill(CHOSEN);
     await page.getByRole('button', { name: 'Change password' }).click();
 
     await expect(page.getByRole('heading', { name: 'Password changed' })).toBeVisible();
@@ -80,12 +111,12 @@ test.describe('the first sign-in with an administrator-issued password', () => {
     // again, which is also the only proof the new password took effect.
     expect(await refreshCookie(page)).toBeUndefined();
 
-    await signIn(page);
+    await signInAs(page, firstLogin.email, CHOSEN);
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
   });
 
   test('refuses the temporary password once it has been replaced', async ({ page }) => {
-    await signIn(page, TEMPORARY_PASSWORD);
+    await signInAs(page, firstLogin.email, firstLogin.temporaryPassword);
 
     // One indistinguishable error for every credential failure, so the form cannot be used
     // to work out which passwords were once valid.
@@ -95,7 +126,8 @@ test.describe('the first sign-in with an administrator-issued password', () => {
 
 test.describe('the refresh cookie', () => {
   test('is set with every flag D-002 requires', async ({ page }) => {
-    await signIn(page);
+    const account = ready(0);
+    await signInAs(page, account.email, account.password);
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
 
     const cookie = await refreshCookie(page);
@@ -116,7 +148,8 @@ test.describe('the refresh cookie', () => {
   test('is what restores the session after a reload destroys the access token', async ({
     page,
   }) => {
-    await signIn(page);
+    const account = ready(1);
+    await signInAs(page, account.email, account.password);
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
 
     /**
@@ -140,7 +173,8 @@ test.describe('the refresh cookie', () => {
   });
 
   test('carries the custom header, without which the API refuses the refresh', async ({ page }) => {
-    await signIn(page);
+    const account = ready(2);
+    await signInAs(page, account.email, account.password);
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
 
     const refreshCall = page.waitForRequest(
@@ -169,7 +203,8 @@ test.describe('the refresh cookie', () => {
 
 test.describe('the access token', () => {
   test('is in no storage a script can read', async ({ page }) => {
-    await signIn(page);
+    const account = ready(3);
+    await signInAs(page, account.email, account.password);
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
 
     const stored = await page.evaluate(() => ({
@@ -194,7 +229,8 @@ test.describe('the access token', () => {
 
 test.describe('signing out', () => {
   test('removes the cookie, and a reload does not bring the session back', async ({ page }) => {
-    await signIn(page);
+    const account = ready(4);
+    await signInAs(page, account.email, account.password);
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
 
     await page.getByRole('button', { name: 'Sign out' }).click();
@@ -220,8 +256,9 @@ test.describe('a deep link while signed out', () => {
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
     expect(new URL(page.url()).searchParams.get('next')).toBeNull();
 
-    await page.getByLabel('Email address').fill(EMAIL!);
-    await page.getByLabel('Password').fill(PASSWORD);
+    const account = ready(5);
+    await page.getByLabel('Email address').fill(account.email);
+    await page.getByLabel('Password').fill(account.password);
     await page.getByRole('button', { name: 'Sign in' }).click();
 
     await expect(page.getByRole('heading', { name: 'Patients' })).toBeVisible();

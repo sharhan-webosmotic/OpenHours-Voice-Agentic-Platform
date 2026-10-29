@@ -1,4 +1,6 @@
+import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
+import { readAccounts } from './support/accounts.js';
 
 /**
  * The admin console in a real browser.
@@ -16,8 +18,11 @@ import { expect, test, type Page } from '@playwright/test';
  * a SUPER_ADMIN. That gap is named in docs/features/sign-in.md.
  */
 
-const CLINIC_EMAIL = process.env.E2E_EMAIL;
-const CLINIC_PASSWORD = process.env.E2E_CLINIC_PASSWORD;
+/**
+ * Provisioned by tests/global-setup.ts rather than taken from the environment, so this
+ * suite does not depend on a password some other run chose. Review finding I3.
+ */
+const clinicAccount = readAccounts(resolve(import.meta.dirname, '..')).ready[0];
 const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD;
 const API_HOST = process.env.E2E_API_HOST ?? 'api.clinicai.localhost';
@@ -37,13 +42,10 @@ const refreshCookie = async (page: Page) => {
 };
 
 test.describe('a clinic account at the admin console', () => {
-  test.skip(
-    CLINIC_EMAIL === undefined || CLINIC_PASSWORD === undefined,
-    'Set E2E_EMAIL and E2E_CLINIC_PASSWORD. See docs/features/sign-in.md.',
-  );
+  test.skip(clinicAccount === undefined, 'the global setup provisions this account');
 
   test('is refused with an explanation, and gets no session at all', async ({ page }) => {
-    await signIn(page, CLINIC_EMAIL!, CLINIC_PASSWORD!);
+    await signIn(page, clinicAccount!.email, clinicAccount!.password);
 
     // Told where to go, rather than left to work it out.
     await expect(page.getByRole('alert')).toContainText('clinic dashboard');

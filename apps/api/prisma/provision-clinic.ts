@@ -103,31 +103,52 @@ export type ProvisionedClinic = {
  * The plaintext is returned, never stored and never logged: the caller decides what to do
  * with it, and the CLI below prints it.
  */
+export type ProvisionOptions = {
+  /**
+   * Create the users already past their first sign-in, with this password.
+   *
+   * ONLY FOR THE BROWSER SUITES, and only because of the login rate limits. Those suites
+   * need an account per test (review finding I3), and spending each temporary password
+   * over HTTP first cost one login per account. Added to the suite's own sign-ins, that
+   * exceeded `AUTH_RATE_LIMIT_MAX_PER_IP`, which counts every login from one address, so
+   * the suite throttled itself a second way. Creating the accounts ready removes those
+   * requests entirely rather than relaxing a production limit to accommodate them.
+   *
+   * It is safe to expose here and nowhere else: this script refuses any host that is not
+   * local, so it cannot mint a first-login-exempt account against staging or production.
+   * Omit it and every user is created the way D-003 requires, with a temporary password
+   * that must be replaced.
+   */
+  readonly readyPassword?: string;
+};
+
 export const provisionClinic = async (
   prisma: PrismaClient,
   name: string,
   slug = String(Date.now()).slice(-6),
+  options: ProvisionOptions = {},
 ): Promise<ProvisionedClinic> => {
   const organisationId = uuidV7();
+  const ready = options.readyPassword;
 
   const users: readonly ProvisionedUser[] = [
     {
       email: `owner@clinic-${slug}.test`,
       fullName: 'Clinic Owner',
       role: Role.CLINIC_OWNER,
-      password: temporaryPassword(),
+      password: ready ?? temporaryPassword(),
     },
     {
       email: `manager@clinic-${slug}.test`,
       fullName: 'Clinic Manager',
       role: Role.CLINIC_MANAGER,
-      password: temporaryPassword(),
+      password: ready ?? temporaryPassword(),
     },
     {
       email: `staff@clinic-${slug}.test`,
       fullName: 'Clinic Staff',
       role: Role.STAFF,
-      password: temporaryPassword(),
+      password: ready ?? temporaryPassword(),
     },
   ];
 
@@ -166,8 +187,9 @@ export const provisionClinic = async (
           fullName: user.fullName,
           role: user.role,
           status: UserStatus.ACTIVE,
-          // The whole point: every one of these must be replaced at first sign-in.
-          mustChangePassword: true,
+          // The whole point: every one of these must be replaced at first sign-in, unless
+          // the caller asked for ready accounts (see ProvisionOptions.readyPassword).
+          mustChangePassword: ready === undefined,
         },
       });
     }
@@ -185,14 +207,48 @@ const main = async (): Promise<void> => {
 
   assertLocalDatabase(connectionString);
 
+  /**
+   * `--json` prints the clinic as one JSON object instead of the human table.
+   *
+   * The browser suites provision their own accounts rather than being handed one by
+   * environment variable, because sharing a single account made eight tests sign in as one
+   * email inside one rate-limit window and the suite throttled itself (review finding I3).
+   * Their Playwright global setup shells out to this script, so it needs a format that is
+   * not a table meant for a person. The credentials are still shown exactly once and still
+   * never stored: a caller that discards the output cannot recover them.
+   */
+  const raw = process.argv.slice(2);
+  const asJson = raw.includes('--json');
+  const readyAt = raw.indexOf('--ready-password');
+  const readyPassword = readyAt === -1 ? undefined : raw[readyAt + 1];
+
+  if (readyAt !== -1 && (readyPassword === undefined || readyPassword.startsWith('--'))) {
+    throw new Error('--ready-password needs a value');
+  }
+
+  const args = raw.filter(
+    (arg, index) =>
+      arg !== '--json' && index !== readyAt && !(readyAt !== -1 && index === readyAt + 1),
+  );
+
   const slug = String(Date.now()).slice(-6);
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
   let clinic: ProvisionedClinic;
   try {
-    clinic = await provisionClinic(prisma, process.argv[2] ?? `Test Clinic ${slug}`, slug);
+    clinic = await provisionClinic(
+      prisma,
+      args[0] ?? `Test Clinic ${slug}`,
+      slug,
+      readyPassword === undefined ? {} : { readyPassword },
+    );
   } finally {
     await prisma.$disconnect();
+  }
+
+  if (asJson) {
+    out(JSON.stringify(clinic));
+    return;
   }
 
   out('');

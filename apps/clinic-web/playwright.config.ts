@@ -30,6 +30,16 @@ const DASHBOARD = 'http://app.clinicai.localhost:5173';
 
 export default defineConfig({
   testDir: './tests',
+  /**
+   * Provisions one account per test before anything runs.
+   *
+   * The suite used to take a single account from `E2E_EMAIL` and `E2E_TEMP_PASSWORD`, so
+   * its eight tests signed in as one email inside one rate-limit window and the API
+   * throttled the suite itself (review finding I3). The production limits are left alone
+   * on purpose: they are a control, and this is the only layer that exercises them with a
+   * real browser. See tests/support/accounts.ts.
+   */
+  globalSetup: './tests/global-setup.ts',
   // One worker: the tests share one provisioned account, and signing out in one would end
   // the session another is using.
   workers: 1,
