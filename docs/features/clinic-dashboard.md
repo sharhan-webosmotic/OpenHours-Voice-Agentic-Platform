@@ -130,6 +130,19 @@ under that scope and also issues the unfiltered queries a function that forgot i
 issue. Removing the extension's branch fails six named cases. Removing one repository filter
 fails none.
 
+**One real hole was found by asking what the extension does with each operation.** The
+`Organisation` model is scoped by its primary key, so a supplied `where.id` passed straight
+through and relied on row-level security, which this scope switches off: reading an
+organisation by another clinic's id returned that clinic's name, time zone and settings. Nothing
+on the dashboard path passed a foreign id, so nothing leaked, but it was a loaded gun. The
+extension now appends the scoped id to `where.AND`, which answers null instead. `findUnique`
+needs no rewrite to `findFirst` on Prisma 7, and all six write operations are covered; every one
+of those statements is a test rather than a claim.
+
+**This scope depends on `app.platform`, which M1-14 removes.** Landing that migration without
+pointing `asOrganisationSystem` at the new `app_platform` role makes every platform read of a
+clinic return nothing. Recorded on both D-017 and the M1-14 backlog entry.
+
 **The permission check runs before the clinic is resolved**, and the order is load-bearing: the
 other way round turned "you may not do that" into "name a clinic", which told an internal
 admin that a missing parameter was all that stood between them and a write. The permission

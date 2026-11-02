@@ -41,6 +41,19 @@ const asRecord = (value: unknown): UnknownRecord =>
   typeof value === 'object' && value !== null ? (value as UnknownRecord) : {};
 
 /**
+ * An existing `AND` as a list, so a caller's own conditions are kept rather than replaced.
+ *
+ * Prisma accepts `AND` as either one condition or an array of them, and overwriting it would
+ * silently widen a query the caller deliberately narrowed.
+ */
+const toConditionList = (value: unknown): readonly unknown[] => {
+  if (value === undefined) {
+    return [];
+  }
+  return Array.isArray(value) ? value : [value];
+};
+
+/**
  * Rejects input that names a different organisation instead of silently overwriting it.
  *
  * Overwriting would be safe but would hide a caller that believes it is writing
@@ -69,14 +82,32 @@ const scopeWhere = (
      * with an error, when root CLAUDE.md rule 7 requires NotFound: an error that only
      * appears for rows that exist is itself a disclosure.
      *
-     * So the scope is injected only when the caller gave no id. With an id supplied,
-     * the query goes to the database and row-level security returns no rows, which the
-     * repository surfaces as NotFound.
+     * With no id supplied, the scope is injected and that is the whole story.
      */
     if (supplied === undefined) {
       return { ...args, where: { ...where, [field]: organisationId } };
     }
-    return args;
+
+    /**
+     * WITH AN ID SUPPLIED, THE SCOPE IS ADDED AS A SECOND CONDITION RATHER THAN TRUSTED.
+     *
+     * This used to pass straight through, on the reasoning that row-level security would
+     * return no rows for a foreign id. That reasoning held for exactly as long as every
+     * cross-tenant read ran with row-level security ON. `asOrganisationSystem` (D-017) sets
+     * `app.platform = 'on'`, which switches it off, so `organisation.findUnique({ where: {
+     * id: someoneElse } })` returned the other clinic's row: measured, not theorised.
+     *
+     * An `AND` on the scoped id makes a mismatch match nothing, so the answer is still the
+     * null that rule 7 wants, with no error and no disclosure. It costs one redundant
+     * predicate on the clinic path, where the ids are equal and the planner drops it.
+     */
+    return {
+      ...args,
+      where: {
+        ...where,
+        AND: [...toConditionList(where.AND), { [field]: organisationId }],
+      },
+    };
   }
 
   // Every other model: organisation_id must never come from input (rule 2). A caller

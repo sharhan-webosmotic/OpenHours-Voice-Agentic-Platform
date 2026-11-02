@@ -363,6 +363,43 @@ control.
 refuses it rather than opening a scope, because reaching that line means an organisation came
 from something other than the token.
 
+**What the extension does with each operation, measured rather than assumed.** `findUnique`
+needs no rewrite to `findFirst`: Prisma 7 accepts the injected non-unique condition, so a
+foreign id answers null and `findUniqueOrThrow` raises not-found. `create`, `createMany` and an
+`upsert`'s create half are verified against the scope and refused outright, because organisation
+never comes from input. `update`, `updateMany`, `delete` and `deleteMany` are injected, so they
+touch nothing. Every one of those is a case in `tests/platform-scope-isolation.test.ts`,
+including a check that the other clinic's row was not quietly modified, because a write that
+reports nothing and still happens is the failure that matters.
+
+**The `Organisation` model was the one real hole, and it is closed.** It is scoped by its
+primary key, so a supplied `where.id` used to pass straight through on the reasoning that
+row-level security would answer. That reasoning held only while every cross-tenant read ran
+with row-level security ON. This scope sets `app.platform = 'on'`, which switches it off, so
+`organisation.findUnique({ where: { id: someoneElse } })` returned the other clinic's name, time
+zone and settings. The extension now appends the scoped id to `where.AND`, which answers null
+instead: still the "not found" rule 7 asks for, with no error that would itself disclose
+whether the row exists.
+
+**Raw SQL is outside this extension and cannot be made safe by it.** `$queryRaw` and
+`$executeRaw` bypass every injection above. There is none on this path, and a test asserts that
+by scanning `src/modules`: the only raw statements in the application are the `set_config` calls
+that establish a scope and the health probe's `SELECT 1`, neither of which reads a tenant table.
+A repository that needs raw SQL on a tenant table has to put `organisation_id` in the statement
+itself and say so.
+
+**THIS SCOPE DEPENDS ON `app.platform`, WHICH M1-14 REMOVES.** `asOrganisationSystem` sets
+`app.platform = 'on'` so row-level security lets a platform read through, and the extension's
+injection is what confines it to one clinic. When M1-14 replaces that GUC with an `app_platform`
+database role, this path must switch to that role in the same change, or every platform read of
+a clinic returns nothing.
+
+The failure is fail-closed, which is the right direction and also the reason it would not be
+noticed quickly: the dashboard would simply show an internal admin an empty patient list. The
+tests that catch it are the positive controls in `tests/platform-scope-isolation.test.ts`, which
+assert that the clinic actually named is still readable. `docs/BACKLOG.md` carries the same
+warning on the M1-14 entry.
+
 ---
 
 ## What no automated test currently covers

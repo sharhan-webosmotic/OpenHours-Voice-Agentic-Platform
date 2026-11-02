@@ -92,6 +92,19 @@ with its own policies, and point the three scripts that currently set the GUC
 (`seed.ts`, `bootstrap-super-admin.ts`, `provision-clinic.ts`) and the test support in
 `apps/api/tests/support/db.ts` at that role instead.
 
+**IT ALSO BREAKS EVERY PLATFORM READ OF A CLINIC UNLESS IT IS CHANGED IN THE SAME COMMIT.**
+`asOrganisationSystem` (D-017), which serves a platform role's masked read of a clinic's
+patients and appointments, sets `app.platform = 'on'` precisely so row-level security lets the
+query through, and relies on the client extension to confine it to the named clinic. Remove the
+GUC without pointing that function at the `app_platform` role and those reads return nothing.
+
+The failure is fail-closed, so nothing leaks, and that is also why it would not be noticed
+quickly: an internal admin would see an empty patient list and assume the clinic has no
+patients. The tests that catch it are the positive controls in
+`tests/platform-scope-isolation.test.ts` and `tests/clinic-dashboard.test.ts`, each of which
+asserts that the clinic a platform role actually named is still readable. Run both after the
+migration, not only the isolation assertions.
+
 ---
 
 ## I10 Uniform login timing is claimed as a control and asserted nowhere

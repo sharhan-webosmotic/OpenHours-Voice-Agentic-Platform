@@ -11,6 +11,8 @@ import { createOrganisationGraph, type OrganisationGraph } from './support/fixtu
 import * as patients from '../src/modules/patients/patients.repository.js';
 import * as appointments from '../src/modules/appointments/appointments.repository.js';
 import type { TenantDb } from '../src/db/tenant-client.js';
+import { CrossTenantWriteError } from '../src/db/errors.js';
+import { uuidV7 } from '../src/common/uuid.js';
 
 /**
  * No repository function returns another clinic's rows under a platform scope.
@@ -272,6 +274,224 @@ describe('a repository function that forgets its own filter', () => {
     );
 
     expect(rows.map((row) => row.id)).toContain(other.ids.patients);
+  }, 120_000);
+});
+
+/**
+ * The operations the extension has to handle specially, each asserted rather than assumed.
+ *
+ * `findUnique` is the one worth stating. Prisma used to refuse a non-unique condition in a
+ * `findUnique` where, which is why extensions classically rewrite it to `findFirst` before
+ * injecting a scope. Prisma 7 accepts it (extended where unique), so the injection applies as
+ * it does everywhere else and a foreign id answers null. That is measured below rather than
+ * believed, because it is a property of the client version and this is where it would be
+ * noticed if a future upgrade took it away.
+ */
+describe('the operations that need special handling', () => {
+  it('findUnique with a foreign id answers null rather than the row', async () => {
+    const [patient, appointment] = await asOrganisationSystem(
+      'platform-scope-isolation findUnique',
+      own.organisationId,
+      async (db) => [
+        await db.patient.findUnique({
+          where: { id: other.ids.patients ?? '' },
+          select: { id: true },
+        }),
+        await db.appointment.findUnique({
+          where: { id: other.ids.appointments ?? '' },
+          select: { id: true },
+        }),
+      ],
+    );
+
+    expect(patient).toBeNull();
+    expect(appointment).toBeNull();
+  }, 120_000);
+
+  it('findUniqueOrThrow with a foreign id raises not-found rather than returning it', async () => {
+    await expect(
+      asOrganisationSystem('platform-scope-isolation findUniqueOrThrow', own.organisationId, (db) =>
+        db.patient.findUniqueOrThrow({
+          where: { id: other.ids.patients ?? '' },
+          select: { id: true },
+        }),
+      ),
+    ).rejects.toThrow();
+  }, 120_000);
+
+  /**
+   * THE ORGANISATION MODEL IS THE CASE THAT WAS ACTUALLY BROKEN.
+   *
+   * It is scoped by its primary key, so the extension used to pass a supplied `where.id`
+   * straight through and let row-level security answer. Under this scope row-level security
+   * is off, so a foreign id returned the other clinic's name, time zone and settings. The
+   * extension now adds the scoped id as a second condition, which answers null instead.
+   */
+  it('reading an organisation by a foreign id answers null, not that clinic', async () => {
+    const organisation = await asOrganisationSystem(
+      'platform-scope-isolation organisation by id',
+      own.organisationId,
+      (db) =>
+        db.organisation.findUnique({
+          where: { id: other.organisationId },
+          select: { id: true, name: true },
+        }),
+    );
+
+    expect(organisation).toBeNull();
+  }, 120_000);
+
+  it('still reads the organisation it is scoped to', async () => {
+    const organisation = await asOrganisationSystem(
+      'platform-scope-isolation own organisation',
+      own.organisationId,
+      (db) =>
+        db.organisation.findUnique({ where: { id: own.organisationId }, select: { id: true } }),
+    );
+
+    expect(organisation?.id).toBe(own.organisationId);
+  }, 120_000);
+
+  it('keeps a caller own AND conditions rather than replacing them', async () => {
+    // The injection appends to `AND`. Overwriting it would silently widen a query the caller
+    // deliberately narrowed, which is the opposite of what this extension is for.
+    const organisation = await asOrganisationSystem(
+      'platform-scope-isolation own AND',
+      own.organisationId,
+      (db) =>
+        db.organisation.findUnique({
+          where: { id: own.organisationId, AND: [{ name: { contains: 'NoSuchClinicName' } }] },
+          select: { id: true },
+        }),
+    );
+
+    expect(organisation).toBeNull();
+  }, 120_000);
+
+  /**
+   * WRITES, ALL SIX OF THEM.
+   *
+   * `create`, `createMany` and the create half of an `upsert` are verified against the scope
+   * and rejected outright, because organisation never comes from input (rule 2). The
+   * `where`-driven writes are injected, so they touch nothing instead of raising: a count of
+   * zero is what a repository turns into a 404.
+   */
+  it('refuses a create that names another organisation', async () => {
+    await expect(
+      asOrganisationSystem('platform-scope-isolation create', own.organisationId, (db) =>
+        db.patient.create({
+          data: {
+            id: uuidV7(),
+            organisationId: other.organisationId,
+            fullName: 'Should Not Exist',
+            phone: '+919000000097',
+          },
+          select: { id: true },
+        }),
+      ),
+    ).rejects.toThrow(CrossTenantWriteError);
+  }, 120_000);
+
+  it('refuses an upsert whose create names another organisation', async () => {
+    await expect(
+      asOrganisationSystem('platform-scope-isolation upsert', own.organisationId, (db) =>
+        db.patient.upsert({
+          where: { id: other.ids.patients ?? '' },
+          update: { notes: 'probe' },
+          create: {
+            id: uuidV7(),
+            organisationId: other.organisationId,
+            fullName: 'Should Not Exist',
+            phone: '+919000000096',
+          },
+          select: { id: true },
+        }),
+      ),
+    ).rejects.toThrow(CrossTenantWriteError);
+  }, 120_000);
+
+  it('touches no rows when a write targets another clinic by id', async () => {
+    const { updated, deleted } = await asOrganisationSystem(
+      'platform-scope-isolation where-driven writes',
+      own.organisationId,
+      async (db) => ({
+        updated: await db.patient.updateMany({
+          where: { id: other.ids.patients ?? '' },
+          data: { notes: 'probe' },
+        }),
+        deleted: await db.patient.deleteMany({ where: { id: other.ids.patients ?? '' } }),
+      }),
+    );
+
+    expect(updated.count).toBe(0);
+    expect(deleted.count).toBe(0);
+  }, 120_000);
+
+  it('raises not-found rather than writing when update targets another clinic by id', async () => {
+    await expect(
+      asOrganisationSystem('platform-scope-isolation update', own.organisationId, (db) =>
+        db.patient.update({
+          where: { id: other.ids.patients ?? '' },
+          data: { notes: 'probe' },
+          select: { id: true },
+        }),
+      ),
+    ).rejects.toThrow();
+  }, 120_000);
+
+  it('leaves the other clinic patient exactly as it was', async () => {
+    // The assertions above are about return values. This one checks the database, because a
+    // write that reported nothing and still happened is the failure that matters.
+    const patient = await asOrganisationSystem(
+      'platform-scope-isolation verify untouched',
+      other.organisationId,
+      (db) =>
+        db.patient.findUnique({
+          where: { id: other.ids.patients ?? '' },
+          select: { id: true, notes: true },
+        }),
+    );
+
+    expect(patient).not.toBeNull();
+    expect(patient?.notes).toBeNull();
+  }, 120_000);
+
+  /**
+   * RAW SQL IS OUTSIDE THIS EXTENSION ALTOGETHER, and the only defence is that there is none
+   * on this path. `$queryRaw` and `$executeRaw` bypass every injection above, so the guard is
+   * a grep rather than a runtime check: the modules this scope serves contain no raw SQL. The
+   * only raw statements in the application are the `set_config` calls that establish a scope
+   * and the health probe's `SELECT 1`, neither of which reads a tenant table.
+   */
+  it('has no raw SQL in the modules this scope serves', async () => {
+    // The namespace rather than destructured members: the lint rule objects to calling a
+    // method separated from its object, and it is right to in general.
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+
+    const offenders: string[] = [];
+
+    const walk = async (directory: string): Promise<void> => {
+      for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
+        const full = path.join(directory, entry.name);
+
+        if (entry.isDirectory()) {
+          await walk(full);
+          continue;
+        }
+
+        if (entry.name.endsWith('.ts')) {
+          const contents = await fs.readFile(full, 'utf8');
+          if (/\$(queryRaw|executeRaw)/.test(contents)) {
+            offenders.push(path.relative(process.cwd(), full));
+          }
+        }
+      }
+    };
+
+    await walk(path.join(process.cwd(), 'src', 'modules'));
+
+    expect(offenders).toEqual([]);
   }, 120_000);
 });
 
