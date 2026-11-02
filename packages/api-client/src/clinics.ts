@@ -152,6 +152,14 @@ export type ClinicListFilters = {
 export type SavedSarvamMapping = {
   /** Present only on the response that minted it. Shown once, then unrecoverable. */
   readonly toolSecret?: string;
+  /**
+   * The path secret for this clinic's webhook URL, minted and shown with the tool secret.
+   *
+   * Two secrets because they travel differently: this one is a path segment in a URL and the
+   * other is a bearer header, so one value for both would mean an access log handed somebody
+   * the tool credential.
+   */
+  readonly webhookSecret?: string;
 };
 
 const BASE = '/api/v1/organisations';

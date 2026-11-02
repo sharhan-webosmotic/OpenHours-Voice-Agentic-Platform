@@ -205,6 +205,13 @@ export type ListFilters = {
   /** Matched against the CALLER's number, digits only, as the dashboard's search does. */
   readonly search?: string;
   readonly cursor?: string;
+  /**
+   * Set for a DOCTOR, whose matrix scope on `call_history` is `own`.
+   *
+   * Own means a call attached to one of their own appointments. A call with no appointment is
+   * deliberately not theirs: nothing about it says it concerns them.
+   */
+  readonly ownDoctorId?: string;
   readonly take: number;
 };
 
@@ -234,6 +241,9 @@ export const list = async (db: TenantDb, filters: ListFilters): Promise<readonly
               ...(filters.to === undefined ? {} : { lt: filters.to }),
             },
           }),
+      ...(filters.ownDoctorId === undefined
+        ? {}
+        : { appointment: { doctorId: filters.ownDoctorId } }),
       ...(digits.length < 2
         ? {}
         : {

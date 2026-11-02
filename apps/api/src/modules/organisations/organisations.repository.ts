@@ -646,6 +646,8 @@ export type SarvamMappingWrite = {
   /** Set only when a secret is being minted. Absent leaves the stored hash alone. */
   readonly toolSecretHash?: string;
   readonly toolSecretSetAt?: Date;
+  readonly webhookSecretHash?: string;
+  readonly webhookSecretSetAt?: Date;
 };
 
 export const updateSarvamMapping = async (
@@ -663,6 +665,12 @@ export const updateSarvamMapping = async (
       promptVersion: data.promptVersion,
       ...(data.toolSecretHash === undefined ? {} : { toolSecretHash: data.toolSecretHash }),
       ...(data.toolSecretSetAt === undefined ? {} : { toolSecretSetAt: data.toolSecretSetAt }),
+      ...(data.webhookSecretHash === undefined
+        ? {}
+        : { webhookSecretHash: data.webhookSecretHash }),
+      ...(data.webhookSecretSetAt === undefined
+        ? {}
+        : { webhookSecretSetAt: data.webhookSecretSetAt }),
     },
   });
 };

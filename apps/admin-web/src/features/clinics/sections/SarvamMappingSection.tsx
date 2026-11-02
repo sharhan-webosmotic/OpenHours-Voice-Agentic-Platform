@@ -52,6 +52,7 @@ export const SarvamMappingSection = ({
   const [success, setSuccess] = useState<string | undefined>(undefined);
   /** Shown once, in this component's state only. Never stored anywhere. */
   const [issuedSecret, setIssuedSecret] = useState<string | undefined>(undefined);
+  const [issuedWebhookSecret, setIssuedWebhookSecret] = useState<string | undefined>(undefined);
   const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
 
   const save = useSaveSarvamMapping(clinic.organisation.id);
@@ -89,8 +90,9 @@ export const SarvamMappingSection = ({
       .then((result) => {
         setConfirmingRegenerate(false);
 
-        if (result.toolSecret !== undefined) {
+        if (result.toolSecret !== undefined || result.webhookSecret !== undefined) {
           setIssuedSecret(result.toolSecret);
+          setIssuedWebhookSecret(result.webhookSecret);
           setSuccess(undefined);
           return;
         }
@@ -124,6 +126,26 @@ export const SarvamMappingSection = ({
           It is stored only as a hash, so it cannot be shown again. A lost one has to be
           regenerated, which also means pasting the new value into Sarvam before the agent will
           work.
+        </Alert>
+      )}
+
+      {issuedWebhookSecret !== undefined && (
+        <Alert kind="success">
+          <strong>And this webhook secret, also shown once.</strong>
+          <code className="mt-2 block break-all rounded-md bg-surface px-2 py-1.5 font-mono text-xs text-default">
+            {issuedWebhookSecret}
+          </code>
+          {/*
+           * The path, not the whole URL: the host differs per environment and this console
+           * does not know which one Sarvam is being pointed at. Written out so nobody has to
+           * guess where the secret goes.
+           */}
+          It belongs at the end of this clinic&rsquo;s webhook URL, as
+          <code className="mx-1 rounded bg-surface px-1 font-mono text-xs">
+            /webhooks/sarvam/&lt;secret&gt;
+          </code>
+          in the deployment&rsquo;s webhook configuration. Without it, the agent will answer calls
+          normally and none of them will reach the call history.
         </Alert>
       )}
 

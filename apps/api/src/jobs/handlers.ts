@@ -103,5 +103,21 @@ export const registerVoiceHandlers = async (boss: PgBoss): Promise<void> => {
     }
   });
 
+  /**
+   * The catch-up runs on a schedule, hourly, over a window wider than the interval.
+   *
+   * SIX HOURS EVERY HOUR, deliberately overlapping. The contract records UNKNOWN against
+   * whether Sarvam retries a webhook at all (section 6), so a delivery can simply never
+   * arrive, and a window equal to the interval would miss anything that was not yet visible
+   * in the provider's own list when the job ran. Re-reading five hours it has already seen
+   * costs one list call per clinic and writes nothing, because every ingest is idempotent on
+   * the interaction id.
+   *
+   * `schedule` is upserted by name, so starting the API twice does not create two of them.
+   */
+  await boss.schedule(VOICE_QUEUES.catchUpInteractions, '7 * * * *', {
+    hours: 6,
+  } satisfies CatchUpJob);
+
   logger.info('voice job handlers registered');
 };

@@ -170,6 +170,60 @@ const RECIPES = new Map<string, () => Promise<Driven>>([
    * nothing to do with auditing.
    */
   [
+    'GET /api/v1/calls',
+    async () => {
+      const token = await loginAs(ownerEmail);
+      const response = await request(app)
+        .get('/api/v1/calls')
+        .set('Authorization', `Bearer ${token}`);
+      return { status: response.status, actorUserId: ownerUserId };
+    },
+  ],
+  [
+    'GET /api/v1/calls/:callId',
+    async () => {
+      const token = await loginAs(ownerEmail);
+      const response = await request(app)
+        .get(`/api/v1/calls/${org.ids.calls ?? ''}`)
+        .set('Authorization', `Bearer ${token}`);
+      return { status: response.status, actorUserId: ownerUserId };
+    },
+  ],
+  [
+    'GET /api/v1/calls/:callId/recording-url',
+    async () => {
+      /**
+       * A call with a recording key, created here rather than reusing the fixture's, because
+       * the fixture's call has none and the guard requires a status under 400. The key points
+       * at an object that does not exist, which is harmless: presigning is arithmetic over
+       * the key and never fetches anything.
+       */
+      const token = await loginAs(ownerEmail);
+      const callId = uuidV7();
+
+      await asPlatform(ownerClient(), (tx) =>
+        tx.call.create({
+          data: {
+            id: callId,
+            organisationId: org.organisationId,
+            externalCallId: `20261102/phi_rec_${callId}`,
+            direction: 'INBOUND',
+            status: 'COMPLETED',
+            fromE164: '+919812388001',
+            toE164: '+918000000002',
+            recordingKey: `recordings/${org.organisationId}/${callId}.wav`,
+          },
+        }),
+      );
+
+      const response = await request(app)
+        .get(`/api/v1/calls/${callId}/recording-url`)
+        .set('Authorization', `Bearer ${token}`);
+
+      return { status: response.status, actorUserId: ownerUserId };
+    },
+  ],
+  [
     'GET /api/v1/patients',
     async () => {
       const token = await loginAs(ownerEmail);

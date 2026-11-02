@@ -238,12 +238,14 @@ const RECIPES = new Map<string, (token: string) => Promise<number>>([
   ...patientAndAppointmentRecipes(),
 ]);
 
-/** One recipe per patient and appointment route, built from a table. */
+/** One recipe per patient, appointment and call route, built from a table. */
 function patientAndAppointmentRecipes(): readonly [string, (token: string) => Promise<number>][] {
   const patients = '/api/v1/patients';
   const appointments = '/api/v1/appointments';
+  const calls = '/api/v1/calls';
   const patientId = () => org.ids.patients ?? '';
   const appointmentId = () => org.ids.appointments ?? '';
+  const callId = () => org.ids.calls ?? '';
 
   const routes: readonly {
     readonly method: 'get' | 'post' | 'patch';
@@ -289,6 +291,15 @@ function patientAndAppointmentRecipes(): readonly [string, (token: string) => Pr
       method: 'post',
       registered: `${appointments}/:appointmentId/status`,
       path: () => `${appointments}/${appointmentId()}/status`,
+    },
+    // The call history is as gated as everything else: a user holding a temporary password
+    // reads nothing, including the call that came in while they were being set up.
+    { method: 'get', registered: calls, path: () => calls },
+    { method: 'get', registered: `${calls}/:callId`, path: () => `${calls}/${callId()}` },
+    {
+      method: 'get',
+      registered: `${calls}/:callId/recording-url`,
+      path: () => `${calls}/${callId()}/recording-url`,
     },
   ];
 

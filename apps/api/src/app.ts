@@ -30,6 +30,7 @@ import { auditRouter } from './modules/audit/audit.routes.js';
 import { organisationsRouter } from './modules/organisations/organisations.routes.js';
 import { patientsRouter } from './modules/patients/patients.routes.js';
 import { appointmentsRouter } from './modules/appointments/appointments.routes.js';
+import { callsRouter } from './modules/calls/calls.routes.js';
 import { voiceToolsRouter } from './voice/tools.routes.js';
 import { sarvamWebhookRouter } from './voice/webhook.routes.js';
 
@@ -104,6 +105,7 @@ export const ROUTER_MOUNTS: readonly (readonly [string, () => Router])[] = [
   ['/api/v1/organisations', organisationsRouter],
   ['/api/v1/patients', patientsRouter],
   ['/api/v1/appointments', appointmentsRouter],
+  ['/api/v1/calls', callsRouter],
   /**
    * Deliberately NOT under `/api/v1`: a provider-facing surface authenticated by a
    * per-clinic secret rather than a session. See the note in `voice/tools.routes.ts`.

@@ -519,6 +519,8 @@ export const updateDoctor = async (
 };
 
 export type SarvamMappingSaved = {
+  /** The webhook URL's path secret, shown exactly once, like the tool secret. */
+  readonly webhookSecret?: string;
   /**
    * The newly minted tool secret, returned EXACTLY ONCE and only when one was generated.
    *
@@ -567,6 +569,20 @@ export const saveSarvamMapping = async (
 
     const toolSecret = mintSecret ? generateOpaqueToken() : undefined;
 
+    /**
+     * The WEBHOOK secret is minted on the same rules and shown in the same breath.
+     *
+     * Two secrets rather than one, because they travel differently: this one is a path
+     * segment in the URL pasted into Sarvam's `webhook_config` (D-006), where proxies and
+     * access logs can see it, and the other is a bearer header. One value for both would
+     * mean a leaked access log handed somebody the credential for the tool endpoints too.
+     *
+     * They are minted TOGETHER because the clinic is configured in one sitting: a webhook
+     * URL that had to be requested separately is a step somebody forgets, and the symptom
+     * is a clinic whose calls are never recorded while its agent answers normally.
+     */
+    const webhookSecret = mintSecret ? generateOpaqueToken() : undefined;
+
     try {
       await repository.updateSarvamMapping(db, organisationId, {
         sarvamAppId: input.sarvamAppId,
@@ -577,6 +593,9 @@ export const saveSarvamMapping = async (
         ...(toolSecret === undefined
           ? {}
           : { toolSecretHash: hashToken(toolSecret), toolSecretSetAt: new Date() }),
+        ...(webhookSecret === undefined
+          ? {}
+          : { webhookSecretHash: hashToken(webhookSecret), webhookSecretSetAt: new Date() }),
       });
 
       if (input.agentPhone !== null) {
@@ -629,6 +648,9 @@ export const saveSarvamMapping = async (
       'sarvam mapping saved',
     );
 
-    return toolSecret === undefined ? {} : { toolSecret };
+    return {
+      ...(toolSecret === undefined ? {} : { toolSecret }),
+      ...(webhookSecret === undefined ? {} : { webhookSecret }),
+    };
   });
 };

@@ -182,6 +182,15 @@ export const createdDoctorResponseSchema = z.object({ doctorId: z.string() });
 export const savedSarvamMappingResponseSchema = z.object({
   /** Present only on the response that minted it. Shown once, then unrecoverable. */
   toolSecret: z.string().optional(),
+  /**
+   * The path secret for this clinic's webhook URL, also shown exactly once.
+   *
+   * Minted with the tool secret, because a clinic is configured in one sitting and a webhook
+   * URL that had to be asked for separately is the step somebody forgets. The symptom of
+   * forgetting is a clinic whose agent answers calls normally and whose call history stays
+   * empty, which is not a failure anybody notices quickly.
+   */
+  webhookSecret: z.string().optional(),
 });
 
 export {

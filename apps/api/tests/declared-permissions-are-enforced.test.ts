@@ -66,6 +66,19 @@ beforeAll(async () => {
     await markHoursCollected(tx, org.organisationId);
 
     /**
+     * Recordings switched ON for staff, because this guard reads the matrix and the matrix
+     * cell for STAFF is `clinic_opt_in`: a CONDITIONAL grant it cannot evaluate. With the
+     * clinic's setting off, the service correctly answers 403 and the guard correctly calls
+     * that a contradiction of the matrix. Turning it on lets this suite assert what it is
+     * for, that the cell is enforced, and the condition itself is tested in
+     * `tests/calls.test.ts`, where a staff member is refused while the clinic has it off.
+     */
+    await tx.organisation.update({
+      where: { id: org.organisationId },
+      data: { settings: { recordings_visible_to_staff: true } },
+    });
+
+    /**
      * USER_ROLES, because a user row cannot hold `VOICE_AGENT`: the database enum has six
      * values. The voice agent reaches no route with a token at all, so this suite cannot
      * speak for it. Its grants are proven against the voice tool endpoints, which
@@ -357,6 +370,45 @@ const RECIPES = new Map<string, (token: string) => Promise<number>>([
         .patch(`/api/v1/patients/${org.ids.patients ?? ''}`)
         .set('Authorization', `Bearer ${token}`)
         .send({ notes: 'Updated by the permission guard.' });
+      return response.status;
+    },
+  ],
+  [
+    'GET /api/v1/calls',
+    async (token) => {
+      const response = await request(app)
+        .get(`/api/v1/calls?organisationId=${org.organisationId}`)
+        .set('Authorization', `Bearer ${token}`);
+      return response.status;
+    },
+  ],
+  [
+    'GET /api/v1/calls/:callId',
+    async (token) => {
+      /**
+       * The fixture's call. A role the matrix grants `call_history:read` must reach it, and
+       * a DOCTOR is granted `own`, which for a call means one attached to their own
+       * appointment: the fixture's call has one, and it is that doctor's.
+       */
+      const response = await request(app)
+        .get(`/api/v1/calls/${org.ids.calls ?? ''}?organisationId=${org.organisationId}`)
+        .set('Authorization', `Bearer ${token}`);
+      return response.status;
+    },
+  ],
+  [
+    'GET /api/v1/calls/:callId/recording-url',
+    async (token) => {
+      /**
+       * The fixture's call has no `recording_key`, so a permitted role gets a 404 and a
+       * denied one gets a 403. The guard asserts the DENIALS are 403 and that granting roles
+       * are not refused with one, which this distinguishes: a 404 is not a 403.
+       */
+      const response = await request(app)
+        .get(
+          `/api/v1/calls/${org.ids.calls ?? ''}/recording-url?organisationId=${org.organisationId}`,
+        )
+        .set('Authorization', `Bearer ${token}`);
       return response.status;
     },
   ],
