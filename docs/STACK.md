@@ -49,6 +49,58 @@ writes a compressed `pg_dump` to R2 with 30 days of retention, and `pnpm db:rest
 restores the newest one into a scratch database and verifies it. That is why the restore is a
 command rather than a paragraph: `docs/operations/backup-and-restore.md`.
 
+## Tenant isolation against the Supabase pooler
+
+**Status: NOT YET RUN. It needs a Supabase project and its pooler connection string, which
+this machine does not have.** The result is recorded here, as a date and a count, the moment it
+has been run. Until then D-019's claim that transaction-mode pooling is compatible with
+transaction-local settings is reasoning, not evidence, and should be read as such.
+
+### Why it is worth running at all
+
+Tenant isolation is enforced by `set_config('app.org_id', ..., true)` inside an interactive
+transaction. The setting is TRANSACTION-LOCAL: it exists for the life of that transaction and
+no longer. Transaction-mode pooling holds one server connection for the life of a transaction,
+so the setting and the queries that depend on it cannot be separated. That is true by
+construction, which is exactly the kind of statement worth checking against the real thing,
+because the failure mode is not an error: it is a query reading another clinic's rows, silently.
+
+The local container has no pooler in front of it and therefore cannot answer the question.
+
+### How to run it
+
+The suite accepts an external target, in which case it starts no container and applies no
+migrations. Both roles are required, because the `app_user` connection is the one the policies
+apply to and the owner connection is what asserts what a table really holds.
+
+```
+# 1. Apply the schema deliberately, as the owner. This is a schema change to a real database:
+#    use a SCRATCH Supabase project, never the pilot's.
+DATABASE_URL="<direct owner URL, port 5432>" pnpm db:migrate
+DATABASE_URL="<direct owner URL, port 5432>" pnpm db:sql
+
+# 2. Run the isolation suite through the POOLER, which is the point of the exercise.
+cd apps/api
+TEST_OWNER_DATABASE_URL="<owner URL via pooler, port 6543>" TEST_APP_USER_DATABASE_URL="<app_user URL via pooler, port 6543>"   npx vitest run tests/tenant-isolation.test.ts tests/tenant-client.test.ts                  tests/tenant-guc-reset.test.ts tests/tenant-commit-ordering.test.ts                  tests/platform-scope-isolation.test.ts
+```
+
+Note the ports: 5432 is the direct connection and 6543 is the transaction pooler. Running step 1
+through the pooler can fail on the advisory locks `prisma migrate` takes, which is a second
+reason the two steps use different URLs.
+
+### What to watch for, beyond a pass or a fail
+
+- **`prepared statement "s0" already exists`.** The pooler reuses server connections, and named
+  prepared statements belong to a connection. If this appears, the adapter needs
+  `?pgbouncer=true` on the URL, and that becomes a note in D-019 rather than a surprise in
+  production.
+- **A tenant test that passes while reading zero rows.** Isolation by breakage looks identical
+  to isolation by scope in a test that only asserts absence. The suites above include positive
+  controls for that reason; a run where those fail is a broken connection, not a secure one.
+- **`tenant-guc-reset.test.ts` in particular.** It is the one that proves a leaked session-level
+  `app.platform` cannot widen a later transaction, and a pooler is precisely the thing that
+  makes connections outlive a request.
+
 ## Open items
 
 - Android stack (React Native per scope document vs Kotlin) is decided when the Android phase starts.

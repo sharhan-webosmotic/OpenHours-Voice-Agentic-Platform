@@ -137,6 +137,18 @@ ones that decide whether the restore is correct.
 7. **Write down what was lost.** Recovery is to the last nightly dump, so up to 24 hours of
    bookings, calls and patient records are gone. The clinic has to be told what window that is.
 
+## The one-off checks that need real credentials
+
+Two things cannot be proven from a developer machine and are owed before go-live. Both are
+recorded here rather than in somebody's memory.
+
+1. **Presigned URLs against the real R2 bucket.** The integration suite proves the mechanism
+   against a non-AWS, path-style endpoint, which is R2's shape, but not against R2 itself. Once:
+   upload an object with `pnpm db:backup`, presign it, open the URL in a browser, confirm it
+   plays or downloads, wait for the TTL to pass and confirm it stops working.
+2. **The isolation suite through the Supabase pooler.** See "Tenant isolation against the
+   Supabase pooler" in `docs/STACK.md` for the commands and what to watch for.
+
 ## The recovery window, stated plainly
 
 |                          |                                                                         |
