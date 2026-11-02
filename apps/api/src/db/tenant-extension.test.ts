@@ -41,6 +41,10 @@ const inTenant = <T>(fn: () => Promise<T>): Promise<T> =>
 const inPlatform = <T>(fn: () => Promise<T>): Promise<T> =>
   runInScope({ kind: 'platform', reason: 'test' }, fn);
 
+/** The scope a platform role gets for a masked read of ONE clinic (D-017). */
+const inPlatformOrganisation = <T>(fn: () => Promise<T>): Promise<T> =>
+  runInScope({ kind: 'platform-organisation', reason: 'test', organisationId: ORG }, fn);
+
 describe('scope is required', () => {
   it('throws with no scope at all', async () => {
     await expect(run({ model: 'Patient', operation: 'findMany', args: {} })).rejects.toThrow(
@@ -103,6 +107,75 @@ describe('where clauses', () => {
         }),
       ),
     ).rejects.toThrow(CrossTenantWriteError);
+  });
+});
+
+/**
+ * The same table again, under the scope a platform role actually gets.
+ *
+ * ─── WHY IT IS REPEATED RATHER THAN PARAMETERISED ───────────────────────────────
+ *
+ * Because the two scopes mean opposite things to the database and the same thing to this
+ * extension, and that is the entire point of D-017. Under `tenant` scope row-level security
+ * is a second lock behind the injection. Under `platform-organisation` the connection has
+ * `app.platform = 'on'`, so row-level security is NOT behind it: the injection below is the
+ * only thing confining the query, for reads and writes alike.
+ *
+ * A reader who wants to know whether a given operation is safe for a platform read should be
+ * able to find it in a list, which is what this is.
+ */
+describe('a platform scope confined to one organisation injects exactly as a tenant scope does', () => {
+  it.each([
+    'findUnique',
+    'findUniqueOrThrow',
+    'findFirst',
+    'findFirstOrThrow',
+    'findMany',
+    'count',
+    'aggregate',
+    'groupBy',
+    'update',
+    'updateMany',
+    'delete',
+    'deleteMany',
+  ])('injects the organisation into %s', async (operation) => {
+    const args = await inPlatformOrganisation(() => run({ model: 'Patient', operation, args: {} }));
+
+    expect(args.where).toEqual({ organisationId: ORG });
+  });
+
+  it.each(['create', 'createMany', 'upsert'])(
+    'verifies the organisation on %s rather than trusting it',
+    async (operation) => {
+      await expect(
+        inPlatformOrganisation(() =>
+          run({
+            model: 'Patient',
+            operation,
+            args:
+              operation === 'createMany'
+                ? { data: [{ fullName: 'A', organisationId: OTHER }] }
+                : { data: { fullName: 'A', organisationId: OTHER } },
+          }),
+        ),
+      ).rejects.toThrow(CrossTenantWriteError);
+    },
+  );
+
+  it('injects the organisation into a create that names none', async () => {
+    const args = await inPlatformOrganisation(() =>
+      run({ model: 'Patient', operation: 'create', args: { data: { fullName: 'A' } } }),
+    );
+
+    expect(args.data).toEqual({ fullName: 'A', organisationId: ORG });
+  });
+
+  it('refuses a model that is not a known tenant model, rather than passing it through', async () => {
+    // A new model added to the schema and not to TENANT_MODELS would otherwise be readable
+    // across clinics under this scope, with nothing to notice it.
+    await expect(
+      inPlatformOrganisation(() => run({ model: 'SomeNewModel', operation: 'findMany', args: {} })),
+    ).rejects.toThrow(TenantScopeMissingError);
   });
 });
 

@@ -1,5 +1,15 @@
 # Database backup and restore
 
+> **STATUS: THE BACKUP IS UNPROVEN.** The job is written and its logic is tested, and the
+> dump-and-restore cycle has NOT been run end to end anywhere, because the machine it was
+> written on has no `pg_dump` or `psql`. Until `pnpm db:restore-check` has run somewhere that
+> does, and its output is recorded in this file, treat this as a backup that has never been
+> shown to work. A backup nobody has restored is a hypothesis, and that sentence applies to
+> this one.
+>
+> To close it: run the cycle on the Lightsail instance, or locally through the compose
+> container as described under "Restoring", and paste the result here with a date.
+
 **The nightly dump is the only copy of the database.** Supabase's free tier (D-019) takes no
 automated backups, offers no point-in-time recovery and pauses a project after a week of
 inactivity. If the database is lost, or a migration goes wrong, the newest object in the

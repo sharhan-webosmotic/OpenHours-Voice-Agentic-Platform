@@ -46,8 +46,13 @@ alternative written down rather than implied:
 
 **The free tier takes no backups, so the nightly dump is the only copy.** `pnpm db:backup`
 writes a compressed `pg_dump` to R2 with 30 days of retention, and `pnpm db:restore-check`
-restores the newest one into a scratch database and verifies it. That is why the restore is a
-command rather than a paragraph: `docs/operations/backup-and-restore.md`.
+restores the newest one into a scratch database and verifies it.
+
+**THE CYCLE IS UNPROVEN: it has not been run end to end anywhere.** The job's logic is tested
+with the dump injected, which covers the ordering and the refusals, and that is not the same as
+having restored a real dump. The machine it was written on has no PostgreSQL client binaries.
+`docs/operations/backup-and-restore.md` carries this as a status banner and is where the result
+goes when it has been run.
 
 ## Tenant isolation against the Supabase pooler
 

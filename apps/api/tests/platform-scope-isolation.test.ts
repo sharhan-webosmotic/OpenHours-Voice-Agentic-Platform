@@ -427,6 +427,39 @@ describe('the operations that need special handling', () => {
     expect(deleted.count).toBe(0);
   }, 120_000);
 
+  it('raises not-found rather than deleting when delete targets another clinic by id', async () => {
+    // `delete`, singular, which Prisma turns into a unique lookup plus a write. The injected
+    // condition makes the lookup find nothing, so there is nothing to delete.
+    await expect(
+      asOrganisationSystem('platform-scope-isolation delete', own.organisationId, (db) =>
+        db.patient.delete({ where: { id: other.ids.patients ?? '' }, select: { id: true } }),
+      ),
+    ).rejects.toThrow();
+  }, 120_000);
+
+  it('refuses a createMany where any row names another organisation', async () => {
+    await expect(
+      asOrganisationSystem('platform-scope-isolation createMany', own.organisationId, (db) =>
+        db.patient.createMany({
+          data: [
+            {
+              id: uuidV7(),
+              organisationId: own.organisationId,
+              fullName: 'Fine',
+              phone: '+919000000095',
+            },
+            {
+              id: uuidV7(),
+              organisationId: other.organisationId,
+              fullName: 'Should Not Exist',
+              phone: '+919000000094',
+            },
+          ],
+        }),
+      ),
+    ).rejects.toThrow(CrossTenantWriteError);
+  }, 120_000);
+
   it('raises not-found rather than writing when update targets another clinic by id', async () => {
     await expect(
       asOrganisationSystem('platform-scope-isolation update', own.organisationId, (db) =>
@@ -463,7 +496,7 @@ describe('the operations that need special handling', () => {
    * only raw statements in the application are the `set_config` calls that establish a scope
    * and the health probe's `SELECT 1`, neither of which reads a tenant table.
    */
-  it('has no raw SQL in the modules this scope serves', async () => {
+  it('has no raw SQL anywhere it could reach a tenant table', async () => {
     // The namespace rather than destructured members: the lint rule objects to calling a
     // method separated from its object, and it is right to in general.
     const fs = await import('node:fs/promises');
@@ -474,6 +507,12 @@ describe('the operations that need special handling', () => {
     const walk = async (directory: string): Promise<void> => {
       for (const entry of await fs.readdir(directory, { withFileTypes: true })) {
         const full = path.join(directory, entry.name);
+
+        // `generated/` is the Prisma client itself, which is machine-written and defines
+        // `$queryRaw` rather than calling it.
+        if (entry.name === 'generated') {
+          continue;
+        }
 
         if (entry.isDirectory()) {
           await walk(full);
@@ -489,9 +528,26 @@ describe('the operations that need special handling', () => {
       }
     };
 
-    await walk(path.join(process.cwd(), 'src', 'modules'));
+    /**
+     * ALL OF `src`, not only the modules, with an allowlist of the two places raw SQL is
+     * legitimate and neither of which reads a tenant table:
+     *
+     *   db/tenant-client.ts   the `set_config` statements that ESTABLISH a scope. They
+     *                         cannot go through the extension, because they are what the
+     *                         extension's injection is checked against.
+     *   health/              `SELECT 1`, which touches no table at all.
+     *
+     * Scanning only the modules would have missed a repository added under `src/voice/` or
+     * `src/jobs/`, both of which are coming, and both of which will read tenant tables.
+     */
+    const ALLOWED = new Set(['src/db/tenant-client.ts', 'src/health/health.repository.ts']);
 
-    expect(offenders).toEqual([]);
+    await walk(path.join(process.cwd(), 'src'));
+
+    expect(offenders.filter((file) => !ALLOWED.has(file))).toEqual([]);
+    // The allowlist must stay honest too: an entry for a file that no longer contains raw
+    // SQL is an entry that would silently cover a future one.
+    expect(offenders.toSorted()).toEqual([...ALLOWED].toSorted());
   }, 120_000);
 });
 

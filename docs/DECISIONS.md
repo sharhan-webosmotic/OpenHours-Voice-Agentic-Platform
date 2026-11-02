@@ -413,6 +413,14 @@ and not a code change. Nothing in `apps/api/src/storage/` names a provider.
 downloaded by a browser every time somebody reviews a call, and on S3 that traffic is billed
 per gigabyte leaving the region.
 
+**OPEN QUESTION, NOT YET DECIDED: whether no data-residency guarantee is acceptable.** It is
+recorded here because it has to be visible, and writing it down is not the same as settling it.
+The decision belongs to whoever owns the product's commitments to clinics, and until they make
+it, this entry describes a choice that is in force rather than one that has been accepted. R2
+stays in use meanwhile because the pilot holds one clinic's data and no contract has been
+signed that says otherwise. What must not happen is a second clinic being onboarded, or a
+hospital group being quoted, while this is still open.
+
 **R2 GIVES NO DATA-RESIDENCY GUARANTEE, AND THIS IS THE COST OF THE CHOICE.** A bucket can be
 given a location HINT, which Cloudflare treats as a preference rather than a commitment, and
 objects may be stored or cached outside India. The platform holds Indian patients' health data

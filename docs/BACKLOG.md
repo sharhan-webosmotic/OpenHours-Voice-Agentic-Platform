@@ -105,6 +105,24 @@ patients. The tests that catch it are the positive controls in
 asserts that the clinic a platform role actually named is still readable. Run both after the
 migration, not only the isolation assertions.
 
+**WHAT M1-14 MUST PRESERVE, as acceptance criteria rather than as advice:**
+
+1. A platform principal can still READ one named clinic's patients and appointments, masked.
+   `asOrganisationSystem` must open whatever scope replaces `app.platform = 'on'`, which means
+   connecting as, or switching to, the `app_platform` role for the life of that transaction.
+2. The client extension must still INJECT `organisation_id` under the
+   `platform-organisation` scope. The new role must not be given a policy so permissive that
+   the injection becomes the only lock by accident: both locks, as for a clinic user.
+3. A platform principal still cannot read a clinic it did not name. That is what the whole of
+   `tests/platform-scope-isolation.test.ts` asserts, and it must pass unchanged.
+4. The positive controls must pass, not merely the negative ones. A migration that makes every
+   platform read return nothing satisfies every isolation assertion in the suite and breaks the
+   product.
+5. `tests/tenant-guc-reset.test.ts` must still pass or be replaced deliberately. It proves that
+   a leaked session-level `app.platform` cannot widen a later transaction, and if the GUC is
+   gone the test is about a mechanism that no longer exists: deleting it is correct, deleting
+   it without replacing the property it protected is not.
+
 ---
 
 ## I10 Uniform login timing is claimed as a control and asserted nowhere
