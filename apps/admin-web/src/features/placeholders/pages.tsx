@@ -1,19 +1,13 @@
 import { PlaceholderPage } from './PlaceholderPage';
 
 /**
- * A destination for each of the four admin items.
+ * A destination for each admin item that has no feature behind it yet.
  *
  * None of them fakes data. This console looks at real clinics holding real patient records,
  * and a placeholder number is a placeholder somebody screenshots and reports.
+ *
+ * "Clinics" is no longer here: it is a real screen now, in `features/clinics`.
  */
-
-export const ClinicsPage = () => (
-  <PlaceholderPage
-    title="Clinics"
-    description="Every clinic on the platform, and the state of each one."
-    next="Provisioning a clinic, deactivating one, and the clinic detail view arrive with the organisations feature. Until then pnpm provision:clinic is how a clinic is created."
-  />
-);
 
 export const InternalUsersPage = () => (
   <PlaceholderPage

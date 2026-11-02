@@ -208,6 +208,82 @@ is to upsert by id. Not fixed here, because the database it affects is disposabl
 
 ---
 
+## D-012 One Sarvam identifier per clinic, and the platform generates the tool secret
+
+`voice_agents.external_agent_id` is gone, replaced by `sarvam_app_id`. The two named the same
+thing, and the per-clinic tool secret (D-004) is minted by the platform, shown exactly once
+and stored only as a SHA-256 hash. No endpoint can read it back.
+
+**Why one identifier:** two columns holding one fact, with nothing enforcing that they agree,
+drift. The failure mode is a webhook that resolves to no organisation, which is silent until a
+patient's call goes nowhere.
+
+**Why the platform generates the secret rather than accepting one:** it is the entire
+authentication for the tool endpoints the agent calls. A secret supplied by an operator is as
+strong as whoever typed it felt like making it and arrives by whatever channel they chose.
+Minted from the CSPRNG and shown once is the same arrangement as a temporary password (D-003),
+for the same reason: a secret the platform can read back is a secret an attacker can read back.
+
+**Regenerating is explicit and confirmed**, because a new secret invalidates the one the live
+agent is using and takes that clinic's agent off the air until the new value is pasted into
+Sarvam. An ordinary save never mints one.
+
+**The drop was safe once and will not be again.** `external_agent_id` was NOT NULL and the
+table was empty in every environment, so the migration drops the column. After a real agent is
+mapped, the same change would need a copy-then-drop across two migrations.
+
+---
+
+## D-013 A clinic's configuration is five tables, and every field is nullable until collected
+
+Identity and address, booking policy, agent behaviour, telephony consent, and the frequently
+asked answers are five tables rather than fifty columns on `organisations`. Opening hours stay
+in `clinic_hours` as one row per opening segment. Every field is nullable, and a blank value
+submitted by a form is stored as NULL rather than as an empty string.
+
+**Why separate tables:** the sections are collected at different times, by different people,
+from different sources. Grouping them means one write touches one section, one audit row names
+one section, and one form maps to one row.
+
+**Why nullable, and why blank means not collected:** a clinic is configured over several
+conversations, so a half-collected section has to be a storable state. This is not a nicety. An
+HTML input has no null, so an uncollected field arrives as `''`, and with the email and phone
+validated strictly a clinic whose email nobody had asked for yet could not have its ADDRESS
+saved. Whether what has been collected is enough to go live is a separate, advisory question,
+answered in one place by `packages/shared/clinic-readiness.ts`.
+
+**A break is the gap between two opening segments and a weekly off is a weekday with none.**
+`organisations.opening_hours_collected_at` is what distinguishes a clinic that is closed on
+Sunday from one nobody has asked, which row counts alone cannot. The agent is told to state no
+hours at all in the second case rather than asserting a closure nobody confirmed. Overnight
+hours are refused for now, in the schema and by a CHECK constraint.
+
+---
+
+## D-014 The master prompt is versioned files in the repository, not rows in a table
+
+Each version is a file under `apps/api/src/voice/prompts/`, listed in a registry, and a clinic
+stores the version string its Sarvam agent is actually running. Adding a version changes
+nothing for a clinic still marked with an older one.
+
+**Why files:** the prompt determines what a machine says to a patient about their healthcare. A
+change to it deserves what a change to a permission check gets, which is a diff, an approver and
+a commit that says why. A prompt edited through a form by whoever was logged in, with the
+previous wording gone, is not reconstructable six months later when a patient says the agent
+told them something.
+
+**Why a clinic stores a version:** the platform does not push prompts. A person pastes the
+rendered text into Sarvam's console, so the stored version is our record of what was pasted, and
+it is how you tell which clinics still owe a re-paste after a prompt change.
+
+**Availability is never rendered into a prompt.** Not which slots are free, not a count, not
+today's schedule. A prompt is a snapshot, and an agent answering from a snapshot offers a slot
+that was taken an hour ago. Hours, services and policies may be baked in for now because they
+change rarely, and `docs/features/pilot-clinic.md` records that this set is expected to shrink
+once the tool endpoints exist.
+
+---
+
 ## What no automated test currently covers
 
 **That the refresh cookie is actually sent: NOW VERIFIED.** This was the open item here and it

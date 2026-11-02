@@ -32,6 +32,15 @@ leg to `pnpm check` and to CI that fails when the committed document and the reg
 disagree, generate `packages/api-client` from it, and replace the hand-written client the
 sign-in feature added for the five auth endpoints.
 
+**It now owes more than five endpoints.** The pilot clinic feature added
+`packages/api-client/src/clinics.ts` by hand: fifteen clinic configuration endpoints, their
+request and response types, and a second copy of the four-line problem+json parser from
+`client.ts`. Written by hand for the same reason as the auth five, which is that the front-end
+rules forbid a raw `fetch` in a feature and the generator does not exist, and recorded here
+rather than left for whoever picks this ticket up to discover. The request types are at least
+not a new description of anything: they are the zod-inferred types from `@clinicai/shared`
+that the API parses with.
+
 **Blocking detail:** the zod-4 compatibility of `@asteasolutions/zod-to-openapi` 9.1,
 `openapi-typescript` 7.13 and `openapi-fetch` 0.17 has never been exercised. That is the
 open "VERIFY zod 4 compatibility on Day 1" item in `docs/STACK.md`, and it is the first

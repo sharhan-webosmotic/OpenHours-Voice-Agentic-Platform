@@ -145,7 +145,109 @@ const RECIPES = new Map<string, (token: string) => Promise<number>>([
           .send({ organisationId: org.organisationId, reason: 'checking a booking problem' })
       ).status,
   ],
+
+  /**
+   * Clinic configuration. A gated user may not read or change a clinic, which is worth
+   * stating rather than assuming: a temporary password is handed over out of band and may
+   * have been read off a screen or forwarded, and these routes expose every clinic on the
+   * platform plus the Sarvam mapping that authenticates its agent.
+   *
+   * THE BODIES ARE DELIBERATELY MINIMAL, which is safe here and would not be in the
+   * permission guard. `requirePasswordChangeComplete` runs before `validate` on every one of
+   * these routes, so the gate answers first and the body is never parsed. If that order were
+   * ever reversed, these would start returning 400 instead of 403 and this suite would fail,
+   * which is the behaviour worth having.
+   */
+  ...clinicConfigurationRecipes(),
 ]);
+
+/**
+ * One recipe per clinic configuration route, built from a table rather than written out
+ * fifteen times.
+ *
+ * The keys must match the registry exactly, and `accounts for every registered route`
+ * above is what catches a drift between this list and the real one.
+ */
+function clinicConfigurationRecipes(): readonly [string, (token: string) => Promise<number>][] {
+  const base = '/api/v1/organisations';
+  const id = () => org.organisationId;
+
+  const routes: readonly {
+    readonly method: 'get' | 'post' | 'patch' | 'put';
+    readonly registered: string;
+    readonly path: () => string;
+  }[] = [
+    { method: 'get', registered: base, path: () => base },
+    { method: 'post', registered: base, path: () => base },
+    { method: 'get', registered: `${base}/:organisationId`, path: () => `${base}/${id()}` },
+    { method: 'patch', registered: `${base}/:organisationId`, path: () => `${base}/${id()}` },
+    {
+      method: 'put',
+      registered: `${base}/:organisationId/profile`,
+      path: () => `${base}/${id()}/profile`,
+    },
+    {
+      method: 'put',
+      registered: `${base}/:organisationId/hours`,
+      path: () => `${base}/${id()}/hours`,
+    },
+    {
+      method: 'put',
+      registered: `${base}/:organisationId/booking-policy`,
+      path: () => `${base}/${id()}/booking-policy`,
+    },
+    {
+      method: 'put',
+      registered: `${base}/:organisationId/agent-profile`,
+      path: () => `${base}/${id()}/agent-profile`,
+    },
+    {
+      method: 'put',
+      registered: `${base}/:organisationId/telephony`,
+      path: () => `${base}/${id()}/telephony`,
+    },
+    {
+      method: 'put',
+      registered: `${base}/:organisationId/faqs`,
+      path: () => `${base}/${id()}/faqs`,
+    },
+    {
+      method: 'put',
+      registered: `${base}/:organisationId/sarvam-mapping`,
+      path: () => `${base}/${id()}/sarvam-mapping`,
+    },
+    {
+      method: 'post',
+      registered: `${base}/:organisationId/services`,
+      path: () => `${base}/${id()}/services`,
+    },
+    {
+      method: 'patch',
+      registered: `${base}/:organisationId/services/:serviceId`,
+      path: () => `${base}/${id()}/services/${org.ids.services ?? ''}`,
+    },
+    {
+      method: 'post',
+      registered: `${base}/:organisationId/doctors`,
+      path: () => `${base}/${id()}/doctors`,
+    },
+    {
+      method: 'patch',
+      registered: `${base}/:organisationId/doctors/:doctorId`,
+      path: () => `${base}/${id()}/doctors/${org.ids.doctors ?? ''}`,
+    },
+  ];
+
+  return routes.map(
+    (route) =>
+      [
+        `${route.method.toUpperCase()} ${route.registered}`,
+        async (token: string) =>
+          (await request(app)[route.method](route.path()).set('Authorization', `Bearer ${token}`))
+            .status,
+      ] as const,
+  );
+}
 
 const keyOf = (route: RouteDescriptor): string => `${route.method.toUpperCase()} ${route.path}`;
 

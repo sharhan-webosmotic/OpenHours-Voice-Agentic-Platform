@@ -26,12 +26,18 @@ ask for the ticket text. Work only on the ticket I name, and do not start other 
 - `docs/` DECISIONS.md (binding choices), BACKLOG.md (committed debt and its due point),
   design-system.md (the tokens and where each value came from), features/, ADRs, STACK.md,
   runbook. Per-app rules live in each app's own `CLAUDE.md`
+- `apps/api/src/voice/prompts/` the master prompt, one file per version, plus the registry and
+  the renderer. A version a clinic is marked as running is never edited
 - `ClinicFlow Interactive Prototype/` the Figma Make export the design system was extracted
   from. Reference only: not linted, type-checked, built or shipped
 
 ## Commands (run from repo root)
 - `pnpm dev` | `pnpm check` (build + typecheck + lint + test; MUST pass before you say "done")
 - `pnpm test` | `pnpm typecheck` | `pnpm lint` | `pnpm db:migrate` | `pnpm db:seed`
+- `pnpm bootstrap:super-admin <email> "<name>"` the first platform administrator. One-off,
+  refuses if one exists, and deliberately runs against production behind a confirmation
+  variable. `pnpm prompt:render <clinic>` writes a clinic's master prompt to stdout.
+  Both are documented in `docs/features/pilot-clinic.md`
 
 The gate asserts only what it runs. There is no OpenAPI drift leg: it was a stub that
 always exited 0, and a gate that always passes is worse than no gate. The real one

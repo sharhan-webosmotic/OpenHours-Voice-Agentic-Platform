@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ROLES, type Role } from '@clinicai/shared';
@@ -6,6 +6,17 @@ import { FORBIDDEN_TYPE } from '@clinicai/api-client';
 import { problem, renderWith, stubClient, user } from '../test-support/harness';
 import { ADMIN_NAV, landingPath, permits } from './navigation';
 import { AppRoutes } from './routes';
+
+/**
+ * The clinic API is stubbed, because "/clinics" is a real screen now rather than a
+ * placeholder and would otherwise attempt a live request from jsdom.
+ *
+ * This file is about WHO REACHES WHICH PAGE, so the clinic list only needs to render. Its
+ * own behaviour is covered in `features/clinics/clinics.test.tsx`.
+ */
+vi.mock('../lib/clinicsApi', () => ({
+  clinicsApi: { list: () => Promise.resolve({ items: [], nextCursor: null }) },
+}));
 
 /**
  * Who reaches which page in the admin console, driven from `permits`, which is the same

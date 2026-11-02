@@ -1,4 +1,5 @@
 import { render, type RenderResult } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router';
 import type { ReactNode } from 'react';
 import { ApiError, type ApiClient, type CurrentUser, type Session } from '@clinicai/api-client';
@@ -102,15 +103,35 @@ export const user = (role: Role, mustChangePassword = false): CurrentUser => ({
   mustChangePassword,
 });
 
+/**
+ * A fresh query client per render, with retries and caching off.
+ *
+ * FRESH, because a client shared between tests would carry one test's cached clinic into
+ * the next and the assertions would pass or fail depending on the order they ran in.
+ *
+ * NO RETRIES, because the application retries a failed query once and a test that asserts
+ * the error state would otherwise wait for that retry before seeing it. The retry policy
+ * itself is the application's and is not what these tests are about.
+ */
+const testQueryClient = (): QueryClient =>
+  new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: 0, gcTime: 0, refetchOnWindowFocus: false },
+      mutations: { retry: false },
+    },
+  });
+
 export const renderWith = (
   children: ReactNode,
   stub: Stub,
   initialEntries: readonly string[] = ['/'],
 ): RenderResult =>
   render(
-    <MemoryRouter initialEntries={[...initialEntries]}>
-      <AuthProvider client={stub.client} sessionLost={stub.bus.subscribe}>
-        {children}
-      </AuthProvider>
-    </MemoryRouter>,
+    <QueryClientProvider client={testQueryClient()}>
+      <MemoryRouter initialEntries={[...initialEntries]}>
+        <AuthProvider client={stub.client} sessionLost={stub.bus.subscribe}>
+          {children}
+        </AuthProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
   );

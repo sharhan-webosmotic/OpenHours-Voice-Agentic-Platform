@@ -295,10 +295,23 @@ describe('sensitive actions write an entry', () => {
 
     expect(after).toBe(before + 1);
 
-    // The reason is what identifies which call opened the scope, so it has to survive
-    // too: a count that went up without it would not tell an investigator anything.
+    /**
+     * The reason is what identifies which call opened the scope, so it has to survive too:
+     * a count that went up without it would not tell an investigator anything.
+     *
+     * ORDERED, newest first. This read used to take 200 rows with no `orderBy`, which meant
+     * it examined an arbitrary 200 of however many existed. That held only while the suite
+     * produced fewer than 200 scope uses in total, and it stopped holding the moment the
+     * clinic configuration routes were added, every one of which opens platform scope for a
+     * platform role. The row just written is necessarily among the newest, so ordering is
+     * both the correct read and a cheaper one.
+     */
     const rows = await asPlatform(ownerClient(), (tx) =>
-      tx.auditLog.findMany({ where: { action: 'system.scope.used' }, take: 200 }),
+      tx.auditLog.findMany({
+        where: { action: 'system.scope.used' },
+        orderBy: { id: 'desc' },
+        take: 10,
+      }),
     );
     const reasons = rows.map((row) => (row.metadata as { reason?: string } | null)?.reason);
     expect(reasons).toContain(reason);

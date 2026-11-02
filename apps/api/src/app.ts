@@ -27,6 +27,7 @@ import { devicesRouter } from './modules/devices/devices.routes.js';
 import { forwardingRouter } from './modules/devices/forwarding.routes.js';
 import { supportSessionsRouter } from './modules/support-sessions/support-sessions.routes.js';
 import { auditRouter } from './modules/audit/audit.routes.js';
+import { organisationsRouter } from './modules/organisations/organisations.routes.js';
 
 export type AppDependencies = {
   readonly readiness: ReadinessProbe;
@@ -96,6 +97,7 @@ export const ROUTER_MOUNTS: readonly (readonly [string, () => Router])[] = [
   ['/api/v1/forwarding', forwardingRouter],
   ['/api/v1/support-sessions', supportSessionsRouter],
   ['/api/v1/audit-logs', auditRouter],
+  ['/api/v1/organisations', organisationsRouter],
 ];
 
 export const createApp = ({ readiness, config = appConfig }: AppDependencies): Express => {

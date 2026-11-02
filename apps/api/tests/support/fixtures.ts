@@ -1,5 +1,6 @@
 import { uuidV7 } from '../../src/common/uuid.js';
 import {
+  AgentTone,
   AppointmentSource,
   AppointmentStatus,
   CallDirection,
@@ -10,6 +11,7 @@ import {
   PhoneKind,
   PrescriptionStatus,
   Provider,
+  RecordingConsentMode,
   Role,
   Weekday,
   WebhookEventStatus,
@@ -88,7 +90,7 @@ export const createOrganisationGraph = async (
       id: voiceAgentId,
       organisationId,
       provider: Provider.SARVAM,
-      externalAgentId: `agent-${suffix}`,
+      sarvamAppId: `agent-${suffix}`,
     },
   });
 
@@ -146,6 +148,68 @@ export const createOrganisationGraph = async (
       weekday: Weekday.MONDAY,
       opensAtMinute: 9 * 60,
       closesAtMinute: 17 * 60,
+    },
+  });
+
+  /**
+   * The five clinic configuration tables.
+   *
+   * One row each, for the same reason every other table here gets one: the isolation
+   * suite asserts "no row of organisation B is reachable from A" per table, and a table
+   * left empty passes that assertion while proving nothing.
+   */
+  const clinicProfileId = uuidV7();
+  await tx.clinicProfile.create({
+    data: {
+      id: clinicProfileId,
+      organisationId,
+      legalName: `Test Clinic ${label} Pvt Ltd`,
+      contactEmail: `desk.${label.toLowerCase()}.${suffix}@test.invalid`,
+      contactPhone: `+9198${suffix}`,
+      addressLine1: '1 Test Road',
+      city: 'Test City',
+      country: 'IN',
+    },
+  });
+
+  const clinicBookingPolicyId = uuidV7();
+  await tx.clinicBookingPolicy.create({
+    data: {
+      id: clinicBookingPolicyId,
+      organisationId,
+      slotGranularityMinutes: 15,
+      maximumAdvanceDays: 60,
+    },
+  });
+
+  const clinicAgentProfileId = uuidV7();
+  await tx.clinicAgentProfile.create({
+    data: {
+      id: clinicAgentProfileId,
+      organisationId,
+      greeting: `Thank you for calling Test Clinic ${label}.`,
+      languages: ['en-IN'],
+      tone: AgentTone.NEUTRAL,
+    },
+  });
+
+  const clinicTelephonyId = uuidV7();
+  await tx.clinicTelephony.create({
+    data: {
+      id: clinicTelephonyId,
+      organisationId,
+      recordingConsentMode: RecordingConsentMode.NOT_RECORDED,
+    },
+  });
+
+  const clinicFaqId = uuidV7();
+  await tx.clinicFaq.create({
+    data: {
+      id: clinicFaqId,
+      organisationId,
+      question: 'Do you have parking?',
+      answer: 'Yes, behind the building.',
+      sortOrder: 0,
     },
   });
 
@@ -355,6 +419,11 @@ export const createOrganisationGraph = async (
       notifications: notificationId,
       audit_logs: auditLogId,
       clinic_hours: clinicHoursId,
+      clinic_profiles: clinicProfileId,
+      clinic_booking_policies: clinicBookingPolicyId,
+      clinic_agent_profiles: clinicAgentProfileId,
+      clinic_telephony: clinicTelephonyId,
+      clinic_faqs: clinicFaqId,
       doctors: doctorId,
       doctor_working_hours: workingHoursId,
       doctor_time_off: timeOffId,

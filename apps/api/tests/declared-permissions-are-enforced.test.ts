@@ -17,6 +17,16 @@ import { uuidV7 } from '../src/common/uuid.js';
 import { jsonBody } from '../src/test-support/http.js';
 import { asPlatform, disconnectAll, ownerClient } from './support/db.js';
 import { createOrganisationGraph, type OrganisationGraph } from './support/fixtures.js';
+import {
+  AGENT_PROFILE_BODY,
+  BOOKING_POLICY_BODY,
+  HOURS_BODY,
+  PROFILE_BODY,
+  SARVAM_MAPPING_BODY,
+  TELEPHONY_BODY,
+  uniquePhone,
+  uniqueSuffix,
+} from './support/clinic-bodies.js';
 
 /**
  * A route that declares a permission must enforce it, for every role.
@@ -96,6 +106,186 @@ const RECIPES = new Map<string, (token: string) => Promise<number>>([
       const response = await request(app)
         .get('/api/v1/audit-logs')
         .set('Authorization', `Bearer ${token}`);
+      return response.status;
+    },
+  ],
+
+  /**
+   * Clinic configuration. Fifteen routes across four matrix cells, and the cells are the
+   * reason each one needs its own entry rather than a loop: `organisations`,
+   * `clinic_settings`, `doctors_services_hours` and `phone_voice_mapping` grant different
+   * roles, so the expected answer differs per route and is derived from the matrix above.
+   *
+   * EVERY BODY HERE IS VALID. A recipe that sent a malformed body would get a 400, which is
+   * not a 403, so the test would pass while proving nothing about the permission. The one
+   * thing these must not do is fail validation.
+   *
+   * The ids are unique per call where a unique constraint exists, so a second invocation
+   * (the guard drives each route once per role) does not collide and return a 409 for a
+   * reason unrelated to permissions.
+   */
+  [
+    'GET /api/v1/organisations',
+    async (token) => {
+      const response = await request(app)
+        .get('/api/v1/organisations')
+        .set('Authorization', `Bearer ${token}`);
+      return response.status;
+    },
+  ],
+  [
+    'POST /api/v1/organisations',
+    async (token) => {
+      const response = await request(app)
+        .post('/api/v1/organisations')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          name: `Permission Probe ${uniqueSuffix()}`,
+          timezone: 'Asia/Kolkata',
+          clinicPhone: uniquePhone(),
+        });
+      return response.status;
+    },
+  ],
+  [
+    'GET /api/v1/organisations/:organisationId',
+    async (token) => {
+      const response = await request(app)
+        .get(`/api/v1/organisations/${org.organisationId}`)
+        .set('Authorization', `Bearer ${token}`);
+      return response.status;
+    },
+  ],
+  [
+    'PATCH /api/v1/organisations/:organisationId',
+    async (token) => {
+      const response = await request(app)
+        .patch(`/api/v1/organisations/${org.organisationId}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ timezone: 'Asia/Kolkata' });
+      return response.status;
+    },
+  ],
+  [
+    'PUT /api/v1/organisations/:organisationId/profile',
+    async (token) => {
+      const response = await request(app)
+        .put(`/api/v1/organisations/${org.organisationId}/profile`)
+        .set('Authorization', `Bearer ${token}`)
+        .send(PROFILE_BODY);
+      return response.status;
+    },
+  ],
+  [
+    'PUT /api/v1/organisations/:organisationId/hours',
+    async (token) => {
+      const response = await request(app)
+        .put(`/api/v1/organisations/${org.organisationId}/hours`)
+        .set('Authorization', `Bearer ${token}`)
+        .send(HOURS_BODY);
+      return response.status;
+    },
+  ],
+  [
+    'PUT /api/v1/organisations/:organisationId/booking-policy',
+    async (token) => {
+      const response = await request(app)
+        .put(`/api/v1/organisations/${org.organisationId}/booking-policy`)
+        .set('Authorization', `Bearer ${token}`)
+        .send(BOOKING_POLICY_BODY);
+      return response.status;
+    },
+  ],
+  [
+    'PUT /api/v1/organisations/:organisationId/agent-profile',
+    async (token) => {
+      const response = await request(app)
+        .put(`/api/v1/organisations/${org.organisationId}/agent-profile`)
+        .set('Authorization', `Bearer ${token}`)
+        .send(AGENT_PROFILE_BODY);
+      return response.status;
+    },
+  ],
+  [
+    'PUT /api/v1/organisations/:organisationId/telephony',
+    async (token) => {
+      const response = await request(app)
+        .put(`/api/v1/organisations/${org.organisationId}/telephony`)
+        .set('Authorization', `Bearer ${token}`)
+        .send(TELEPHONY_BODY);
+      return response.status;
+    },
+  ],
+  [
+    'PUT /api/v1/organisations/:organisationId/faqs',
+    async (token) => {
+      const response = await request(app)
+        .put(`/api/v1/organisations/${org.organisationId}/faqs`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ faqs: [{ question: 'Parking?', answer: 'Behind the building.', active: true }] });
+      return response.status;
+    },
+  ],
+  [
+    'PUT /api/v1/organisations/:organisationId/sarvam-mapping',
+    async (token) => {
+      const response = await request(app)
+        .put(`/api/v1/organisations/${org.organisationId}/sarvam-mapping`)
+        .set('Authorization', `Bearer ${token}`)
+        // No agent phone: it is platform-unique, and a fixed one would collide across the
+        // six roles this is driven as, producing a 409 unrelated to permissions.
+        .send({ mapping: { ...SARVAM_MAPPING_BODY, sarvamAppId: `app-${uniqueSuffix()}` } });
+      return response.status;
+    },
+  ],
+  [
+    'POST /api/v1/organisations/:organisationId/services',
+    async (token) => {
+      const response = await request(app)
+        .post(`/api/v1/organisations/${org.organisationId}/services`)
+        .set('Authorization', `Bearer ${token}`)
+        // Name is unique per organisation, so it varies per call.
+        .send({
+          name: `Probe Service ${uniqueSuffix()}`,
+          durationMinutes: 30,
+          priceMinor: null,
+          active: true,
+        });
+      return response.status;
+    },
+  ],
+  [
+    'PATCH /api/v1/organisations/:organisationId/services/:serviceId',
+    async (token) => {
+      const response = await request(app)
+        .patch(`/api/v1/organisations/${org.organisationId}/services/${org.ids.services ?? ''}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ active: true });
+      return response.status;
+    },
+  ],
+  [
+    'POST /api/v1/organisations/:organisationId/doctors',
+    async (token) => {
+      const response = await request(app)
+        .post(`/api/v1/organisations/${org.organisationId}/doctors`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          fullName: `Probe Doctor ${uniqueSuffix()}`,
+          specialty: null,
+          bufferMinutes: 0,
+          active: true,
+        });
+      return response.status;
+    },
+  ],
+  [
+    'PATCH /api/v1/organisations/:organisationId/doctors/:doctorId',
+    async (token) => {
+      const response = await request(app)
+        .patch(`/api/v1/organisations/${org.organisationId}/doctors/${org.ids.doctors ?? ''}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ active: true });
       return response.status;
     },
   ],
