@@ -82,6 +82,15 @@ export const findById = async (
 
 export type ListFilters = {
   readonly organisationId: string;
+  /**
+   * Free text, matched against the PATIENT the appointment names, not the appointment.
+   *
+   * An appointment has nothing of its own to search: its identifying details are the
+   * patient's name and number, which is what a receptionist types while somebody is on the
+   * telephone. The service name is deliberately not matched, because "follow-up" would then
+   * return every follow-up in the clinic and bury the person being looked for.
+   */
+  readonly search?: string;
   readonly from?: Date;
   readonly to?: Date;
   readonly status?: readonly AppointmentStatus[];
@@ -101,10 +110,35 @@ export type ListFilters = {
 export const list = async (
   db: TenantDb,
   filters: ListFilters,
-): Promise<readonly AppointmentListRow[]> =>
-  db.appointment.findMany({
+): Promise<readonly AppointmentListRow[]> => {
+  const term = filters.search?.trim() ?? '';
+  const digits = term.replace(/[^\d]/g, '');
+
+  return db.appointment.findMany({
     where: {
       organisationId: filters.organisationId,
+      /**
+       * THE DIGITS CLAUSE IS ONLY INCLUDED WHEN THERE ARE DIGITS, and that is not tidiness.
+       *
+       * The first version stripped non-digits unconditionally, so a search for a NAME produced
+       * `phone: { contains: '' }`, which every phone number contains: the OR then matched every
+       * appointment in the clinic, and the screen showed a search that appeared to work and
+       * filtered nothing. The test "returns nothing for a term that matches no patient" is what
+       * caught it.
+       *
+       * Two digits is the shortest fragment worth matching. One would bring the whole book back
+       * in a subtler way.
+       */
+      ...(term === ''
+        ? {}
+        : {
+            patient: {
+              OR: [
+                { fullName: { contains: term, mode: 'insensitive' as const } },
+                ...(digits.length >= 2 ? [{ phone: { contains: digits } }] : []),
+              ],
+            },
+          }),
       ...(filters.from === undefined && filters.to === undefined
         ? {}
         : {
@@ -122,6 +156,7 @@ export const list = async (
     take: filters.take,
     ...(filters.cursor === undefined ? {} : { cursor: { id: filters.cursor }, skip: 1 }),
   });
+};
 
 /**
  * Status counts for a range, in one grouped query rather than one query per status.

@@ -917,3 +917,67 @@ describe('patients', () => {
     expect(starts).toEqual([...starts].toSorted().toReversed());
   }, 120_000);
 });
+
+describe('searching the appointment list', () => {
+  /**
+   * The search the prototype's appointment screen has and the endpoint did not.
+   *
+   * It matches the PATIENT, because an appointment has nothing identifying of its own, and
+   * the fixture clinic has several patients so a positive result proves filtering rather
+   * than an accident of there being one row.
+   */
+  const search = async (token: string, term: string): Promise<readonly string[]> => {
+    const response = await request(app)
+      .get(`/api/v1/appointments?q=${encodeURIComponent(term)}&limit=100`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    return jsonBody<{ items: readonly { patient: { fullName: string | null } }[] }>(
+      response,
+    ).items.map((item) => item.patient.fullName ?? '');
+  };
+
+  it('finds appointments by part of the patient name, case insensitively', async () => {
+    const token = await tokenFor(ownerEmail);
+    const created = await book(token);
+    expect(created.status).toBe(201);
+
+    const names = await search(token, 'patient dashboard');
+
+    expect(names.length).toBeGreaterThan(0);
+    expect(names.every((name) => name.toLowerCase().includes('patient dashboard'))).toBe(true);
+  }, 120_000);
+
+  it('finds appointments by part of the phone number, punctuation and all', async () => {
+    const token = await tokenFor(ownerEmail);
+    await book(token);
+
+    const read = await request(app)
+      .get(`/api/v1/patients/${clinic.ids.patients ?? ''}`)
+      .set('Authorization', `Bearer ${token}`);
+    const phone = jsonBody<{ phone: string }>(read).phone;
+
+    // Typed the way somebody types it, with spaces: the digits are what is matched.
+    const spaced = `${phone.slice(3, 8)} ${phone.slice(8)}`;
+    const names = await search(token, spaced);
+
+    expect(names.length).toBeGreaterThan(0);
+  }, 120_000);
+
+  it('returns nothing for a term that matches no patient, rather than everything', async () => {
+    const token = await tokenFor(ownerEmail);
+    await book(token);
+
+    // The failure this guards against is a filter that is silently dropped: an ignored `q`
+    // returns the whole book, which looks like a working search finding everything.
+    expect(await search(token, 'nobodyhasthisname')).toEqual([]);
+  }, 120_000);
+
+  it('never reaches another clinic through the search', async () => {
+    const token = await tokenFor(ownerEmail);
+
+    const names = await search(token, 'Patient DashboardOther');
+
+    expect(names).toEqual([]);
+  }, 120_000);
+});

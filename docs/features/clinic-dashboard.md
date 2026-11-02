@@ -209,7 +209,7 @@ in from the capture.
 | **No patient email**, on the list, the profile or the appointment drawer.                      | `patients` has no email column. The prototype shows one in all three places.                                                                                                                                                                                                            |
 | **No service description.**                                                                    | `services` has no description column.                                                                                                                                                                                                                                                   |
 | **No appointment notes row.**                                                                  | `appointments` has no notes column. A row reading "no notes" on every appointment ever booked is worse than no row.                                                                                                                                                                     |
-| **No search box on Appointments.**                                                             | The prototype has one labelled "Search patient or service" and the endpoint has no text search. Searching the loaded page would claim to search the clinic. The patient list searches properly and a patient's appointments are on their profile.                                       |
+| ~~**No search box on Appointments.**~~ **CLOSED**, see the four accepted changes below.        | It was deviated from because the endpoint had no text search. The endpoint now has one, so the box is real and this is no longer a deviation. The reasoning is kept because the row explains why the search had to move into the API rather than into the screen.                       |
 | **Dates read `19 May 2025`**, where the appointment list capture shows `2025-05-19`.           | The prototype disagrees with itself: its calendar and overview both use the human form, which is also what a receptionist reads out.                                                                                                                                                    |
 | **An Edit button on the patient profile.**                                                     | The prototype has no path to edit an existing patient at all: its "Add Patient" opens the same modal empty. The brief requires patients to be editable, so the entry point went beside the fields it edits. Say if it belongs on the row instead.                                       |
 | **No "Patient #1" line.**                                                                      | The prototype numbers patients sequentially. Real ids are uuids, and a uuid on a profile is noise a receptionist cannot use.                                                                                                                                                            |
@@ -233,12 +233,59 @@ called `refetch` on a skipped query in their failure path, which throws.
 
 ### What Phase 2 does not cover
 
-- **No calendar screen.** The prototype reaches a month grid from the Overview's "View Full
-  Schedule". The API answers `range=month`, so the data is there and the screen is not.
-- **No global search panel and no notifications popover.** Both are prototype chrome with no
-  endpoint behind them. They were agreed as "build the shell", and the shell for both is a
-  search box that would search nothing, so neither is in this phase.
+- **No separate calendar screen.** The month grid is on the Overview, which is where the
+  prototype draws it, and the four accepted changes below built it. What is still missing is
+  the standalone screen the Overview's "View Full Schedule" link reaches in the prototype.
+- **The global search panel and the notifications popover do nothing.** Both are prototype
+  chrome with no endpoint behind them. The four accepted changes below render both as the
+  captures draw them, visibly disabled and saying so, rather than leaving a hole in the header.
 - **No browser test for the new screens.** `pnpm e2e` still covers the session only. The
   screens are covered by component tests against a stubbed client, which is where the detail
   belongs, and the screenshots in `docs/prototype/built/` are the evidence that the real stack
   renders them.
+
+## Phase 2 follow-up: the four accepted changes
+
+Accepted after the Phase 2 review, before Phase 3 started. Each one closes a difference from
+the prototype rather than adding scope.
+
+1. **Patient edit stays on the profile card.** No change: the deviation above stands as it is.
+2. **The month calendar and the day agenda on the Overview.** `apps/clinic-web/src/features/
+overview/CalendarPanel.tsx`. The grid is drawn from ONE `range=month` request grouped by
+   clinic day, not thirty day requests. The day beside it is a second `range=day` request,
+   because the month response is capped at the page size and a busy clinic's day would
+   otherwise look empty. Dots are capped at three per cell and the exact count is in each
+   cell's accessible name, so a screen reader is told the number the dots approximate.
+3. **The global search box and the notifications popover, visibly disabled.** `AppShell.tsx`.
+   Both carry the capture's own wording plus a short note that they are not available yet. A
+   missing control is a visible difference from the prototype and a working-looking one is a
+   lie, so both are present and inert.
+4. **Appointment search in the API, wired to the prototype's box.** `q` on
+   `GET /api/v1/appointments`, matching patient name or phone. Phone matching strips
+   everything but digits and only applies from two digits onwards, so a non-numeric term
+   cannot match every row through an empty `contains`. The audit record says whether a search
+   ran, never the term: a search term is a patient's name or number.
+
+### A defect these changes found
+
+The clinic query's loading flag meant "RTK Query is fetching", which is false while a query is
+still skipped. Every screen reads that flag to choose between a spinner and the clinic, so each
+one painted once with the UTC fallback and then threw that render away when the query started.
+
+On the Overview it was worse than a flicker: the month calendar mounted, fired its own month
+and day requests, and was unmounted a tick later. A test caught it by finding the grid and then
+finding it detached from the document.
+
+`useClinic` now reports "a clinic is coming and is not here yet", which is wider than RTK
+Query's flag. It is deliberately narrower than "there is no clinic": a platform role's
+`organisationId` is null, so for them the query is skipped for ever, and treating that as
+loading hung the appointments screen on a spinner. That distinction is the fix, and a
+previously passing permission test is what forced it to be made properly.
+
+### The calendar is a table, not a grid of divs
+
+The first version was `role="grid"` over a CSS grid with the weekday headings and the day cells
+as siblings. That is malformed: a `grid` expects `row` children, so the headings were not
+exposed as column headers at all and a screen reader was handed a flat run of 42 buttons with
+no sense of a week. It is a `<table>` now, which gives the row and column relationships for
+free, for the same reason `components/ui/Table.tsx` is a table.

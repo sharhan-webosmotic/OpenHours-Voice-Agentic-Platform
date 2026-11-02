@@ -199,9 +199,34 @@ export const useClinic = () => {
   const { user } = useAuth();
   const organisationId = user?.organisationId ?? undefined;
 
-  return clinicEndpoints.useClinicQuery(organisationId ?? '', {
+  const query = clinicEndpoints.useClinicQuery(organisationId ?? '', {
     skip: organisationId === undefined,
   });
+
+  /**
+   * `isLoading` HERE MEANS "A CLINIC IS COMING AND IS NOT HERE YET", WHICH IS WIDER THAN
+   * RTK QUERY'S OWN FLAG AND NARROWER THAN "THERE IS NO CLINIC".
+   *
+   * RTK Query reports `isLoading: false` while a query is skipped, and this one is skipped
+   * until the session boot has produced an organisation id. Every screen reads this flag to
+   * decide between a spinner and the clinic, so the narrow meaning made them paint once with
+   * the UTC fallback and then throw that render away when the query finally started. On the
+   * Overview that was not a flicker: the month calendar mounted, fired its own queries and
+   * was unmounted a tick later, which a test caught by finding the grid and then finding it
+   * detached from the document.
+   *
+   * The two reasons for being uninitialised are NOT the same thing, and conflating them hangs
+   * a screen for ever:
+   *   - no user yet, so the boot has not run: a clinic is coming, so this is loading
+   *   - a user whose `organisationId` is null, which is every platform role: there is no
+   *     clinic to fetch, so this is settled, and the screen renders with the UTC fallback
+   */
+  const clinicIsComing = user === undefined || user.organisationId !== null;
+
+  return {
+    ...query,
+    isLoading: query.isLoading || (query.isUninitialized && clinicIsComing),
+  };
 };
 
 /**

@@ -141,6 +141,8 @@ const doctorScope = async (
  * optional field as a present key holding `undefined`.
  */
 export type ListQuery = {
+  /** Free text over the patient's name or number. See the repository for why not the service. */
+  readonly q?: string | undefined;
   readonly from?: string | undefined;
   readonly to?: string | undefined;
   readonly status?: readonly AppointmentStatus[] | undefined;
@@ -167,6 +169,7 @@ const listWithin = async (
 
   const rows = await repository.list(db, {
     organisationId,
+    ...(query.q === undefined ? {} : { search: query.q }),
     ...(query.from === undefined ? {} : { from: new Date(query.from) }),
     ...(query.to === undefined ? {} : { to: new Date(query.to) }),
     ...(query.status === undefined ? {} : { status: query.status }),
@@ -181,7 +184,11 @@ const listWithin = async (
   const page = rows.slice(0, query.limit);
   const masked = shouldMask(scope, false);
 
-  await recordRead(db, 'appointment', undefined, { count: page.length });
+  await recordRead(db, 'appointment', undefined, {
+    count: page.length,
+    // WHETHER a search ran, never what was typed: a search term is a patient's name.
+    searched: query.q !== undefined,
+  });
 
   return {
     items: page.map((row) => (masked ? maskView(toView(row)) : toView(row))),

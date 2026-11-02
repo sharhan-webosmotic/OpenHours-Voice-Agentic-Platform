@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import type { AppointmentView } from '@clinicai/api-client';
 import { APPOINTMENT_STATUSES, startOfClinicDay, addDays } from '@clinicai/shared';
@@ -8,7 +8,7 @@ import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Spinner } from '../../components/ui/Spinner';
 import { Badge, Cell, Row, Table } from '../../components/ui/Table';
-import { DateInput, FilterSelect, Pager, Toolbar } from '../../components/ui/Toolbar';
+import { DateInput, FilterSelect, Pager, SearchInput, Toolbar } from '../../components/ui/Toolbar';
 import { useCan } from '../../lib/useCan';
 import { errorMessage } from '../../lib/problem';
 import { formatDate, formatTime } from '../../lib/clinicTime';
@@ -32,11 +32,11 @@ import { statusBadge, statusLabel } from './status';
  * more appointments than a page, so filtering what happens to be loaded would show a
  * receptionist an empty Tuesday that simply was not in the page they had.
  *
- * THE SEARCH BOX IS NOT HERE, and its absence is deliberate rather than an omission. The
- * prototype has one labelled "Search patient or service" and the appointments endpoint has no
- * text search: adding one locally would search a single page and claim to search the clinic.
- * The patient list searches properly, and a patient's appointments are on their profile. The
- * feature doc records it, and it is a small API change rather than a design question.
+ * THE SEARCH IS THE SERVER'S, and it matches the PATIENT rather than the appointment. An
+ * appointment has nothing identifying of its own: what a receptionist types while somebody is
+ * on the telephone is a name or a number. The endpoint gained `?q=` for exactly this box,
+ * because a dead search control on the screen reception uses all day is worse than the small
+ * change that makes it work.
  */
 
 const PAGE_SIZE = 25;
@@ -56,6 +56,8 @@ export const AppointmentsPage = () => {
 
   const [params, setParams] = useSearchParams();
 
+  const [search, setSearch] = useState('');
+  const [debounced, setDebounced] = useState('');
   const [day, setDay] = useState('');
   const [status, setStatus] = useState('');
   const [cursors, setCursors] = useState<readonly (string | undefined)[]>([undefined]);
@@ -79,10 +81,29 @@ export const AppointmentsPage = () => {
     setParams(next, { replace: true });
   }
 
+  useEffect(() => {
+    // 300ms, the same as the patient list: below the point at which typing feels laggy and
+    // above the rate a person produces characters.
+    const timer = setTimeout(() => {
+      setDebounced(search);
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [search]);
+
+  useEffect(() => {
+    // A new search starts a new sequence of pages: the old cursor points at a row the new
+    // filter may not return.
+    setCursors([undefined]);
+  }, [debounced]);
+
   const cursor = cursors[cursors.length - 1];
 
   const { data, isLoading, isFetching, isError, error, refetch } = useAppointmentsQuery(
     {
+      ...(debounced === '' ? {} : { q: debounced }),
       ...(day === ''
         ? {}
         : {
@@ -115,6 +136,12 @@ export const AppointmentsPage = () => {
             ) : undefined
           }
         >
+          <SearchInput
+            label="Search appointments"
+            placeholder="Search patient name or number"
+            value={search}
+            onChange={setSearch}
+          />
           <DateInput
             label="Date"
             value={day}
@@ -170,12 +197,12 @@ export const AppointmentsPage = () => {
             day === '' && status === '' ? 'No appointments yet' : 'Nothing matches that filter'
           }
           body={
-            day === '' && status === ''
+            day === '' && status === '' && debounced === ''
               ? 'Appointments booked here and by the voice agent both appear in this list.'
-              : 'Try another date, or clear the filters to see the whole book.'
+              : 'Try part of the patient name or number, another date, or clear the filters to see the whole book.'
           }
           action={
-            day === '' && status === '' ? (
+            day === '' && status === '' && debounced === '' ? (
               canWrite ? (
                 <Button
                   onClick={() => {
@@ -189,6 +216,7 @@ export const AppointmentsPage = () => {
               <Button
                 kind="secondary"
                 onClick={() => {
+                  setSearch('');
                   setDay('');
                   setStatus('');
                   setCursors([undefined]);

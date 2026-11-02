@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWith, stubClient, user } from '../../test-support/harness';
 import {
@@ -286,10 +286,73 @@ describe('the overview', () => {
       }),
     );
 
-    expect(await screen.findByText('Test Patient One')).toBeInTheDocument();
+    /**
+     * TWICE, and that is the capture: the patient is in today's list and again in the
+     * calendar's day panel beside it. Asserting one would be asserting the calendar away.
+     */
+    expect((await screen.findAllByText('Test Patient One')).length).toBeGreaterThan(1);
     expect(screen.getAllByText('9:00 am').length).toBeGreaterThan(0);
     // CONFIRMED is 2 in the fixture.
     expect(screen.getAllByText('2').length).toBeGreaterThan(0);
+  });
+
+  it('draws a month grid whose days carry the appointments on them', async () => {
+    renderWith(<OverviewPage />, signedIn());
+
+    const grid = await screen.findByRole('table', { name: /Appointments by day/ });
+
+    // Six weeks of cells plus seven headings, which is what a month needs in the worst case.
+    expect(within(grid).getAllByRole('cell')).toHaveLength(42);
+    expect(within(grid).getByRole('columnheader', { name: 'Mon' })).toBeInTheDocument();
+
+    /**
+     * The count is in each cell's accessible NAME, not only in its dots. Three dots is the
+     * visual cap, so a screen reader would otherwise be told less than the screen shows.
+     *
+     * Waited for, because the grid is drawn as soon as the clinic's time zone is known and the
+     * month's appointments arrive after it. Asserting immediately would read the empty grid
+     * that is correct for that instant.
+     */
+    await waitFor(() => {
+      const withAppointments = within(grid)
+        .getAllByRole('button')
+        .filter((cell) => !/0 appointments/.test(cell.getAttribute('aria-label') ?? ''));
+
+      expect(withAppointments.length).toBeGreaterThan(0);
+    });
+  });
+
+  it('moves between months and asks the server for the one shown', async () => {
+    const stub = signedIn();
+    renderWith(<OverviewPage />, stub);
+
+    await screen.findByRole('table', { name: /Appointments by day/ });
+    const before = stub.calls.requests.filter((request) => request.path.includes('range=month'));
+
+    await userEvent.click(screen.getByRole('button', { name: 'Next month' }));
+
+    await waitFor(() => {
+      const after = stub.calls.requests.filter((request) => request.path.includes('range=month'));
+      expect(after.length).toBeGreaterThan(before.length);
+    });
+  });
+
+  it('shows the day a receptionist clicks, by asking for that day', async () => {
+    const stub = signedIn();
+    renderWith(<OverviewPage />, stub);
+
+    const grid = await screen.findByRole('table', { name: /Appointments by day/ });
+    const cells = within(grid).getAllByRole('button');
+    const target = cells[20];
+
+    expect(target).toBeDefined();
+    await userEvent.click(target!);
+
+    // The day panel is its own query, because the month response is capped at the page size
+    // and a busy clinic's day would otherwise look empty.
+    await waitFor(() => {
+      expect(stub.calls.requests.some((request) => request.path.includes('range=day'))).toBe(true);
+    });
   });
 
   it('says why the call panels are empty instead of showing a number', async () => {

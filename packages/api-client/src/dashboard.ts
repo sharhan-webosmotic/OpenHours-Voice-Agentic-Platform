@@ -104,6 +104,8 @@ export type AppointmentListPage = {
 };
 
 export type AppointmentListQuery = {
+  /** Free text over the patient's name or number. */
+  readonly q?: string | undefined;
   readonly from?: string | undefined;
   readonly to?: string | undefined;
   readonly status?: readonly AppointmentStatus[] | undefined;

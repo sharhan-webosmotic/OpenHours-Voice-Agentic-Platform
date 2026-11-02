@@ -15,6 +15,7 @@ import { clinicToday, formatDate, formatTime } from '../../lib/clinicTime';
 import { useClinic } from '../clinic/api';
 import { BookingForm } from '../appointments/BookingForm';
 import { useAgendaQuery } from '../appointments/api';
+import { CalendarPanel } from './CalendarPanel';
 import { statusBadge, statusLabel } from '../appointments/status';
 
 /**
@@ -206,6 +207,13 @@ export const OverviewPage = () => {
           </Card>
 
           <div className="flex flex-col gap-4">
+            {/*
+             * The calendar sits in the right-hand column, where the capture has it, and takes
+             * the top of it: the month grid and the selected day are what a receptionist looks
+             * at first, and the week's counts are a summary of what the grid already shows.
+             */}
+            <CalendarPanel timeZone={timeZone} today={today} />
+
             <Card className="flex flex-col gap-3">
               <h2 className="m-0 font-semibold text-default text-md">This week</h2>
               {counts === undefined ? (

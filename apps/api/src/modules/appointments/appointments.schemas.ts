@@ -33,6 +33,14 @@ export type AppointmentScopeQuery = z.infer<typeof appointmentScopeQuerySchema>;
 
 export const listAppointmentsQuerySchema = z.object({
   organisationId: z.uuid().optional(),
+  /**
+   * Free text over the patient's name or number, bounded at 100 characters.
+   *
+   * Added after the dashboard was built: the prototype's appointment screen has a search box
+   * and the endpoint had nothing to wire it to, so the screen shipped without one. A dead
+   * search box on the screen reception uses all day is worse than a small endpoint change.
+   */
+  q: z.string().trim().min(1).max(100).optional(),
   from: z.string().datetime({ offset: true }).optional(),
   to: z.string().datetime({ offset: true }).optional(),
   status: z
