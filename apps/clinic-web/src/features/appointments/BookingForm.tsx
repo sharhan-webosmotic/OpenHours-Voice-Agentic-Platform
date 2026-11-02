@@ -118,6 +118,21 @@ export const BookingForm = ({
     { skip: step !== 3 || doctor === undefined || serviceId === '' || date === '' },
   );
 
+  /**
+   * Re-reads the slot list, but only if it was ever read.
+   *
+   * `refetch` THROWS on a query that has not started, which is the case whenever `skip` was
+   * true: a booking refused before the time step, or one whose service was cleared. It
+   * surfaced as "Cannot refetch a query that has not been started yet" in the test run rather
+   * than anywhere a user would see, which is exactly how an unhandled rejection reaches
+   * production.
+   */
+  const refreshTimes = (): void => {
+    if (!availability.isUninitialized) {
+      void availability.refetch();
+    }
+  };
+
   const selectedService: ServiceView | undefined = services.find(
     (service) => service.id === serviceId,
   );
@@ -165,7 +180,7 @@ export const BookingForm = ({
        */
       setProblem(errorMessage(error, 'The appointment was not booked.'));
       setStep(3);
-      void availability.refetch();
+      refreshTimes();
     }
   };
 

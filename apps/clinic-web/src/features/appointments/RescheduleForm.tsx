@@ -61,6 +61,13 @@ export const RescheduleForm = ({
     { skip: appointment.service === null || date === '' },
   );
 
+  /** Re-reads the slot list, but only if it was ever read. `refetch` throws otherwise. */
+  const refreshTimes = (): void => {
+    if (!availability.isUninitialized) {
+      void availability.refetch();
+    }
+  };
+
   const submit = async (): Promise<void> => {
     if (startAt === '') {
       setProblem('Choose a new time.');
@@ -79,7 +86,7 @@ export const RescheduleForm = ({
       onClose();
     } catch (error) {
       setProblem(errorMessage(error, 'The appointment was not moved.'));
-      void availability.refetch();
+      refreshTimes();
     }
   };
 

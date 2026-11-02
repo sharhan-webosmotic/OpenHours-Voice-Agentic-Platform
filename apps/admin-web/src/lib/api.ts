@@ -1,5 +1,4 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
-import { apiClient } from './apiClient';
 import { createApiBaseQuery } from './baseQuery';
 
 /**
@@ -17,7 +16,7 @@ import { createApiBaseQuery } from './baseQuery';
 
 export const api = createApi({
   reducerPath: 'api',
-  baseQuery: createApiBaseQuery(apiClient),
+  baseQuery: createApiBaseQuery(),
 
   /**
    * Every cache tag the application uses, declared once.

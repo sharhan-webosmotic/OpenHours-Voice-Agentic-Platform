@@ -120,7 +120,7 @@ export const renderWith = (
   initialEntries: readonly string[] = ['/'],
 ): RenderResult =>
   render(
-    <Provider store={createAppStore()}>
+    <Provider store={createAppStore(stub.client)}>
       <MemoryRouter initialEntries={[...initialEntries]}>
         <AuthProvider client={stub.client} sessionLost={stub.bus.subscribe}>
           {children}

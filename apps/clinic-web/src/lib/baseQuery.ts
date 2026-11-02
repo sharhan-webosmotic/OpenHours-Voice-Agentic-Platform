@@ -2,6 +2,23 @@ import { toProblem, type ApiClient, type ProblemDetails } from '@clinicai/api-cl
 import { retry, type BaseQueryFn } from '@reduxjs/toolkit/query';
 
 /**
+ * The client comes from the STORE, as its thunk extra argument, not from a module import.
+ *
+ * It used to be imported directly, which made the transport a module-level singleton: the
+ * component tests could stub the client they handed to `AuthProvider` and the store carried
+ * on talking to the real one, so every screen test failed with "could not reach the server"
+ * and the stub recorded no calls at all. Reading it from the store means the thing under test
+ * and the thing stubbed are the same object.
+ */
+const clientFrom = (extra: unknown): ApiClient => {
+  if (typeof extra !== 'object' || extra === null || !('client' in extra)) {
+    throw new Error('the store was built without an API client in its thunk extra argument');
+  }
+
+  return (extra as { readonly client: ApiClient }).client;
+};
+
+/**
  * RTK Query's transport: `packages/api-client`, never `fetch`.
  *
  * THIS IS THE WHOLE POINT OF THE FILE, so it is stated before anything else. The client
@@ -41,8 +58,9 @@ export type ApiRequest = {
 export type ApiQueryError = ProblemDetails;
 
 const createTransport =
-  (client: ApiClient): BaseQueryFn<ApiRequest, unknown, ApiQueryError> =>
-  async ({ path, method = 'GET', body, headers }) => {
+  (): BaseQueryFn<ApiRequest, unknown, ApiQueryError> =>
+  async ({ path, method = 'GET', body, headers }, api) => {
+    const client = clientFrom(api.extra);
     let response: Response;
 
     try {
@@ -94,10 +112,8 @@ const createTransport =
  *
  * `status: 0` is the transport failure above, which is the case a retry genuinely helps.
  */
-export const createApiBaseQuery = (
-  client: ApiClient,
-): BaseQueryFn<ApiRequest, unknown, ApiQueryError> =>
-  retry(createTransport(client), {
+export const createApiBaseQuery = (): BaseQueryFn<ApiRequest, unknown, ApiQueryError> =>
+  retry(createTransport(), {
     /**
      * `retryCondition` rather than `maxRetries`, because RTK Query's own types make the two
      * mutually exclusive: the attempt limit is expressed inside the condition instead.

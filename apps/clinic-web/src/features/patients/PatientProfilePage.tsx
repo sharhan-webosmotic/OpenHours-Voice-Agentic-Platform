@@ -12,7 +12,7 @@ import { useCan } from '../../lib/useCan';
 import { errorMessage, isNotFound } from '../../lib/problem';
 import { formatDateOfBirth, formatDateTime } from '../../lib/clinicTime';
 import { statusBadge, statusLabel } from '../appointments/status';
-import { useClinicTimeZone } from '../clinic/api';
+import { useClinic } from '../clinic/api';
 import { PatientForm } from './PatientForm';
 import { usePatientQuery } from './api';
 
@@ -42,7 +42,16 @@ import { usePatientQuery } from './api';
 
 export const PatientProfilePage = () => {
   const { patientId } = useParams<{ patientId: string }>();
-  const timeZone = useClinicTimeZone();
+  /**
+   * The clinic is read for its TIME ZONE, and the screen waits for it.
+   *
+   * `useClinicTimeZone` falls back to UTC while the query is in flight, which on this screen
+   * meant the appointment history rendered 3:30 am for a 9:00 am appointment until the clinic
+   * arrived, and kept it if the clinic query failed. A test caught it. Every screen that
+   * renders a time now holds until it knows which clock it is rendering in.
+   */
+  const { data: clinic, isLoading: clinicLoading } = useClinic();
+  const timeZone = clinic?.organisation.timezone ?? 'UTC';
   const canWrite = useCan('patients', 'write');
   const [editing, setEditing] = useState(false);
 
@@ -56,7 +65,7 @@ export const PatientProfilePage = () => {
     skip: patientId === undefined,
   });
 
-  if (isLoading) {
+  if (isLoading || clinicLoading) {
     return <Spinner />;
   }
 

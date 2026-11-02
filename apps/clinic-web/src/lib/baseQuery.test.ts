@@ -33,7 +33,7 @@ const setup = (
     onSessionLost: () => {
       sessionsLost += 1;
     },
-    fetchImpl: ((input: RequestInfo | URL, init?: RequestInit) => {
+    fetchImpl: (input: RequestInfo | URL, init?: RequestInit) => {
       const headers = new Headers(init?.headers);
       // `RequestInfo | URL` has three shapes and only two of them stringify usefully, so
       // the URL is read out rather than coerced.
@@ -45,7 +45,7 @@ const setup = (
       };
       calls.push(call);
       return Promise.resolve(respond(call, calls.length - 1));
-    }),
+    },
   });
 
   return { client, calls, lost: () => sessionsLost };
@@ -74,7 +74,7 @@ const session = () =>
 const buildStore = (client: ApiClient) => {
   const api = createApi({
     reducerPath: 'api',
-    baseQuery: createApiBaseQuery(client),
+    baseQuery: createApiBaseQuery(),
     endpoints: (build) => ({
       patients: build.query<{ readonly items: readonly string[] }, void>({
         query: () => ({ path: '/api/v1/patients' }),
@@ -93,7 +93,10 @@ const buildStore = (client: ApiClient) => {
 
   const store = configureStore({
     reducer: { [api.reducerPath]: api.reducer },
-    middleware: (getDefault) => getDefault().concat(api.middleware),
+    // The client reaches the transport as the thunk extra argument, exactly as the real store
+    // provides it. Passing it any other way would test a wiring the application does not use.
+    middleware: (getDefault) =>
+      getDefault({ thunk: { extraArgument: { client } } }).concat(api.middleware),
   });
 
   return { api, store };
@@ -213,7 +216,7 @@ describe('the RTK Query baseQuery', () => {
       baseUrl: 'https://api.test',
       audience: 'clinic',
       onSessionLost: () => undefined,
-      fetchImpl: (() => Promise.reject(new Error('Failed to fetch'))),
+      fetchImpl: () => Promise.reject(new Error('Failed to fetch')),
     });
 
     const { api, store } = buildStore(client);
