@@ -144,3 +144,24 @@ export const scopeFilter = (scope: Scope, principal: Principal): ScopeFilter => 
       return { kind: 'none' };
   }
 };
+
+/**
+ * The organisation for the current request, FROM THE VERIFIED TOKEN ONLY.
+ *
+ * Never from a body, a query or a header (root CLAUDE.md rule 2). It lives beside
+ * `currentPrincipal` rather than in each module's routes because every tenant-scoped route
+ * needs it to name the organisation on a create, and three copies of the same two-line
+ * read is three places for one of them to start trusting a parameter.
+ *
+ * `requireOrganisation` has already refused a principal without one, so the throw is for
+ * the compiler and for the case where a middleware chain is reordered.
+ */
+export const currentOrganisationId = (): string => {
+  const context = getContext();
+
+  if (context?.organisationId === undefined) {
+    throw new UnauthorizedError('no organisation on the principal', 'Authentication is required.');
+  }
+
+  return context.organisationId;
+};

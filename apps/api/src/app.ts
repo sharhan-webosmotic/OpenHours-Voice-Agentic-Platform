@@ -28,6 +28,8 @@ import { forwardingRouter } from './modules/devices/forwarding.routes.js';
 import { supportSessionsRouter } from './modules/support-sessions/support-sessions.routes.js';
 import { auditRouter } from './modules/audit/audit.routes.js';
 import { organisationsRouter } from './modules/organisations/organisations.routes.js';
+import { patientsRouter } from './modules/patients/patients.routes.js';
+import { appointmentsRouter } from './modules/appointments/appointments.routes.js';
 
 export type AppDependencies = {
   readonly readiness: ReadinessProbe;
@@ -98,6 +100,8 @@ export const ROUTER_MOUNTS: readonly (readonly [string, () => Router])[] = [
   ['/api/v1/support-sessions', supportSessionsRouter],
   ['/api/v1/audit-logs', auditRouter],
   ['/api/v1/organisations', organisationsRouter],
+  ['/api/v1/patients', patientsRouter],
+  ['/api/v1/appointments', appointmentsRouter],
 ];
 
 export const createApp = ({ readiness, config = appConfig }: AppDependencies): Express => {

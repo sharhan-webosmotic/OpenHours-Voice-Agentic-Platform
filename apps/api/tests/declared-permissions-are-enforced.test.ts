@@ -17,6 +17,7 @@ import { uuidV7 } from '../src/common/uuid.js';
 import { jsonBody } from '../src/test-support/http.js';
 import { asPlatform, disconnectAll, ownerClient } from './support/db.js';
 import { createOrganisationGraph, type OrganisationGraph } from './support/fixtures.js';
+import { markHoursCollected, nextBookableStart } from './support/clinic-schedule.js';
 import {
   AGENT_PROFILE_BODY,
   BOOKING_POLICY_BODY,
@@ -59,6 +60,10 @@ beforeAll(async () => {
 
   await asPlatform(ownerClient(), async (tx) => {
     org = await createOrganisationGraph(tx, 'DeclaredPerms');
+
+    // Hours must be marked collected, or every booking recipe would be refused for the right
+    // reason and the wrong one, and the guard would prove nothing about permissions.
+    await markHoursCollected(tx, org.organisationId);
 
     for (const role of ROLES) {
       const email = `perm.${role.toLowerCase()}.${Date.now()}@test.invalid`;
@@ -289,7 +294,189 @@ const RECIPES = new Map<string, (token: string) => Promise<number>>([
       return response.status;
     },
   ],
+
+  /**
+   * Patients and appointments.
+   *
+   * THE PLATFORM ROLES ARE THE INTERESTING PART. The matrix grants SUPER_ADMIN and
+   * INTERNAL_ADMIN `read: 'masked'` on both resources, so the guard requires these reads NOT
+   * to answer 403 for them. They have no organisation of their own, so every read recipe
+   * names one with `?organisationId=`, which is what `common/organisation-scope.ts` requires
+   * of a platform principal. A clinic role naming the same id is naming its own clinic, which
+   * is allowed.
+   *
+   * THE WRITE RECIPES SEND VALID BODIES AND REAL SLOTS. A malformed body answers 400, which is
+   * not 403, so the guard would pass while proving nothing. Every booking takes a fresh slot
+   * from `nextBookableStart`, because the guard drives each recipe once per role and a
+   * repeated slot would be refused by the exclusion constraint for a reason unrelated to
+   * permissions.
+   */
+  [
+    'GET /api/v1/patients',
+    async (token) => {
+      const response = await request(app)
+        .get(`/api/v1/patients?organisationId=${org.organisationId}`)
+        .set('Authorization', `Bearer ${token}`);
+      return response.status;
+    },
+  ],
+  [
+    'POST /api/v1/patients',
+    async (token) => {
+      const response = await request(app)
+        .post('/api/v1/patients')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          fullName: 'Permission Probe Patient',
+          phone: uniquePhone(),
+          dateOfBirth: '1990-01-01',
+          notes: '',
+        });
+      return response.status;
+    },
+  ],
+  [
+    'GET /api/v1/patients/:patientId',
+    async (token) => {
+      const response = await request(app)
+        .get(`/api/v1/patients/${org.ids.patients ?? ''}?organisationId=${org.organisationId}`)
+        .set('Authorization', `Bearer ${token}`);
+      return response.status;
+    },
+  ],
+  [
+    'PATCH /api/v1/patients/:patientId',
+    async (token) => {
+      const response = await request(app)
+        .patch(`/api/v1/patients/${org.ids.patients ?? ''}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ notes: 'Updated by the permission guard.' });
+      return response.status;
+    },
+  ],
+  [
+    'GET /api/v1/appointments',
+    async (token) => {
+      const response = await request(app)
+        .get(`/api/v1/appointments?organisationId=${org.organisationId}`)
+        .set('Authorization', `Bearer ${token}`);
+      return response.status;
+    },
+  ],
+  [
+    'POST /api/v1/appointments',
+    async (token) => {
+      const response = await request(app)
+        .post('/api/v1/appointments')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          patientId: org.ids.patients,
+          doctorId: org.ids.doctors,
+          serviceId: org.ids.services,
+          startAt: nextBookableStart(),
+        });
+      return response.status;
+    },
+  ],
+  [
+    'GET /api/v1/appointments/agenda',
+    async (token) => {
+      const response = await request(app)
+        .get(
+          `/api/v1/appointments/agenda?range=week&on=2026-11-02&organisationId=${org.organisationId}`,
+        )
+        .set('Authorization', `Bearer ${token}`);
+      return response.status;
+    },
+  ],
+  [
+    'GET /api/v1/appointments/availability',
+    async (token) => {
+      const response = await request(app)
+        .get(
+          `/api/v1/appointments/availability?doctorId=${org.ids.doctors ?? ''}&serviceId=${org.ids.services ?? ''}&date=2026-11-09&organisationId=${org.organisationId}`,
+        )
+        .set('Authorization', `Bearer ${token}`);
+      return response.status;
+    },
+  ],
+  [
+    'GET /api/v1/appointments/:appointmentId',
+    async (token) => {
+      const response = await request(app)
+        .get(
+          `/api/v1/appointments/${org.ids.appointments ?? ''}?organisationId=${org.organisationId}`,
+        )
+        .set('Authorization', `Bearer ${token}`);
+      return response.status;
+    },
+  ],
+  [
+    'POST /api/v1/appointments/:appointmentId/cancel',
+    async (token) => {
+      /**
+       * Cancels a FRESH appointment, not the fixture's.
+       *
+       * The guard drives this once per role and cancelling is terminal, so a shared
+       * appointment would answer 409 from the second role onwards. That is not 403, so the
+       * guard would still pass, and the same 409 would then hide a real regression. Booking
+       * first costs one request and makes every invocation equivalent.
+       */
+      const id = await bookAsOwner();
+      const response = await request(app)
+        .post(`/api/v1/appointments/${id}/cancel`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ reason: 'Driven by the permission guard.' });
+      return response.status;
+    },
+  ],
+  [
+    'POST /api/v1/appointments/:appointmentId/reschedule',
+    async (token) => {
+      const id = await bookAsOwner();
+      const response = await request(app)
+        .post(`/api/v1/appointments/${id}/reschedule`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ startAt: nextBookableStart(), reason: 'Driven by the permission guard.' });
+      return response.status;
+    },
+  ],
+  [
+    'POST /api/v1/appointments/:appointmentId/status',
+    async (token) => {
+      const id = await bookAsOwner();
+      const response = await request(app)
+        .post(`/api/v1/appointments/${id}/status`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ status: 'CONFIRMED' });
+      return response.status;
+    },
+  ],
 ]);
+
+/**
+ * Books an appointment as the clinic owner and returns its id.
+ *
+ * The owner holds `appointments:write` in every relevant cell of the matrix, so this never
+ * fails for a permission reason and the recipe calling it tests only the route it names.
+ */
+const bookAsOwner = async (): Promise<string> => {
+  const token = await tokenFor('CLINIC_OWNER');
+  const response = await request(app)
+    .post('/api/v1/appointments')
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      patientId: org.ids.patients,
+      doctorId: org.ids.doctors,
+      serviceId: org.ids.services,
+      startAt: nextBookableStart(),
+    });
+
+  if (response.status !== 201) {
+    throw new Error(`booking failed: ${response.status} ${JSON.stringify(response.body)}`);
+  }
+  return jsonBody<{ appointmentId: string }>(response).appointmentId;
+};
 
 const parsePermission = (
   value: string,

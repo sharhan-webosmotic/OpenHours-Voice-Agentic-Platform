@@ -159,7 +159,91 @@ const RECIPES = new Map<string, (token: string) => Promise<number>>([
    * which is the behaviour worth having.
    */
   ...clinicConfigurationRecipes(),
+
+  /**
+   * Patients and appointments: the first PHI routes to reach this guard.
+   *
+   * A temporary password is handed over out of band, so it may have been read off a screen,
+   * forwarded in a message, or typed by someone standing beside the person it was meant for.
+   * Patient records are the last thing it should open, which is why these are driven rather
+   * than assumed.
+   *
+   * THE BODIES ARE MINIMAL for the same reason as the clinic configuration ones above:
+   * `requirePasswordChangeComplete` runs before `validate`, so the gate answers first and the
+   * body is never parsed. If that order were ever reversed these would return 400 and this
+   * suite would fail, which is exactly the signal worth having.
+   */
+  ...patientAndAppointmentRecipes(),
 ]);
+
+/** One recipe per patient and appointment route, built from a table. */
+function patientAndAppointmentRecipes(): readonly [string, (token: string) => Promise<number>][] {
+  const patients = '/api/v1/patients';
+  const appointments = '/api/v1/appointments';
+  const patientId = () => org.ids.patients ?? '';
+  const appointmentId = () => org.ids.appointments ?? '';
+
+  const routes: readonly {
+    readonly method: 'get' | 'post' | 'patch';
+    readonly registered: string;
+    readonly path: () => string;
+  }[] = [
+    { method: 'get', registered: patients, path: () => patients },
+    { method: 'post', registered: patients, path: () => patients },
+    {
+      method: 'get',
+      registered: `${patients}/:patientId`,
+      path: () => `${patients}/${patientId()}`,
+    },
+    {
+      method: 'patch',
+      registered: `${patients}/:patientId`,
+      path: () => `${patients}/${patientId()}`,
+    },
+    { method: 'get', registered: appointments, path: () => appointments },
+    { method: 'post', registered: appointments, path: () => appointments },
+    { method: 'get', registered: `${appointments}/agenda`, path: () => `${appointments}/agenda` },
+    {
+      method: 'get',
+      registered: `${appointments}/availability`,
+      path: () => `${appointments}/availability`,
+    },
+    {
+      method: 'get',
+      registered: `${appointments}/:appointmentId`,
+      path: () => `${appointments}/${appointmentId()}`,
+    },
+    {
+      method: 'post',
+      registered: `${appointments}/:appointmentId/cancel`,
+      path: () => `${appointments}/${appointmentId()}/cancel`,
+    },
+    {
+      method: 'post',
+      registered: `${appointments}/:appointmentId/reschedule`,
+      path: () => `${appointments}/${appointmentId()}/reschedule`,
+    },
+    {
+      method: 'post',
+      registered: `${appointments}/:appointmentId/status`,
+      path: () => `${appointments}/${appointmentId()}/status`,
+    },
+  ];
+
+  return routes.map(
+    (route) =>
+      [
+        `${route.method.toUpperCase()} ${route.registered}`,
+        async (token: string) =>
+          (
+            await request(app)
+              [route.method](route.path())
+              .set('Authorization', `Bearer ${token}`)
+              .send({})
+          ).status,
+      ] as const,
+  );
+}
 
 /**
  * One recipe per clinic configuration route, built from a table rather than written out

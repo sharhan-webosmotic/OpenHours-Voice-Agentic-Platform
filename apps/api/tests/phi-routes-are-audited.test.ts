@@ -7,6 +7,7 @@ import { uuidV7 } from '../src/common/uuid.js';
 import { jsonBody } from '../src/test-support/http.js';
 import { asPlatform, disconnectAll, ownerClient } from './support/db.js';
 import { createOrganisationGraph, type OrganisationGraph } from './support/fixtures.js';
+import { markHoursCollected, nextBookableStart } from './support/clinic-schedule.js';
 
 /**
  * Every PHI-sensitive route must actually WRITE the audit row it declares.
@@ -37,6 +38,9 @@ beforeAll(async () => {
 
   await asPlatform(ownerClient(), async (tx) => {
     org = await createOrganisationGraph(tx, 'PhiAudit');
+    // Without this the slot engine correctly offers nothing (D-013), and every booking
+    // recipe below would be refused before it could write an audit row.
+    await markHoursCollected(tx, org.organisationId);
     ownerEmail = `phi.audit.owner.${Date.now()}@test.invalid`;
     ownerUserId = uuidV7();
     superAdminEmail = `phi.audit.super.${Date.now()}@test.invalid`;
@@ -125,7 +129,168 @@ const RECIPES = new Map<string, () => Promise<Driven>>([
       return { status: response.status, actorUserId: superAdminUserId };
     },
   ],
+
+  /**
+   * Patients and appointments.
+   *
+   * EVERY ONE IS DRIVEN AS THE CLINIC OWNER, who holds every cell these routes need, so a
+   * refusal here would be a real failure rather than a permission artefact.
+   *
+   * THE THREE STATE-CHANGING RECIPES BOOK THEIR OWN APPOINTMENT FIRST. The guard drives each
+   * recipe twice and compares the audit count across the two runs, and cancelling, moving or
+   * completing an appointment is a one-way move: a shared fixture appointment would answer
+   * 409 on the second run, write no audit row, and fail the guard for a reason that has
+   * nothing to do with auditing.
+   */
+  [
+    'GET /api/v1/patients',
+    async () => {
+      const token = await loginAs(ownerEmail);
+      const response = await request(app)
+        .get('/api/v1/patients')
+        .set('Authorization', `Bearer ${token}`);
+      return { status: response.status, actorUserId: ownerUserId };
+    },
+  ],
+  [
+    'POST /api/v1/patients',
+    async () => {
+      const token = await loginAs(ownerEmail);
+      const response = await request(app)
+        .post('/api/v1/patients')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          fullName: 'Audit Guard Patient',
+          phone: `+9177${String(Date.now()).slice(-8)}`,
+          dateOfBirth: '',
+          notes: '',
+        });
+      return { status: response.status, actorUserId: ownerUserId };
+    },
+  ],
+  [
+    'GET /api/v1/patients/:patientId',
+    async () => {
+      const token = await loginAs(ownerEmail);
+      const response = await request(app)
+        .get(`/api/v1/patients/${org.ids.patients ?? ''}`)
+        .set('Authorization', `Bearer ${token}`);
+      return { status: response.status, actorUserId: ownerUserId };
+    },
+  ],
+  [
+    'PATCH /api/v1/patients/:patientId',
+    async () => {
+      const token = await loginAs(ownerEmail);
+      const response = await request(app)
+        .patch(`/api/v1/patients/${org.ids.patients ?? ''}`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ notes: 'Touched by the audit guard.' });
+      return { status: response.status, actorUserId: ownerUserId };
+    },
+  ],
+  [
+    'GET /api/v1/appointments',
+    async () => {
+      const token = await loginAs(ownerEmail);
+      const response = await request(app)
+        .get('/api/v1/appointments')
+        .set('Authorization', `Bearer ${token}`);
+      return { status: response.status, actorUserId: ownerUserId };
+    },
+  ],
+  [
+    'POST /api/v1/appointments',
+    async () => {
+      const token = await loginAs(ownerEmail);
+      const response = await request(app)
+        .post('/api/v1/appointments')
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          patientId: org.ids.patients,
+          doctorId: org.ids.doctors,
+          serviceId: org.ids.services,
+          startAt: nextBookableStart(),
+        });
+      return { status: response.status, actorUserId: ownerUserId };
+    },
+  ],
+  [
+    'GET /api/v1/appointments/agenda',
+    async () => {
+      const token = await loginAs(ownerEmail);
+      const response = await request(app)
+        .get('/api/v1/appointments/agenda?range=day&on=2026-11-02')
+        .set('Authorization', `Bearer ${token}`);
+      return { status: response.status, actorUserId: ownerUserId };
+    },
+  ],
+  [
+    'GET /api/v1/appointments/:appointmentId',
+    async () => {
+      const token = await loginAs(ownerEmail);
+      const response = await request(app)
+        .get(`/api/v1/appointments/${org.ids.appointments ?? ''}`)
+        .set('Authorization', `Bearer ${token}`);
+      return { status: response.status, actorUserId: ownerUserId };
+    },
+  ],
+  [
+    'POST /api/v1/appointments/:appointmentId/cancel',
+    async () => {
+      const token = await loginAs(ownerEmail);
+      const id = await bookForAudit(token);
+      const response = await request(app)
+        .post(`/api/v1/appointments/${id}/cancel`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ reason: 'Driven by the audit guard.' });
+      return { status: response.status, actorUserId: ownerUserId };
+    },
+  ],
+  [
+    'POST /api/v1/appointments/:appointmentId/reschedule',
+    async () => {
+      const token = await loginAs(ownerEmail);
+      const id = await bookForAudit(token);
+      const response = await request(app)
+        .post(`/api/v1/appointments/${id}/reschedule`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ startAt: nextBookableStart(), reason: 'Driven by the audit guard.' });
+      return { status: response.status, actorUserId: ownerUserId };
+    },
+  ],
+  [
+    'POST /api/v1/appointments/:appointmentId/status',
+    async () => {
+      const token = await loginAs(ownerEmail);
+      const id = await bookForAudit(token);
+      const response = await request(app)
+        .post(`/api/v1/appointments/${id}/status`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ status: 'CONFIRMED' });
+      return { status: response.status, actorUserId: ownerUserId };
+    },
+  ],
 ]);
+
+/** Books a fresh appointment for the recipes that need one to act on. */
+const bookForAudit = async (token: string): Promise<string> => {
+  const response = await request(app)
+    .post('/api/v1/appointments')
+    .set('Authorization', `Bearer ${token}`)
+    .send({
+      patientId: org.ids.patients,
+      doctorId: org.ids.doctors,
+      serviceId: org.ids.services,
+      startAt: nextBookableStart(),
+    });
+
+  if (response.status !== 201) {
+    throw new Error(`audit guard could not book: ${response.status}`);
+  }
+
+  return jsonBody<{ appointmentId: string }>(response).appointmentId;
+};
 
 describe('every PHI-sensitive route is audited', () => {
   const routes = getRegisteredRoutes();

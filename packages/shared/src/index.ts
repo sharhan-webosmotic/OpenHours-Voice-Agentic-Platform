@@ -47,6 +47,55 @@ export {
 export { SUGGESTED_TIME_ZONES, isIanaTimeZone } from './timezone.js';
 
 export {
+  PATIENT_SORTS,
+  patientSchema,
+  updatePatientSchema,
+  type PatientInput,
+  type PatientSort,
+  type UpdatePatientInput,
+} from './patient.js';
+
+export {
+  AGENDA_RANGES,
+  APPOINTMENT_SOURCES,
+  APPOINTMENT_STATUSES,
+  APPOINTMENT_TRANSITIONS,
+  SLOT_HOLDING_STATUSES,
+  agendaQuerySchema,
+  availabilityQuerySchema,
+  canTransition,
+  cancelAppointmentSchema,
+  changeAppointmentStatusSchema,
+  createAppointmentSchema,
+  holdsSlot,
+  rescheduleAppointmentSchema,
+  type AgendaQuery,
+  type AgendaRange,
+  type AppointmentSource,
+  type AppointmentStatus,
+  type AvailabilityQuery,
+  type CancelAppointmentInput,
+  type ChangeAppointmentStatusInput,
+  type CreateAppointmentInput,
+  type RescheduleAppointmentInput,
+} from './appointment.js';
+
+export {
+  addDays,
+  clinicDayOf,
+  daysBetween,
+  endOfClinicDay,
+  formatMinuteOfDay,
+  isClinicDay,
+  startOfClinicDay,
+  weekdayOf,
+  zonedParts,
+  zonedTimeToUtc,
+  type ClinicDay,
+  type ZonedParts,
+} from './clinic-time.js';
+
+export {
   AGENT_TONES,
   MINUTES_IN_DAY,
   ORGANISATION_STATUSES,
