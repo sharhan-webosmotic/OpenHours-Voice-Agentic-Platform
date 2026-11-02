@@ -156,3 +156,34 @@ describe('verifyAccessToken claim shape', () => {
     expect((noSubject as UnauthorizedError).message).toBe((garbage as UnauthorizedError).message);
   });
 });
+
+/**
+ * The voice agent's role is in the permission matrix and must never be in a session.
+ *
+ * Signed with the real key, so the signature verifies and the refusal is genuinely the
+ * claim check. That is the case worth testing: an unsigned or tampered token is refused by
+ * jose long before anything reads the role, and the risk here is a code path of our own
+ * that mints a token for the agent because the matrix says the role exists.
+ */
+describe('the voice agent cannot hold a session', () => {
+  it('refuses a validly signed token carrying VOICE_AGENT', async () => {
+    const token = await signRaw({ org: 'org-1', role: 'VOICE_AGENT' }, { subject: 'usr-1' });
+
+    await expect(verifyAccessToken(token)).rejects.toBeInstanceOf(UnauthorizedError);
+  });
+
+  it('refuses it with the same error as a tampered token, revealing nothing', async () => {
+    const agent = await signRaw({ org: 'org-1', role: 'VOICE_AGENT' }, { subject: 'usr-1' });
+    const nonsense = await signRaw({ org: 'org-1', role: 'EMPEROR' }, { subject: 'usr-1' });
+
+    // Indistinguishable on purpose: a caller must not learn that VOICE_AGENT is a role the
+    // platform knows and EMPEROR is not.
+    const [a, b] = await Promise.all([
+      verifyAccessToken(agent).catch((error: unknown) => error),
+      verifyAccessToken(nonsense).catch((error: unknown) => error),
+    ]);
+
+    expect(a).toBeInstanceOf(UnauthorizedError);
+    expect((a as UnauthorizedError).message).toBe((b as UnauthorizedError).message);
+  });
+});

@@ -21,9 +21,11 @@ export {
   RESOURCES,
   ROLES,
   SCOPES,
+  USER_ROLES,
   isPermitted,
   isPlatformRole,
   isRole,
+  isUserRole,
   permissionScope,
   roleBelongsInAudience,
   type Action,
@@ -33,6 +35,7 @@ export {
   type Resource,
   type Role,
   type Scope,
+  type UserRole,
 } from './permissions.js';
 
 export {

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { ROLES, type Role } from '@clinicai/shared';
+import { USER_ROLES, type Role } from '@clinicai/shared';
 import { FORBIDDEN_TYPE } from '@clinicai/api-client';
 import { problem, renderWith, stubClient, user } from '../test-support/harness';
 import { ADMIN_NAV, landingPath, permits } from './navigation';
@@ -33,7 +33,9 @@ vi.mock('../lib/clinicsApi', () => ({
 const signedIn = (role: Role) => stubClient({ user: user(role), bootSucceeds: true });
 
 describe('the landing route', () => {
-  it.each(ROLES)('puts %s on a page their role can read, or explains', async (role) => {
+  // USER_ROLES: no session can carry the voice agent's role, so there is no render of the
+  // console to test for it. `navigation.test.ts` asserts it reaches no menu item.
+  it.each(USER_ROLES)('puts %s on a page their role can read, or explains', async (role) => {
     renderWith(<AppRoutes />, signedIn(role), ['/']);
 
     const expected = landingPath(ADMIN_NAV, role);
@@ -51,7 +53,7 @@ describe('the landing route', () => {
 });
 
 describe('every page, for every role', () => {
-  const cases = ROLES.flatMap((role) => ADMIN_NAV.map((item) => ({ role, item })));
+  const cases = USER_ROLES.flatMap((role) => ADMIN_NAV.map((item) => ({ role, item })));
 
   it.each(cases)('$role at $item.path', async ({ role, item }) => {
     renderWith(<AppRoutes />, signedIn(role), [item.path]);

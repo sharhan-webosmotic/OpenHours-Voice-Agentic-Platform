@@ -1,6 +1,6 @@
 import type { Prisma } from '../../generated/prisma/client.js';
 import type { TenantDb } from '../../db/tenant-client.js';
-import type { Role } from '@clinicai/shared';
+import type { UserRole } from '@clinicai/shared';
 
 /**
  * The only place in the audit module that touches Prisma (apps/api/CLAUDE.md). The
@@ -23,7 +23,18 @@ export type InsertAudit = {
   readonly id: string;
   readonly organisationId?: string;
   readonly actorUserId?: string;
-  readonly actorRole?: string;
+  /**
+   * `UserRole`, because `audit_logs.actor_role` IS THE DATABASE'S `role` ENUM, which has
+   * six values and no voice agent.
+   *
+   * The agent is a principal in the permission matrix but not a value this column can
+   * hold, so an action it takes is recorded with no actor role and names itself in the
+   * action (`voice.*`) and in the metadata instead. That is an interim arrangement, not a
+   * good one: a regulated trail should answer "who" in a column rather than by a naming
+   * convention. The proper fix is a schema change, which needs approval, so it is written
+   * down in `docs/BACKLOG.md` rather than taken quietly here.
+   */
+  readonly actorRole?: UserRole;
   readonly action: string;
   readonly entityType: string;
   readonly entityId?: string;
@@ -39,7 +50,7 @@ export const insert = async (db: TenantDb, row: InsertAudit): Promise<void> => {
       id: row.id,
       ...(row.organisationId === undefined ? {} : { organisationId: row.organisationId }),
       ...(row.actorUserId === undefined ? {} : { actorUserId: row.actorUserId }),
-      ...(row.actorRole === undefined ? {} : { actorRole: row.actorRole as Role }),
+      ...(row.actorRole === undefined ? {} : { actorRole: row.actorRole }),
       action: row.action,
       entityType: row.entityType,
       ...(row.entityId === undefined ? {} : { entityId: row.entityId }),

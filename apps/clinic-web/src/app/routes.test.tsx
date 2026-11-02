@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { screen } from '@testing-library/react';
-import { isPermitted, ROLES, type Role } from '@clinicai/shared';
+import { isPermitted, USER_ROLES, type Role } from '@clinicai/shared';
 import { renderWith, stubClient, user } from '../test-support/harness';
 import { CLINIC_NAV, landingPath } from './navigation';
 import { AppRoutes } from './routes';
@@ -22,7 +22,7 @@ import { AppRoutes } from './routes';
 const signedIn = (role: Role) => stubClient({ user: user(role), bootSucceeds: true });
 
 describe('the landing route', () => {
-  it.each(ROLES)('puts %s on a page their role can actually read', async (role) => {
+  it.each(USER_ROLES)('puts %s on a page their role can actually read', async (role) => {
     renderWith(<AppRoutes />, signedIn(role), ['/']);
 
     const expected = landingPath(CLINIC_NAV, role);
@@ -47,7 +47,10 @@ describe('the landing route', () => {
 });
 
 describe('every page, for every role', () => {
-  const cases = ROLES.flatMap((role) => CLINIC_NAV.map((item) => ({ role, item })));
+  // USER_ROLES: no session can carry the voice agent's role, so rendering a page for it
+  // would be testing a state the application cannot reach. `navigation.test.ts` asserts
+  // that it has no menu at all.
+  const cases = USER_ROLES.flatMap((role) => CLINIC_NAV.map((item) => ({ role, item })));
 
   it.each(cases)('$role at $item.path', async ({ role, item }) => {
     renderWith(<AppRoutes />, signedIn(role), [item.path]);

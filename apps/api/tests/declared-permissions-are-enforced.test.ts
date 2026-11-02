@@ -3,12 +3,12 @@ import request from 'supertest';
 import {
   ACTIONS,
   RESOURCES,
-  ROLES,
+  USER_ROLES,
   isPlatformRole,
   permissionScope,
   type Action,
   type Resource,
-  type Role,
+  type UserRole,
 } from '@clinicai/shared';
 import { createApp } from '../src/app.js';
 import { getRegisteredRoutes, type RouteDescriptor } from '../src/common/route-registry.js';
@@ -53,7 +53,7 @@ const PASSWORD = 'correct-horse-battery-staple';
 const app = createApp({ readiness: () => Promise.resolve() });
 
 let org: OrganisationGraph;
-const emailByRole = new Map<Role, string>();
+const emailByRole = new Map<UserRole, string>();
 
 beforeAll(async () => {
   const passwordHash = await hashPassword(PASSWORD);
@@ -65,7 +65,13 @@ beforeAll(async () => {
     // reason and the wrong one, and the guard would prove nothing about permissions.
     await markHoursCollected(tx, org.organisationId);
 
-    for (const role of ROLES) {
+    /**
+     * USER_ROLES, because a user row cannot hold `VOICE_AGENT`: the database enum has six
+     * values. The voice agent reaches no route with a token at all, so this suite cannot
+     * speak for it. Its grants are proven against the voice tool endpoints, which
+     * authenticate with a per-clinic secret instead.
+     */
+    for (const role of USER_ROLES) {
       const email = `perm.${role.toLowerCase()}.${Date.now()}@test.invalid`;
       emailByRole.set(role, email);
 
@@ -91,7 +97,7 @@ afterAll(async () => {
 
 const keyOf = (route: RouteDescriptor): string => `${route.method.toUpperCase()} ${route.path}`;
 
-const tokenFor = async (role: Role): Promise<string> => {
+const tokenFor = async (role: UserRole): Promise<string> => {
   const email = emailByRole.get(role);
   if (email === undefined) {
     throw new Error(`no fixture user for ${role}`);
@@ -529,7 +535,7 @@ describe('every declared route permission is a real matrix cell and is enforced'
   )) {
     const key = keyOf(route);
 
-    it(`${key} enforces ${String(route.permission)} for all ${ROLES.length} roles`, async () => {
+    it(`${key} enforces ${String(route.permission)} for all ${USER_ROLES.length} user roles`, async () => {
       const drive = RECIPES.get(key);
       const cell = parsePermission(route.permission ?? '');
 
@@ -541,7 +547,7 @@ describe('every declared route permission is a real matrix cell and is enforced'
 
       const wrong: string[] = [];
 
-      for (const role of ROLES) {
+      for (const role of USER_ROLES) {
         const scope = permissionScope(role, cell.resource, cell.action);
         const status = await drive(await tokenFor(role));
 

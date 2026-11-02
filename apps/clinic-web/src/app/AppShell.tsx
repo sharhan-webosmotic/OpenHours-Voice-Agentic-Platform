@@ -17,7 +17,7 @@ import {
   Users,
   type LucideIcon,
 } from 'lucide-react';
-import type { Role } from '@clinicai/shared';
+import { isUserRole, type Role, type UserRole } from '@clinicai/shared';
 import { Button } from '../components/ui/Button';
 import { Logo } from '../components/ui/Logo';
 import { cn } from '../components/ui/cn';
@@ -34,7 +34,12 @@ import { visibleNavigation, type NavItem } from './navigation';
  * decides what appears. There is no second list of rules here.
  */
 
-const ROLE_LABELS: Record<Role, string> = {
+/**
+ * `UserRole`, not `Role`: the voice agent is a principal in the permission matrix and
+ * never a signed-in person, so a label for it would be a label nothing can ever show. The
+ * type is what keeps it out of this map, and out of any dropdown built from one.
+ */
+const ROLE_LABELS: Record<UserRole, string> = {
   SUPER_ADMIN: 'Super admin',
   INTERNAL_ADMIN: 'Internal admin',
   CLINIC_OWNER: 'Clinic owner',
@@ -42,6 +47,15 @@ const ROLE_LABELS: Record<Role, string> = {
   DOCTOR: 'Doctor',
   STAFF: 'Staff',
 };
+
+/**
+ * The signed-in person's role, in words.
+ *
+ * The guard is not defensive decoration: `role` arrives as a `Role`, which includes the
+ * voice agent, and no session can ever carry that. Rather than widen the map to hold a
+ * label nothing can display, an impossible role falls back to a plain string.
+ */
+const roleLabel = (role: Role): string => (isUserRole(role) ? ROLE_LABELS[role] : 'Unknown role');
 
 /**
  * The icons the navigation can name, imported one by one.
@@ -122,8 +136,7 @@ export const AppShell = ({
           <div className="flex min-w-0 items-center gap-4">
             <GlobalSearch />
             <span className="hidden text-muted text-xs lg:inline">
-              Signed in as{' '}
-              <strong className="font-semibold text-default">{ROLE_LABELS[role]}</strong>
+              Signed in as <strong className="font-semibold text-default">{roleLabel(role)}</strong>
             </span>
           </div>
 

@@ -1,4 +1,4 @@
-import { isPermitted, type Action, type Resource, type Role } from '@clinicai/shared';
+import { isPermitted, isUserRole, type Action, type Resource, type Role } from '@clinicai/shared';
 
 /**
  * The menu, and the rule that decides who sees what.
@@ -97,9 +97,17 @@ export const CLINIC_NAV = [
    */
 ] as const satisfies readonly NavItem[];
 
-/** The items this role may see, in declared order. */
+/**
+ * The items this role may see, in declared order.
+ *
+ * A MENU IS A PERSON'S MENU. The voice agent is a principal in the permission matrix with
+ * a genuine read of appointments, patients, services and the clinic's settings, so filtering
+ * on the matrix alone offered it five pages. No session can carry that role, which makes
+ * this unreachable rather than a live hole, and an unreachable menu built for a principal
+ * that cannot sign in is still the wrong answer to give.
+ */
 export const visibleNavigation = (items: readonly NavItem[], role: Role): readonly NavItem[] =>
-  items.filter((item) => isPermitted(role, item.resource, item.action));
+  isUserRole(role) ? items.filter((item) => isPermitted(role, item.resource, item.action)) : [];
 
 /**
  * Where to send this role after sign-in: their first reachable item.

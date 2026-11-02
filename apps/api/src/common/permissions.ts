@@ -1,5 +1,5 @@
 import {
-  isRole,
+  isUserRole,
   permissionScope,
   type Action,
   type Resource,
@@ -37,8 +37,12 @@ export const currentPrincipal = (): Principal => {
    * claim, and an `as Role` here asserted something nothing had verified. The verifier
    * already refuses an unrecognised claim, so reaching this is a bug rather than an
    * attack, and it fails closed as a 401 instead of a TypeError deeper in the matrix.
+   *
+   * `isUserRole`, so this is also the second refusal of a `VOICE_AGENT` session: the
+   * verifier is the first. A principal built from a request context is by definition a
+   * person's session, and the voice agent's principal is built from its secret instead.
    */
-  if (!isRole(context.role)) {
+  if (!isUserRole(context.role)) {
     throw new UnauthorizedError(
       `unrecognised role on principal: ${context.role}`,
       'Authentication is required.',
