@@ -4,7 +4,6 @@ import { Spinner } from '../components/ui/Spinner';
 import { ChangePasswordPage } from '../features/auth/ChangePasswordPage';
 import { NoAccessPage } from '../features/auth/NoAccessPage';
 import { SignInPage } from '../features/auth/SignInPage';
-import { AppShell } from './AppShell';
 import { CLINIC_NAV, landingPath } from './navigation';
 import { RequirePermission } from './RequirePermission';
 import { RequireSession } from './RequireSession';
@@ -29,6 +28,21 @@ import { useAuth } from './AuthProvider';
  */
 
 const placeholders = () => import('../features/placeholders/pages');
+
+/**
+ * The shell is lazy, which is what keeps the entry chunk inside the budget.
+ *
+ * It carries the sidebar, the top bar and every icon they use, and none of it is needed by
+ * the sign-in screen, which is the first thing a signed-out visitor loads. Importing it
+ * statically put all of that, lucide included, into the entry chunk and pushed the initial
+ * JavaScript over the 450 KB budget in `vite.config.ts` when the store was added. The admin
+ * console already ships its shell as its own chunk, so this also removes a divergence
+ * between the two rather than inventing a pattern.
+ *
+ * A signed-in user pays one extra request for it, behind the `Suspense` the shell route
+ * already needs, and it is cached from then on.
+ */
+const AppShell = lazy(async () => ({ default: (await import('./AppShell')).AppShell }));
 
 const OverviewPage = lazy(async () => ({ default: (await placeholders()).OverviewPage }));
 const AppointmentsPage = lazy(async () => ({ default: (await placeholders()).AppointmentsPage }));
@@ -75,13 +89,15 @@ const Shell = () => {
   }
 
   return (
-    <AppShell
-      role={user.role}
-      items={CLINIC_NAV}
-      onSignOut={() => {
-        void signOut();
-      }}
-    />
+    <Suspense fallback={<Spinner />}>
+      <AppShell
+        role={user.role}
+        items={CLINIC_NAV}
+        onSignOut={() => {
+          void signOut();
+        }}
+      />
+    </Suspense>
   );
 };
 

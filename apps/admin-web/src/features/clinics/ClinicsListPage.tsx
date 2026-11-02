@@ -9,7 +9,7 @@ import { Field } from '../../components/ui/Field';
 import { Spinner } from '../../components/ui/Spinner';
 import { Badge, Cell, Row, Table } from '../../components/ui/Table';
 import { useCan } from '../../lib/useCan';
-import { useClinicList } from './useClinics';
+import { toProblemDetails, useClinicList } from './useClinics';
 
 /**
  * Every clinic on the platform, with search and cursor pagination.
@@ -109,7 +109,7 @@ export const ClinicsListPage = () => {
       {isError && (
         <div className="flex flex-col items-start gap-3">
           <Alert kind="danger">
-            {error instanceof Error ? error.message : 'The clinic list could not be loaded.'}
+            {toProblemDetails(error)?.detail ?? 'The clinic list could not be loaded.'}
           </Alert>
           <Button
             kind="secondary"

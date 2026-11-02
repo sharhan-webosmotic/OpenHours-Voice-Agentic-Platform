@@ -1,10 +1,12 @@
 import { render, type RenderResult } from '@testing-library/react';
+import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router';
 import type { ReactNode } from 'react';
 import { ApiError, type ApiClient, type CurrentUser, type Session } from '@clinicai/api-client';
 import type { Role } from '@clinicai/shared';
 import { AuthProvider } from '../app/AuthProvider';
 import { createSessionBus, type SessionBus } from '../app/sessionBus';
+import { createAppStore } from '../app/store';
 
 /**
  * A stub API client, and the renderer the component tests use.
@@ -102,15 +104,24 @@ export const user = (role: Role, mustChangePassword = false): CurrentUser => ({
   mustChangePassword,
 });
 
+/**
+ * A fresh store per render.
+ *
+ * FRESH, because a store shared between tests would carry one test's cached response into
+ * the next and the assertions would then pass or fail depending on the order they ran in.
+ * The store is built by a factory for exactly this reason (`app/store.ts`).
+ */
 export const renderWith = (
   children: ReactNode,
   stub: Stub,
   initialEntries: readonly string[] = ['/'],
 ): RenderResult =>
   render(
-    <MemoryRouter initialEntries={[...initialEntries]}>
-      <AuthProvider client={stub.client} sessionLost={stub.bus.subscribe}>
-        {children}
-      </AuthProvider>
-    </MemoryRouter>,
+    <Provider store={createAppStore()}>
+      <MemoryRouter initialEntries={[...initialEntries]}>
+        <AuthProvider client={stub.client} sessionLost={stub.bus.subscribe}>
+          {children}
+        </AuthProvider>
+      </MemoryRouter>
+    </Provider>,
   );

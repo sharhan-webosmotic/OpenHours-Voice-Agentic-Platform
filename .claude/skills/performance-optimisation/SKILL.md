@@ -29,7 +29,7 @@ Resolve the organisation by an indexed lookup on agent id/number; do one read, o
 
 ## Frontend
 - Route-level code splitting; lazy-load calendar, charts and rich tables. Enforce a bundle budget in CI.
-- TanStack Query: sensible `staleTime`, request dedupe, prefetch on hover for detail pages, `keepPreviousData` for pagination.
+- RTK Query: sensible `keepUnusedDataFor`, request dedupe (automatic for identical cache keys), prefetch on hover for detail pages (`usePrefetch`), and `merge`/`serializeQueryArgs` for paginated lists so a page change does not blank the table.
 - Virtualise long lists; debounce search (300 ms); avoid re-render storms (stable props, split components) and only then memoise.
 - Images and fonts: self-hosted, subsetted, `font-display: swap`.
 

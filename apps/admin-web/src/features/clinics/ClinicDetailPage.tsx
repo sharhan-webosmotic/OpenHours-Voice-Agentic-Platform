@@ -1,5 +1,4 @@
 import { Link, useParams } from 'react-router';
-import { ApiError } from '@clinicai/api-client';
 import type { ReadinessSection } from '@clinicai/shared';
 import { PageHeading } from '../../app/AppShell';
 import { Alert } from '../../components/ui/Alert';
@@ -8,7 +7,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { Badge } from '../../components/ui/Table';
 import { useCan } from '../../lib/useCan';
 import { ReadinessPanel } from './ReadinessPanel';
-import { useClinic } from './useClinics';
+import { toProblemDetails, useClinic } from './useClinics';
 import { AgentProfileSection } from './sections/AgentProfileSection';
 import { BookingPolicySection } from './sections/BookingPolicySection';
 import { DoctorsSection } from './sections/DoctorsSection';
@@ -65,16 +64,15 @@ export const ClinicDetailPage = () => {
      * principal cannot reach, which is root CLAUDE.md rule 7: a 403 would confirm the
      * clinic exists. So the message says "not found" without speculating about why.
      */
-    const notFound = error instanceof ApiError && error.problem.status === 404;
+    const problem = toProblemDetails(error);
+    const notFound = problem?.status === 404;
 
     return (
       <div className="flex flex-col items-start gap-3">
         <Alert kind="danger">
           {notFound
             ? 'That clinic was not found.'
-            : error instanceof Error
-              ? error.message
-              : 'The clinic could not be loaded.'}
+            : (problem?.detail ?? problem?.title ?? 'The clinic could not be loaded.')}
         </Alert>
         <div className="flex items-center gap-3">
           {!notFound && (
@@ -93,6 +91,18 @@ export const ClinicDetailPage = () => {
         </div>
       </div>
     );
+  }
+
+  /**
+   * The compiler cannot see that a settled, un-errored query has data, so this says it.
+   *
+   * It is not dead code in the way the two guards above are not dead code: RTK Query's
+   * result is `data | undefined` in every state, including the moment between a cache entry
+   * being invalidated and its refetch resolving. A spinner is the honest thing to show then,
+   * and it is the same spinner as the first load.
+   */
+  if (clinic === undefined) {
+    return <Spinner />;
   }
 
   const { missing } = clinic.readiness;

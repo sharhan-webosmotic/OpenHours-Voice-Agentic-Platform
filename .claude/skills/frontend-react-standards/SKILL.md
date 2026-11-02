@@ -6,14 +6,14 @@ description: Use when writing or changing React code in apps/clinic-web or apps/
 # Frontend React standards
 
 ## Stack
-React 19, TypeScript strict, Vite, Tailwind CSS 4, React Router, TanStack Query, TanStack Table, React Hook Form + zod, Radix-based primitives (shadcn/ui pattern), date-fns with the clinic timezone, Vitest + Testing Library + MSW, Playwright.
+React 19, TypeScript strict, Vite, Tailwind CSS 4, React Router, Redux Toolkit with RTK Query, React Hook Form + zod, Radix-based primitives (shadcn/ui pattern), date-fns with the clinic timezone, Vitest + Testing Library + MSW, Playwright.
 
 ## Structure
 Feature folders (`features/appointments`, `features/patients`...). Each holds its api hooks, components, pages, schemas and tests. Shared primitives in `components/ui`. Never import from another feature's internals; promote shared code to `components` or `lib`.
 
 ## Data and state
-- Server state only in TanStack Query. Query keys are arrays built by one key factory per feature. Mutations invalidate precisely, with optimistic updates only where rollback is simple (e.g. follow-up completion).
-- Local UI state in components; URL holds filters, page, selected date (never patient data). No global store unless justified in an ADR.
+- Server state only in RTK Query, in ONE service per app, with endpoints injected per feature (D-015). Its `baseQuery` is `packages/api-client`, never `fetch`: the client holds the single-flight refresh, the CSRF header and the credentials handling. Cache tags are declared up front in the service; a tag that is invalidated but never declared is ignored silently. Mutations invalidate precisely, with optimistic updates only where rollback is simple (e.g. follow-up completion).
+- Local UI state in components. The URL holds per-screen filters, page and selected date (never patient data). A Redux slice holds only client state two screens genuinely share, never a copy of server data and never patient data.
 - API access only via `packages/api-client` types. Handle problem+json: map `errors[]` to form fields, show `detail` otherwise with the request ID.
 
 ## Forms

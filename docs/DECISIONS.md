@@ -284,6 +284,57 @@ once the tool endpoints exist.
 
 ---
 
+## D-015 One data layer: Redux Toolkit and RTK Query, with TanStack Query removed
+
+Server data lives in RTK Query caches. Global client state (the session, user-interface
+preferences, filters that cross screens) lives in Redux Toolkit slices. TanStack Query is
+removed from the repository, including from the admin console, which had one hook using it.
+
+**Why one and not two:** the clinic dashboard is the first application with enough screens for
+the choice to matter, and it arrived with TanStack Query already installed in both web
+applications but used by a single hook. Two cache libraries means two invalidation models, two
+sets of retry semantics and two answers to "where does this data come from", and every later
+feature has to pick. Picking once, now, while the cost of changing is one hook, is cheaper than
+picking per feature for a year.
+
+**RTK Query's baseQuery is `packages/api-client`, never `fetch`.** The client holds the
+single-flight refresh on 401, the CSRF header and `credentials: 'include'`, and all three were
+verified in a real browser in the sign-in feature. A baseQuery that called `fetch` directly
+would silently reimplement a session that is already correct, and the failure mode is not a
+broken request: it is five parallel queries each triggering a refresh, the refresh token
+rotating under them and the user being signed out by their own page load. A test asserts that a
+401 inside an RTK Query call produces exactly one refresh and one retry.
+
+**Server data is never copied into a slice.** A slice holding a copy of what a query cache
+already holds is a second source of truth with no invalidation, which is the specific bug this
+decision exists to prevent.
+
+---
+
+## D-016 M1-14 moves to after the pilot call, which amends D-008
+
+D-008 said the `app.platform` escape clause is removed from all 25 row-level security policies
+before the voice work begins. It was not, and the voice work proceeded. This entry records that
+as a decision taken with the measurements in view, not as a decision that was skipped.
+
+**Why the risk does not bite at pilot scale:** the 13x penalty in D-008 was measured on 50,000
+rows. The pilot is one clinic with a handful of patients, where a sequential scan over a tiny
+table costs microseconds, so the non-indexable predicate does not threaten the requirement of
+voice tool endpoints at p95 under 400 ms. The self-escalation half of D-008 is not reachable
+from outside the API process.
+
+**What it is now gated on, in place of "before M3":** M1-14 lands immediately after the real
+call works, and before either a load test or a second clinic. Those two events are precisely
+the points at which the reasoning above stops holding: a load test runs against the row counts
+where the sequential scan was measured, and a second clinic is where one tenant's compromise
+reaching another stops being hypothetical.
+
+**D-008 is not deleted and its reasoning is not weakened.** Both halves of it remain true at
+scale. What changed is the ordering, and the condition that replaces it is written in
+`docs/BACKLOG.md` as well, because that is where whoever picks the ticket up will look.
+
+---
+
 ## What no automated test currently covers
 
 **That the refresh cookie is actually sent: NOW VERIFIED.** This was the open item here and it

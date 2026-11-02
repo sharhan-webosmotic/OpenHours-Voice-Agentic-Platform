@@ -218,8 +218,17 @@ describe('the clinic list', () => {
       expect(list).toHaveBeenCalledWith(expect.objectContaining({ cursor: 'cursor-2' }));
     });
 
-    // Previous is only available once there is somewhere to go back to.
-    expect(screen.getByRole('button', { name: 'Previous' })).toBeEnabled();
+    /**
+     * Previous is only available once there is somewhere to go back to.
+     *
+     * Awaited rather than asserted immediately, because the pager disables both buttons
+     * while a page is in flight, and the `waitFor` above settles when the request was SENT.
+     * Under the query client this used to replace, the fetch had resolved by then; RTK Query
+     * keeps `isFetching` true for a tick longer. The property under test is the same.
+     */
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Previous' })).toBeEnabled();
+    });
   });
 
   it('offers a retry when the list fails', async () => {

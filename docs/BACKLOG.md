@@ -12,7 +12,22 @@ the work lands, not marked done.
 
 ## M1-03 OpenAPI document and generated client
 
-**Due: before the third feature slice.**
+**Due: in the same slot as M1-14, immediately after the pilot clinic's first real call
+works. This is its SECOND slip.**
+
+**The slips, recorded honestly.** It was first due before the third feature slice. The third
+feature slice is the clinic dashboard, and it did not land there either: the dashboard's
+patients, appointments, availability, agenda and call endpoints were hand-written into
+`packages/api-client` in the same pattern as `clinics.ts`, on the reasoning that RTK Query's
+code generation works from an OpenAPI document, so building the document after the pilot call
+is also when the generator pays off most rather than merely when it is convenient.
+
+**The cost is growing, and it is now the largest single piece of debt in this repository.**
+Five auth endpoints became twenty when the pilot clinic feature added fifteen, and the clinic
+dashboard adds roughly twenty more across patients, appointments, availability, agenda and
+calls. Every one of them is a hand-maintained description of a contract the API already
+describes in zod, which means every one is a place the two can disagree silently. The gate
+cannot catch that, because the drift leg is exactly what this ticket owes.
 
 `packages/api-client` is described throughout the repository as generated from an OpenAPI
 document. Neither exists. The document was to be generated from the zod schemas that every
@@ -46,6 +61,36 @@ that the API parses with.
 open "VERIFY zod 4 compatibility on Day 1" item in `docs/STACK.md`, and it is the first
 thing M1-03 has to settle, because an incompatible generator changes the approach rather
 than the schedule.
+
+---
+
+## M1-14 Replace the app.platform GUC with a separate platform database role
+
+**Due: immediately after the real call works, and before either a load test or a second
+clinic.**
+
+D-008 says this lands before the voice work starts. It did not, and that was a deliberate
+decision taken with the measurements in front of us rather than a thing that was forgotten.
+
+**Why it was not blocking at pilot scale.** The 13x figure in D-008, 32.1 ms against 2.45 ms,
+was measured on 50,000 rows. The pilot is one clinic with a handful of patients, where a
+sequential scan over a tiny table costs microseconds, so the non-indexable policy predicate
+does not threaten M3's requirement of voice tool endpoints at p95 under 400 ms. The
+self-escalation half of D-008 is not reachable from outside the API process. Landing a change
+to all 25 row-level security policies in the middle of the dashboard feature would have delayed
+the pilot call for a risk that the pilot's own shape does not carry.
+
+**Why the condition is a load test or a second clinic, not a date.** Both are the points at
+which the reasoning above stops being true. A load test is run against row counts where the
+sequential scan is the measured problem, and a second clinic is the point at which one tenant's
+compromise reaching another stops being hypothetical. Either one arriving before this lands
+means this lands first.
+
+**What landing it means:** remove the `OR current_setting('app.platform', true) = 'on'`
+disjunct from all 25 policies in `apps/api/prisma/sql/`, add an `app_platform` database role
+with its own policies, and point the three scripts that currently set the GUC
+(`seed.ts`, `bootstrap-super-admin.ts`, `provision-clinic.ts`) and the test support in
+`apps/api/tests/support/db.ts` at that role instead.
 
 ---
 
