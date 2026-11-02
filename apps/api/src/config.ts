@@ -79,6 +79,76 @@ const configSchema = z
       .enum(['true', 'false'])
       .default('true')
       .transform((raw) => raw === 'true'),
+
+    /**
+     * ─── OBJECT STORAGE ─────────────────────────────────────────────────────────
+     *
+     * S3-COMPATIBLE, NOT S3. The provider is Cloudflare R2 (D-018), and before that it
+     * was AWS S3, and locally it is SeaweedFS. All three speak the same API, so the
+     * provider is four environment variables rather than a code change: an endpoint, a
+     * region, an addressing style and a pair of credentials.
+     *
+     * The variables keep their `AWS_` names where they already existed, because
+     * `docker-compose.yml` and the local SeaweedFS setup use them and because the SDK
+     * reads them as a fallback. They mean "S3-compatible credentials" here, not
+     * "Amazon credentials".
+     */
+
+    /**
+     * The S3 endpoint. EMPTY MEANS AWS, which is the only provider whose endpoint the
+     * SDK can derive from a region on its own.
+     *
+     * R2 is `https://<account>.r2.cloudflarestorage.com`, local SeaweedFS is
+     * `http://127.0.0.1:<port>`.
+     */
+    S3_ENDPOINT: z
+      .string()
+      .default('')
+      .transform((raw) => raw.trim().replace(/\/+$/, ''))
+      .refine((value) => value === '' || /^https?:\/\//.test(value), {
+        message: 'must be empty (AWS) or an http(s) URL',
+      }),
+
+    /**
+     * `auto` for R2, a real region for AWS.
+     *
+     * R2 has one global namespace and requires the literal `auto`. Signing still needs
+     * SOME region in the credential scope, which is why this cannot simply be omitted.
+     */
+    AWS_REGION: z.string().min(1).default('ap-south-1'),
+
+    /**
+     * Path-style addressing: `endpoint/bucket/key` rather than `bucket.endpoint/key`.
+     *
+     * TRUE FOR EVERYTHING EXCEPT AWS. R2 and SeaweedFS both serve buckets as a path
+     * segment, and a virtual-hosted request to either resolves to a host that does not
+     * exist, which fails as a DNS error rather than as anything a reader would connect
+     * to addressing.
+     */
+    S3_FORCE_PATH_STYLE: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((raw) => raw === 'true'),
+
+    AWS_ACCESS_KEY_ID: z.string().default(''),
+    AWS_SECRET_ACCESS_KEY: z.string().default(''),
+
+    /** Call recordings. PHI, private, and only ever served as a presigned URL (D-007). */
+    RECORDINGS_BUCKET: z.string().default('clinicai-recordings'),
+    /** Nightly database dumps. Separate bucket: a different lifecycle and a different blast radius. */
+    BACKUPS_BUCKET: z.string().default('clinicai-backups'),
+
+    /**
+     * How long a presigned URL stays valid, in seconds.
+     *
+     * Five minutes by default and capped at an hour. A recording URL is a bearer
+     * credential for patient audio: anyone holding the link can play it, so it has to
+     * outlive the click and nothing more.
+     */
+    PRESIGNED_URL_TTL_SECONDS: z.coerce.number().int().positive().max(3600).default(300),
+
+    /** How many days of database dumps to keep in the backups bucket. */
+    BACKUP_RETENTION_DAYS: z.coerce.number().int().positive().max(3650).default(30),
   })
   .superRefine((value, ctx) => {
     // A wildcard origin with credentials lets any site read authenticated responses.
@@ -90,6 +160,36 @@ const configSchema = z
         path: ['CORS_ALLOWED_ORIGINS'],
         message: 'wildcard origin "*" cannot be combined with CORS_ALLOW_CREDENTIALS=true',
       });
+    }
+
+    /**
+     * A non-AWS endpoint with virtual-hosted addressing is a misconfiguration that
+     * fails as a DNS error at the first upload, which is a long way from its cause.
+     */
+    if (value.S3_ENDPOINT !== '' && !value.S3_FORCE_PATH_STYLE) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['S3_FORCE_PATH_STYLE'],
+        message:
+          'a custom S3_ENDPOINT (R2, SeaweedFS, MinIO) needs path-style addressing: set S3_FORCE_PATH_STYLE=true',
+      });
+    }
+
+    /**
+     * In production the credentials must be present. Locally they come from the compose
+     * file, and in tests the storage client is never constructed, so an empty pair is
+     * allowed to keep `pnpm test` runnable without secrets.
+     */
+    if (value.NODE_ENV === 'production') {
+      for (const key of ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY'] as const) {
+        if (value[key] === '') {
+          ctx.addIssue({
+            code: 'custom',
+            path: [key],
+            message: 'is required in production',
+          });
+        }
+      }
     }
   });
 

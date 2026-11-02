@@ -402,6 +402,81 @@ warning on the M1-14 entry.
 
 ---
 
+## D-018 Object storage is Cloudflare R2, and the provider is configuration
+
+Recordings and database dumps live in Cloudflare R2, reached with the S3 API. The provider is
+decided by four environment variables, `S3_ENDPOINT`, `AWS_REGION`, `S3_FORCE_PATH_STYLE` and
+the credential pair, so moving to AWS S3 or Lightsail object storage is a configuration change
+and not a code change. Nothing in `apps/api/src/storage/` names a provider.
+
+**Why R2:** no charge for egress, which is the line item that matters here. A recording is
+downloaded by a browser every time somebody reviews a call, and on S3 that traffic is billed
+per gigabyte leaving the region.
+
+**R2 GIVES NO DATA-RESIDENCY GUARANTEE, AND THIS IS THE COST OF THE CHOICE.** A bucket can be
+given a location HINT, which Cloudflare treats as a preference rather than a commitment, and
+objects may be stored or cached outside India. The platform holds Indian patients' health data
+and recordings of their voices, so if a clinic, a hospital group or an audit asks where that
+data physically resides, the honest answer today is "Cloudflare's network, hinted towards Asia,
+not contractually in India".
+
+**The alternative, for when that answer is not good enough:** AWS S3 in `ap-south-1`, which is
+physically in Mumbai and contractually so. It is a change of four environment variables and a
+data migration, with egress charges as the ongoing cost. R2's own jurisdictional restriction
+feature, which does pin data to a region, is the other option and is worth pricing before a
+second clinic signs.
+
+**Not negotiable regardless of provider:** no object is ever public, recordings are served only
+as short-lived presigned URLs and never proxied through the API (D-007), and keys carry ids
+rather than names, because a key appears in provider logs and billing exports.
+
+---
+
+## D-019 Supabase free PostgreSQL in Mumbai, through the transaction pooler
+
+The database is a Supabase free-tier PostgreSQL project in the Mumbai region, reached through
+the transaction-mode pooler rather than a direct connection.
+
+**Why the pooler:** the API runs on a 2 GB Lightsail instance (D-020) and Supabase's free tier
+allows few direct connections. Transaction mode hands a server connection back at the end of
+each transaction, which suits an application whose every query already runs inside one.
+
+**THE ISOLATION DEPENDS ON THAT BEING TRUE, AND IT IS BEING VERIFIED RATHER THAN ASSUMED.**
+Tenant isolation is enforced by `set_config('app.org_id', ..., true)`, which is
+TRANSACTION-LOCAL, inside an interactive transaction. Transaction-mode pooling is compatible
+with that by definition, because a transaction holds one server connection for its whole life.
+What would break it is a pooler that handed the connection to another client mid-transaction,
+and the consequence would be silent: a query that reads another clinic's rows with no error
+anywhere. So the isolation suite is run against Supabase through the pooler, not only against
+local PostgreSQL, and the result is recorded in `docs/STACK.md`.
+
+**What the free tier does not give us, and what follows from it:** no automated backups, no
+point-in-time recovery, and a project that is paused after a week of inactivity. The nightly
+dump to R2 is therefore the ONLY copy of the database, which is why
+`docs/operations/backup-and-restore.md` exists and why the restore is a command rather than a
+paragraph.
+
+---
+
+## D-020 The API runs on one AWS Lightsail 2 GB instance in ap-south-1
+
+A single Lightsail instance in Mumbai, not ECS Fargate, not Kubernetes.
+
+**Why:** the pilot is one clinic. A fixed monthly price, one box to reason about and one SSH
+session to debug on is the right shape for that, and `docs/STACK.md`'s ECS plan is for a
+platform with more than one tenant on it.
+
+**What it costs, stated plainly:** there is no redundancy. A single instance is a single point
+of failure, a reboot is downtime, and a disk that fills takes the API down with it. The
+mitigations are that the database and the object store are both off-box, so an instance can be
+rebuilt without data loss, and that the backup job streams its dump rather than writing it to
+that disk.
+
+**The scaling trigger is a second clinic**, not a load figure: at that point the single box, the
+free-tier database and D-016's deferral of M1-14 all stop being defensible together.
+
+---
+
 ## What no automated test currently covers
 
 **That the refresh cookie is actually sent: NOW VERIFIED.** This was the open item here and it

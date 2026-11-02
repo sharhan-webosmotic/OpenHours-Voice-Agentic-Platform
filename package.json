@@ -21,6 +21,8 @@
     "db:sql": "pnpm --filter @clinicai/api db:sql",
     "db:check-policies": "pnpm --filter @clinicai/api db:check-policies",
     "db:seed": "pnpm --filter @clinicai/api db:seed",
+    "db:backup": "pnpm --filter @clinicai/api db:backup",
+    "db:restore-check": "pnpm --filter @clinicai/api db:restore-check",
     "provision:clinic": "pnpm --filter @clinicai/api provision:clinic",
     "bootstrap:super-admin": "pnpm --filter @clinicai/api bootstrap:super-admin",
     "prompt:render": "pnpm --filter @clinicai/api prompt:render",

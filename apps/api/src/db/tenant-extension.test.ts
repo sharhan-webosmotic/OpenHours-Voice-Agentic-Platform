@@ -184,15 +184,54 @@ describe('Organisation is scoped by primary key', () => {
     expect(args.where).toEqual({ id: ORG });
   });
 
-  it('leaves a supplied id alone so a foreign lookup becomes NotFound', async () => {
+  it('adds the scope as a second condition when an id is supplied', async () => {
     const args = await inTenant(() =>
       run({ model: 'Organisation', operation: 'findUnique', args: { where: { id: OTHER } } }),
     );
 
-    // Not rejected: rule 7 requires a cross-tenant read to answer NotFound, and an
-    // error that only appears for rows which exist is itself a disclosure. The query
-    // goes to the database and row-level security returns nothing.
-    expect(args.where).toEqual({ id: OTHER });
+    /**
+     * STILL NOT REJECTED, and the reason has not changed: rule 7 requires a cross-tenant
+     * read to answer NotFound, and an error that appears only for rows which exist is itself
+     * a disclosure. What changed is HOW the empty answer is produced.
+     *
+     * This used to pass the id through untouched and rely on row-level security to return
+     * nothing. That held while every cross-tenant read ran with row-level security ON.
+     * `asOrganisationSystem` (D-017) sets `app.platform = 'on'`, which switches it off, and
+     * a foreign id then returned the other clinic's row: measured against a real database,
+     * not theorised. The `AND` makes a mismatch match nothing in the query itself, so the
+     * answer no longer depends on which locks happen to be active.
+     */
+    expect(args.where).toEqual({ id: OTHER, AND: [{ id: ORG }] });
+  });
+
+  it('keeps a caller own AND conditions rather than replacing them', async () => {
+    const args = await inTenant(() =>
+      run({
+        model: 'Organisation',
+        operation: 'findFirst',
+        args: { where: { id: ORG, AND: [{ name: { contains: 'Clinic' } }] } },
+      }),
+    );
+
+    // Overwriting `AND` would silently widen a query the caller deliberately narrowed.
+    expect(args.where).toEqual({
+      id: ORG,
+      AND: [{ name: { contains: 'Clinic' } }, { id: ORG }],
+    });
+  });
+
+  it('accepts a single AND object as well as an array', async () => {
+    const args = await inTenant(() =>
+      run({
+        model: 'Organisation',
+        operation: 'findFirst',
+        args: { where: { id: ORG, AND: { name: 'Test Clinic' } } },
+      }),
+    );
+
+    // Prisma accepts either shape, so normalising to a list is what stops the object form
+    // being dropped on the floor.
+    expect(args.where).toEqual({ id: ORG, AND: [{ name: 'Test Clinic' }, { id: ORG }] });
   });
 
   it('does not inject organisationId into an Organisation create', async () => {
