@@ -122,6 +122,14 @@ against the active tenant rather than trusted. A platform role must name the cli
 asking about, and a platform read with no clinic named is a 400 rather than every clinic's
 rows in one response.
 
+**The confinement is the application lock, not the hand-written filters.** A platform read runs
+under `asOrganisationSystem`, a scope the extension injects for (D-017). The repository's own
+`organisation_id` filters remain as a second layer. Which layer is doing the work is proven
+rather than asserted: `tests/platform-scope-isolation.test.ts` drives every repository read
+under that scope and also issues the unfiltered queries a function that forgot its filter would
+issue. Removing the extension's branch fails six named cases. Removing one repository filter
+fails none.
+
 **The permission check runs before the clinic is resolved**, and the order is load-bearing: the
 other way round turned "you may not do that" into "name a clinic", which told an internal
 admin that a missing parameter was all that stood between them and a write. The permission

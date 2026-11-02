@@ -335,6 +335,36 @@ scale. What changed is the ordering, and the condition that replaces it is writt
 
 ---
 
+## D-017 A platform read of one clinic is confined by the application lock, not by convention
+
+`asSystem` is for the paths that have no single organisation: login, resolving a provider
+webhook, the clinic list, jobs. A platform role reading ONE clinic's patients or appointments,
+which the matrix grants as `read: 'masked'`, runs under a third scope kind,
+`platform-organisation`, served by `asOrganisationSystem`.
+
+It is platform scope in the DATABASE, because `app.platform = 'on'` is what lets the query
+past row-level security, and tenant scope in the APPLICATION, because the client extension
+injects `organisation_id` from the named clinic exactly as it does for a clinic user.
+
+**Why it exists.** The first version of the dashboard's patient and appointment reads used
+unbounded `asSystem` and relied on every repository function filtering by organisation itself.
+That is a convention, not a control: row-level security is off for those connections, so a
+function added in a later feature without the filter returns every clinic's patients, and no
+existing test fails. The lock belongs in the one place it cannot be forgotten.
+
+**The repository filters stay**, as a second layer, and the tests say which layer is which.
+`tests/platform-scope-isolation.test.ts` drives every repository read under this scope, and
+also issues the queries a function that forgot its filter would issue. Deleting the
+`platform-organisation` branch from the extension fails six named cases; deleting one
+repository function's filter fails none, which is the demonstration that the extension is the
+control.
+
+**A clinic principal cannot be scoped to another organisation at all.** `withOrganisationScope`
+refuses it rather than opening a scope, because reaching that line means an organisation came
+from something other than the token.
+
+---
+
 ## What no automated test currently covers
 
 **That the refresh cookie is actually sent: NOW VERIFIED.** This was the open item here and it

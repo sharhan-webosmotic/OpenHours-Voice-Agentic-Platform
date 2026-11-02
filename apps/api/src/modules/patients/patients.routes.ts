@@ -29,7 +29,7 @@ import * as service from './patients.service.js';
  * That middleware requires an organisation in the request context, and SUPER_ADMIN and
  * INTERNAL_ADMIN have none, so gating on it would refuse the two roles the matrix grants a
  * masked read to. The scope is resolved per principal inside the service, through
- * `withPrincipalScope`.
+ * `withOrganisationScope`, which confines a platform read to the one clinic it named.
  *
  * WHICH CLINIC, AND WHERE THAT COMES FROM. A clinic role's organisation comes from the
  * verified token and nothing else (root CLAUDE.md rule 2). A platform role has none, so it

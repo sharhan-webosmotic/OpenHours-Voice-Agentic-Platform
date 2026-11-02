@@ -137,6 +137,40 @@ export const asSystem = async <T>(reason: string, fn: (db: TenantDb) => Promise<
     });
   });
 
+/**
+ * Runs `fn` as a platform principal, confined to ONE organisation.
+ *
+ * The scope a platform role gets for a read the matrix grants it, such as a masked patient
+ * list. Two things are true at once and both are deliberate:
+ *
+ *  - IN THE DATABASE it is platform scope, because row-level security would otherwise refuse
+ *    a connection whose `app.org_id` names a clinic the user does not belong to.
+ *  - IN THE APPLICATION it is tenant scope, because the extension injects `organisation_id`
+ *    into every `where` from `scope.organisationId`.
+ *
+ * So a repository function CANNOT read another clinic's rows here even if it forgets to
+ * filter, which is the property that `asSystem` does not have and that
+ * `tests/platform-scope-isolation.test.ts` proves per function.
+ *
+ * The use is audited exactly as `asSystem` is, with the organisation named, so a platform
+ * read of a clinic is never silent.
+ */
+export const asOrganisationSystem = async <T>(
+  reason: string,
+  organisationId: string,
+  fn: (db: TenantDb) => Promise<T>,
+): Promise<T> =>
+  runInScope({ kind: 'platform-organisation', reason, organisationId }, async () => {
+    await recordScopeUse(`${reason} (organisation ${organisationId})`);
+
+    logger.info({ reason, organisationId }, 'platform scope opened for one organisation');
+
+    return scopedClient.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(PLATFORM_SCOPE_SQL);
+      return fn(tx);
+    });
+  });
+
 /** Closes the pool. Called from the server's shutdown path. */
 export const disconnectDatabase = async (): Promise<void> => {
   await scopedClient.$disconnect();

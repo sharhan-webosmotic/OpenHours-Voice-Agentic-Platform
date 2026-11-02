@@ -21,7 +21,7 @@ import {
   shouldMask,
   type Principal,
 } from '../../common/permissions.js';
-import { withPrincipalScope } from '../../db/principal-scope.js';
+import { withOrganisationScope } from '../../db/principal-scope.js';
 import type { TenantDb } from '../../db/tenant-client.js';
 import { record, recordRead } from '../audit/audit.service.js';
 import { bookableSlots, type Slot } from '../availability/availability.engine.js';
@@ -867,7 +867,7 @@ const availabilityWithin = async (
 /**
  * Everything above takes a `db` and everything below decides which `db` that is.
  *
- * THE SPLIT IS DELIBERATE AND IT IS NOT CEREMONY. `withPrincipalScope` opens a transaction,
+ * THE SPLIT IS DELIBERATE AND IT IS NOT CEREMONY. `withOrganisationScope` opens a transaction,
  * so an implementation that called it would be untestable without a database and
  * unusable from inside another transaction: the voice tool endpoints in M3 call these same
  * rules with a scope they have already opened from a per-clinic secret rather than from a
@@ -875,9 +875,8 @@ const availabilityWithin = async (
  * there without a second copy.
  *
  * `requirePermission` runs INSIDE the implementations, before any query. That ordering
- * matters: `withPrincipalScope` decides where a query may look, never whether the caller may
- * run it, so calling it first would hand a platform role cross-tenant scope purely for being
- * a platform role.
+ * matters: `withOrganisationScope` decides where a query may look, never whether the caller
+ * may run it, so calling it first would open a scope for a caller who may not be there.
  */
 
 export const list = async (
@@ -888,7 +887,7 @@ export const list = async (
   requirePermission('appointments', 'read', principal);
   const organisationId = organisationInScope(principal, requestedOrganisationId);
 
-  return withPrincipalScope(principal, 'appointments.list', (db) =>
+  return withOrganisationScope(principal, organisationId, 'appointments.list', (db) =>
     listWithin(db, principal, organisationId, query),
   );
 };
@@ -901,7 +900,7 @@ export const get = async (
   requirePermission('appointments', 'read', principal);
   const organisationId = organisationInScope(principal, requestedOrganisationId);
 
-  return withPrincipalScope(principal, 'appointments.read', (db) =>
+  return withOrganisationScope(principal, organisationId, 'appointments.read', (db) =>
     getWithin(db, principal, organisationId, appointmentId),
   );
 };
@@ -919,7 +918,7 @@ export const book = async (
   requirePermission('appointments', 'write', principal);
   const organisationId = organisationInScope(principal, requestedOrganisationId);
 
-  return withPrincipalScope(principal, 'appointments.book', (db) =>
+  return withOrganisationScope(principal, organisationId, 'appointments.book', (db) =>
     bookWithin(db, principal, organisationId, input, options),
   );
 };
@@ -934,7 +933,7 @@ export const reschedule = async (
   requirePermission('appointments', 'write', principal);
   const organisationId = organisationInScope(principal, requestedOrganisationId);
 
-  return withPrincipalScope(principal, 'appointments.reschedule', (db) =>
+  return withOrganisationScope(principal, organisationId, 'appointments.reschedule', (db) =>
     rescheduleWithin(db, principal, organisationId, appointmentId, input, now ?? new Date()),
   );
 };
@@ -949,7 +948,7 @@ export const cancel = async (
   requirePermission('appointments', 'write', principal);
   const organisationId = organisationInScope(principal, requestedOrganisationId);
 
-  await withPrincipalScope(principal, 'appointments.cancel', (db) =>
+  await withOrganisationScope(principal, organisationId, 'appointments.cancel', (db) =>
     cancelWithin(db, principal, organisationId, appointmentId, input, now ?? new Date()),
   );
 };
@@ -964,7 +963,7 @@ export const changeStatus = async (
   requirePermission('appointments', 'write', principal);
   const organisationId = organisationInScope(principal, requestedOrganisationId);
 
-  await withPrincipalScope(principal, 'appointments.status', (db) =>
+  await withOrganisationScope(principal, organisationId, 'appointments.status', (db) =>
     changeStatusWithin(db, principal, organisationId, appointmentId, to, now ?? new Date()),
   );
 };
@@ -981,7 +980,7 @@ export const agenda = async (
   requirePermission('appointments', 'read', principal);
   const organisationId = organisationInScope(principal, requestedOrganisationId);
 
-  return withPrincipalScope(principal, 'appointments.agenda', (db) =>
+  return withOrganisationScope(principal, organisationId, 'appointments.agenda', (db) =>
     agendaWithin(db, principal, organisationId, query),
   );
 };
@@ -995,7 +994,7 @@ export const availability = async (
   requirePermission('appointments', 'read', principal);
   const organisationId = organisationInScope(principal, requestedOrganisationId);
 
-  return withPrincipalScope(principal, 'appointments.availability', (db) =>
+  return withOrganisationScope(principal, organisationId, 'appointments.availability', (db) =>
     availabilityWithin(db, principal, organisationId, query, now ?? new Date()),
   );
 };

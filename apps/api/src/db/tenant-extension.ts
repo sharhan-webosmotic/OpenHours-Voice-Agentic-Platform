@@ -137,8 +137,14 @@ export const buildTenantExtension = () => ({
           throw new TenantScopeMissingError(`${String(model)}.${String(operation)}`);
         }
 
-        // Platform scope is explicitly cross-organisation, so nothing is injected. The
-        // database still applies app.platform = 'on', and every entry is audited.
+        /**
+         * Unbounded platform scope is explicitly cross-organisation, so nothing is injected.
+         * The database still applies app.platform = 'on', and every entry is audited.
+         *
+         * `platform-organisation` is NOT this case: it names one clinic and falls through to
+         * the injection below, so a platform read of a clinic's patients is confined by the
+         * same lock a clinic user's read is. That is the whole reason the kind exists.
+         */
         if (scope.kind === 'platform') {
           return query(args);
         }

@@ -8,7 +8,7 @@ import {
   type Principal,
 } from '../../common/permissions.js';
 import { organisationInScope } from '../../common/organisation-scope.js';
-import { withPrincipalScope } from '../../db/principal-scope.js';
+import { withOrganisationScope } from '../../db/principal-scope.js';
 import type { TenantDb } from '../../db/tenant-client.js';
 import { record, recordRead } from '../audit/audit.service.js';
 import * as repository from './patients.repository.js';
@@ -46,14 +46,18 @@ import * as repository from './patients.repository.js';
  *
  * Not through `tenantMiddleware`, which requires an organisation in the request context and
  * would refuse the two roles the matrix grants a masked read to. Every function here runs
- * inside `withPrincipalScope`, exactly as the clinic configuration module does: a clinic
- * role gets `withTenant` and a platform role gets `asSystem`, which records its use of
- * cross-tenant scope.
+ * inside `withOrganisationScope`: a clinic role gets `withTenant`, and a platform role gets
+ * `asOrganisationSystem`, which is platform scope in the database (so row-level security lets
+ * the query through) and tenant scope in the application (so the extension injects
+ * `organisation_id` from the clinic that was named).
  *
- * `asSystem` injects NO organisation filter, so a platform role must NAME the clinic it is
- * asking about (`?organisationId=`), and every repository call filters on that id
- * explicitly. A platform read with no clinic named is a 400 rather than a list of every
- * clinic's patients.
+ * THAT IS WHY THE REPOSITORY'S EXPLICIT FILTERS ARE A SECOND LAYER AND NOT THE CONTROL. The
+ * first version of this used unbounded `asSystem`, where the extension injects nothing and
+ * confinement rested on every repository function remembering to filter: a function added
+ * later without one would return another clinic's patients and no test would notice.
+ *
+ * A platform role must still NAME the clinic (`?organisationId=`), and a platform read with
+ * no clinic named is a 400 rather than a list of every clinic's patients.
  */
 
 /** A patient's history panel is bounded: a profile is not a paged list. */
@@ -147,7 +151,7 @@ export const list = async (
   const scope = requirePermission('patients', 'read', principal);
   const organisationId = organisationInScope(principal, requestedOrganisationId);
 
-  return withPrincipalScope(principal, 'patients.list', async (db) => {
+  return withOrganisationScope(principal, organisationId, 'patients.list', async (db) => {
     const onlyForDoctorId = await resolveDoctorScope(db, organisationId, principal, scope);
 
     /**
@@ -224,7 +228,7 @@ export const get = async (
   const scope = requirePermission('patients', 'read', principal);
   const organisationId = organisationInScope(principal, requestedOrganisationId);
 
-  return withPrincipalScope(principal, 'patients.read', async (db) => {
+  return withOrganisationScope(principal, organisationId, 'patients.read', async (db) => {
     const onlyForDoctorId = await resolveDoctorScope(db, organisationId, principal, scope);
 
     const patient = await repository.findById(db, organisationId, patientId);
@@ -290,7 +294,7 @@ export const create = async (
   requirePermission('patients', 'write', principal);
   const organisationId = organisationInScope(principal, requestedOrganisationId);
 
-  return withPrincipalScope(principal, 'patients.create', async (db) => {
+  return withOrganisationScope(principal, organisationId, 'patients.create', async (db) => {
     const patientId = await repository.create(db, organisationId, {
       fullName: input.fullName,
       phone: input.phone,
@@ -320,7 +324,7 @@ export const update = async (
   requirePermission('patients', 'write', principal);
   const organisationId = organisationInScope(principal, requestedOrganisationId);
 
-  await withPrincipalScope(principal, 'patients.update', async (db) => {
+  await withOrganisationScope(principal, organisationId, 'patients.update', async (db) => {
     const changed = await repository.update(db, organisationId, patientId, {
       ...(input.fullName === undefined ? {} : { fullName: input.fullName }),
       ...(input.phone === undefined ? {} : { phone: input.phone }),

@@ -651,6 +651,97 @@ describe('platform roles', () => {
     expect(response.status).toBe(400);
   }, 120_000);
 
+  /**
+   * THE CROSS-TENANT CASES FOR THE PLATFORM PATH SPECIFICALLY.
+   *
+   * The clinic path has two locks: the extension injects the organisation and row-level
+   * security refuses whatever slips past. The platform path runs with
+   * `app.platform = 'on'`, which switches the second lock off, so the extension is the only
+   * thing between a masked read of one clinic and a masked read of all of them. These assert
+   * it directly rather than relying on the clinic-path tests above, which prove a different
+   * mechanism.
+   */
+  it('scoped to one clinic, cannot read another clinic patient by id', async () => {
+    const token = await tokenFor(superAdminEmail);
+
+    const response = await request(app)
+      .get(`/api/v1/patients/${other.ids.patients ?? ''}?organisationId=${clinic.organisationId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    // The id exists, and the answer is still 404: the scope names the other clinic, so the
+    // row is simply not there to be found.
+    expect(response.status).toBe(404);
+  }, 120_000);
+
+  it('scoped to one clinic, lists that clinic patients and no others', async () => {
+    const token = await tokenFor(superAdminEmail);
+
+    const response = await request(app)
+      .get(`/api/v1/patients?organisationId=${clinic.organisationId}&limit=100`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    const ids = jsonBody<{ items: readonly { id: string }[] }>(response).items.map(
+      (item) => item.id,
+    );
+
+    expect(ids).toContain(clinic.ids.patients);
+    expect(ids).not.toContain(other.ids.patients);
+  }, 120_000);
+
+  it('scoped to one clinic, cannot read another clinic appointment by id', async () => {
+    const token = await tokenFor(superAdminEmail);
+
+    const response = await request(app)
+      .get(
+        `/api/v1/appointments/${other.ids.appointments ?? ''}?organisationId=${clinic.organisationId}`,
+      )
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(404);
+  }, 120_000);
+
+  it('scoped to one clinic, sees no other clinic appointment in a list or an agenda', async () => {
+    const token = await tokenFor(superAdminEmail);
+
+    const list = await request(app)
+      .get(`/api/v1/appointments?organisationId=${clinic.organisationId}&limit=100`)
+      .set('Authorization', `Bearer ${token}`);
+    const agenda = await request(app)
+      .get(
+        `/api/v1/appointments/agenda?range=month&on=2026-11-02&organisationId=${clinic.organisationId}`,
+      )
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(list.status).toBe(200);
+    expect(agenda.status).toBe(200);
+
+    const listed = jsonBody<{ items: readonly { id: string }[] }>(list).items.map(
+      (item) => item.id,
+    );
+    const scheduled = jsonBody<{ appointments: readonly { id: string }[] }>(
+      agenda,
+    ).appointments.map((item) => item.id);
+
+    expect(listed).not.toContain(other.ids.appointments);
+    expect(scheduled).not.toContain(other.ids.appointments);
+  }, 120_000);
+
+  it('reads the clinic it names, so the confinement is a scope and not a refusal', async () => {
+    // Without this, every assertion above would pass against an endpoint that returned
+    // nothing to anybody, which is isolation by breakage rather than by scope.
+    const token = await tokenFor(superAdminEmail);
+
+    const response = await request(app)
+      .get(`/api/v1/patients?organisationId=${other.organisationId}&limit=100`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    expect(
+      jsonBody<{ items: readonly { id: string }[] }>(response).items.map((item) => item.id),
+    ).toContain(other.ids.patients);
+  }, 120_000);
+
   it('cannot write, however the request is shaped', async () => {
     const token = await tokenFor(superAdminEmail);
 
