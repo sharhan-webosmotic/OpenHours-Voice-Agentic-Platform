@@ -174,3 +174,71 @@ Coverage for the three new modules: patients 98.4% of lines, availability 98.0%,
   so wiring it would be code no caller reaches.
 - **Reminders, reports, prescriptions and follow-ups have no endpoints.** By decision, not by
   omission.
+
+## Phase 2: the nine screens
+
+Built from `docs/prototype/`, with the result captured beside each prototype screen in
+`docs/prototype/built/`.
+
+### What each screen reads and writes
+
+| Screen            | Data                                              | Writes                                               |
+| ----------------- | ------------------------------------------------- | ---------------------------------------------------- |
+| Overview          | Agenda counts for the week, today's appointments  | Opens the booking form                               |
+| Appointments      | List with a date and status filter, detail drawer | Book, reschedule, cancel, confirm, complete, no-show |
+| Patients          | Search, cursor pagination, profile with history   | Create, edit                                         |
+| Doctors and Staff | The doctor, the clinic's opening hours            | Replace the week of opening hours                    |
+| Services          | Every service, active and not                     | Create, edit, activate, deactivate                   |
+| Clinic Settings   | Profile, hours, booking policy, agent behaviour   | Profile, booking policy, agent behaviour             |
+| Call History      | Nothing. No endpoint exists                       | None                                                 |
+| Reminders         | Nothing. No tables exist                          | None                                                 |
+| Reports           | Nothing. No analytics endpoint exists             | None                                                 |
+
+### The screens with nothing behind them
+
+Three of the nine, plus five panels of the Overview. Each says what it is for, that the data
+does not exist, and what has to land first. None of them renders a number: a test asserts that
+the Reports screen contains no digit at all, which is a blunt check and the right one, because
+the prototype's version of that screen is entirely figures and the temptation is to fill them
+in from the capture.
+
+### Deviations found while building the screens
+
+| Deviation                                                                                      | Why                                                                                                                                                                                                                                                                                     |
+| ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **No patient email**, on the list, the profile or the appointment drawer.                      | `patients` has no email column. The prototype shows one in all three places.                                                                                                                                                                                                            |
+| **No service description.**                                                                    | `services` has no description column.                                                                                                                                                                                                                                                   |
+| **No appointment notes row.**                                                                  | `appointments` has no notes column. A row reading "no notes" on every appointment ever booked is worse than no row.                                                                                                                                                                     |
+| **No search box on Appointments.**                                                             | The prototype has one labelled "Search patient or service" and the endpoint has no text search. Searching the loaded page would claim to search the clinic. The patient list searches properly and a patient's appointments are on their profile.                                       |
+| **Dates read `19 May 2025`**, where the appointment list capture shows `2025-05-19`.           | The prototype disagrees with itself: its calendar and overview both use the human form, which is also what a receptionist reads out.                                                                                                                                                    |
+| **An Edit button on the patient profile.**                                                     | The prototype has no path to edit an existing patient at all: its "Add Patient" opens the same modal empty. The brief requires patients to be editable, so the entry point went beside the fields it edits. Say if it belongs on the row instead.                                       |
+| **No "Patient #1" line.**                                                                      | The prototype numbers patients sequentially. Real ids are uuids, and a uuid on a profile is noise a receptionist cannot use.                                                                                                                                                            |
+| **The hours editor is labelled "Clinic opening hours"**, not "Working hours and availability". | The platform has clinic hours AND per-doctor working hours, and the slot engine intersects them. This editor writes the clinic's, which is the one the API exposes. Labelling the clinic's hours as the doctor's is the kind of quiet mislabelling that makes a slot list inexplicable. |
+| **One set of hours for every selected day.**                                                   | As the prototype has it. A clinic whose Saturday differs cannot say so here; the admin console edits each day separately, and the screen says so.                                                                                                                                       |
+| **Per-section saves in Settings**, not one page-wide button.                                   | The API replaces one section per request, so a single button would fire four and then have to explain a partial failure.                                                                                                                                                                |
+| **No on/off switch for the AI receptionist.**                                                  | The capture has a green toggle and admits it is simulated. Nothing in the platform turns an agent on or off: calls reach it because a number is mapped to it, in the admin console.                                                                                                     |
+| **The clinic name and public number are read-only in Settings.**                               | They live on the organisation, which a clinic owner may read and not write.                                                                                                                                                                                                             |
+| **The staff list is an honest empty state.**                                                   | No endpoint lists a clinic's users.                                                                                                                                                                                                                                                     |
+
+### Tests
+
+Fifty-six, one group per screen, driven by role and label rather than by selector. The two the
+brief names are `explains a slot taken between load and submit, and refreshes the times` and
+`sends one Idempotency-Key and keeps it across a retry`.
+
+Writing them found three defects, each fixed in the same change: the store was built with the
+real API client at module load, so every screen test talked to a server that was not there; the
+patient profile rendered times in UTC until the clinic query landed; and both booking forms
+called `refetch` on a skipped query in their failure path, which throws.
+
+### What Phase 2 does not cover
+
+- **No calendar screen.** The prototype reaches a month grid from the Overview's "View Full
+  Schedule". The API answers `range=month`, so the data is there and the screen is not.
+- **No global search panel and no notifications popover.** Both are prototype chrome with no
+  endpoint behind them. They were agreed as "build the shell", and the shell for both is a
+  search box that would search nothing, so neither is in this phase.
+- **No browser test for the new screens.** `pnpm e2e` still covers the session only. The
+  screens are covered by component tests against a stubbed client, which is where the detail
+  belongs, and the screenshots in `docs/prototype/built/` are the evidence that the real stack
+  renders them.
