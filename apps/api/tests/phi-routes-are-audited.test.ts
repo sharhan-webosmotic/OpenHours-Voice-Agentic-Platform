@@ -5,9 +5,13 @@ import { getRegisteredRoutes, type RouteDescriptor } from '../src/common/route-r
 import { hashPassword } from '../src/common/passwords.js';
 import { uuidV7 } from '../src/common/uuid.js';
 import { jsonBody } from '../src/test-support/http.js';
-import { asPlatform, disconnectAll, ownerClient } from './support/db.js';
+import { asPlatform, disconnectAll, mintToolSecret, ownerClient } from './support/db.js';
 import { createOrganisationGraph, type OrganisationGraph } from './support/fixtures.js';
-import { markHoursCollected, nextBookableStart } from './support/clinic-schedule.js';
+import {
+  markHoursCollected,
+  nextBookableLocal,
+  nextBookableStart,
+} from './support/clinic-schedule.js';
 
 /**
  * Every PHI-sensitive route must actually WRITE the audit row it declares.
@@ -32,6 +36,7 @@ let ownerEmail: string;
 let ownerUserId: string;
 let superAdminEmail: string;
 let superAdminUserId: string;
+let toolSecret: string;
 
 beforeAll(async () => {
   const passwordHash = await hashPassword(PASSWORD);
@@ -41,6 +46,8 @@ beforeAll(async () => {
     // Without this the slot engine correctly offers nothing (D-013), and every booking
     // recipe below would be refused before it could write an audit row.
     await markHoursCollected(tx, org.organisationId);
+    // The voice tool routes authenticate with this and nothing else.
+    toolSecret = await mintToolSecret(tx, org.organisationId);
     ownerEmail = `phi.audit.owner.${Date.now()}@test.invalid`;
     ownerUserId = uuidV7();
     superAdminEmail = `phi.audit.super.${Date.now()}@test.invalid`;
@@ -86,7 +93,7 @@ const loginAs = async (email: string): Promise<string> => {
 };
 
 /** Audit rows for one action, attributed to one actor. Read as owner, past every policy. */
-const auditRowCount = async (action: string, actorUserId: string): Promise<number> =>
+const auditRowCount = async (action: string, actorUserId: string | null): Promise<number> =>
   asPlatform(ownerClient(), (tx) => tx.auditLog.count({ where: { action, actorUserId } }));
 
 /**
@@ -96,7 +103,17 @@ const auditRowCount = async (action: string, actorUserId: string): Promise<numbe
  */
 type Driven = {
   readonly status: number;
-  readonly actorUserId: string;
+  /**
+   * NULL for the voice tool routes, and that is a finding rather than a convenience.
+   *
+   * `audit_logs.actor_role` is the database's six-value `role` enum and `actor_user_id`
+   * points at a user, so an action by the voice agent can name neither: it is a principal
+   * with no user row. Those rows are attributed by `metadata.source` or
+   * `metadata.actorSource` instead, which a naming convention cannot enforce. Counting on
+   * `actorUserId: null` here still proves the row was written, which is what this guard is
+   * for, and the proper fix is a schema change recorded in `docs/BACKLOG.md`.
+   */
+  readonly actorUserId: string | null;
 };
 
 /**
@@ -271,7 +288,81 @@ const RECIPES = new Map<string, () => Promise<Driven>>([
       return { status: response.status, actorUserId: ownerUserId };
     },
   ],
+  [
+    'POST /voice/tools/lookup-patient',
+    async () => {
+      const response = await request(app)
+        .post('/voice/tools/lookup-patient')
+        .set('Authorization', `Bearer ${toolSecret}`)
+        .send({ phone: org.patientPhone });
+      return { status: response.status, actorUserId: null };
+    },
+  ],
+  [
+    'POST /voice/tools/book',
+    async () => {
+      const when = nextBookableLocal();
+      const response = await request(app)
+        .post('/voice/tools/book')
+        .set('Authorization', `Bearer ${toolSecret}`)
+        // No doctor and no service named: the fixture clinic has exactly one of each, which
+        // is the case the tool is allowed to default. A clinic with two would be asked.
+        .send({ phone: org.patientPhone, date: when.date, time: when.time });
+      return { status: response.status, actorUserId: null };
+    },
+  ],
+  [
+    'POST /voice/tools/reschedule',
+    async () => {
+      const appointmentId = await bookForVoice();
+      const when = nextBookableLocal();
+      const response = await request(app)
+        .post('/voice/tools/reschedule')
+        .set('Authorization', `Bearer ${toolSecret}`)
+        // By id, not by number: the fixture patient would have several upcoming
+        // appointments by this point in the file, and the tool correctly refuses to guess
+        // which one a caller means. That refusal has its own test.
+        .send({ appointmentId, date: when.date, time: when.time });
+      return { status: response.status, actorUserId: null };
+    },
+  ],
+  [
+    'POST /voice/tools/cancel',
+    async () => {
+      const appointmentId = await bookForVoice();
+      const response = await request(app)
+        .post('/voice/tools/cancel')
+        .set('Authorization', `Bearer ${toolSecret}`)
+        .send({ appointmentId, reason: 'Driven by the audit guard.' });
+      return { status: response.status, actorUserId: null };
+    },
+  ],
 ]);
+
+/**
+ * Books a fresh appointment THROUGH THE VOICE TOOL, for the recipes that move or cancel one.
+ *
+ * Through the tool rather than through the dashboard route, so the appointment under test
+ * was created by the same principal that is about to change it. A 200 with `ok: false` is
+ * still a 200, so the envelope is checked rather than the status.
+ */
+const bookForVoice = async (): Promise<string> => {
+  const when = nextBookableLocal();
+  const response = await request(app)
+    .post('/voice/tools/book')
+    .set('Authorization', `Bearer ${toolSecret}`)
+    .send({ phone: org.patientPhone, date: when.date, time: when.time });
+
+  const envelope = jsonBody<{ ok: boolean; message: string; data: { appointmentId: string } }>(
+    response,
+  );
+
+  if (!envelope.ok) {
+    throw new Error(`audit guard could not book by voice: ${envelope.message}`);
+  }
+
+  return envelope.data.appointmentId;
+};
 
 /** Books a fresh appointment for the recipes that need one to act on. */
 const bookForAudit = async (token: string): Promise<string> => {

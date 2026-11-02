@@ -440,6 +440,7 @@ const rescheduleWithin = async (
   appointmentId: string,
   input: RescheduleAppointmentInput,
   now: Date = new Date(),
+  actorSource?: AppointmentSource,
 ): Promise<BookingResult> => {
   const scope = requirePermission('appointments', 'write', principal);
   const ownDoctorId = await doctorScope(db, organisationId, principal, scope);
@@ -529,7 +530,20 @@ const rescheduleWithin = async (
       action: 'appointment.rescheduled',
       entityType: 'appointment',
       entityId: newId,
-      metadata: { from: appointmentId, doctorId },
+      /**
+       * `actorSource` is how a voice-initiated move names its actor.
+       *
+       * `audit_logs.actor_role` is the database's six-value `role` enum, so the voice
+       * agent cannot be written there, and a row with no actor at all would leave a
+       * regulated trail unable to answer who moved an appointment. The appointment's own
+       * `source` column is not the answer either: a reschedule inherits the source of the
+       * booking it replaces, which is correct and says nothing about who moved it.
+       */
+      metadata: {
+        from: appointmentId,
+        doctorId,
+        ...(actorSource === undefined ? {} : { actorSource }),
+      },
     });
 
     return {
@@ -557,6 +571,7 @@ const cancelWithin = async (
   appointmentId: string,
   input: CancelAppointmentInput,
   now: Date = new Date(),
+  actorSource?: AppointmentSource,
 ): Promise<void> => {
   const scope = requirePermission('appointments', 'write', principal);
   const ownDoctorId = await doctorScope(db, organisationId, principal, scope);
@@ -597,7 +612,12 @@ const cancelWithin = async (
     action: 'appointment.cancelled',
     entityType: 'appointment',
     entityId: appointmentId,
-    metadata: { from: existing.status, hasReason: input.reason !== null },
+    // See the note on the reschedule audit row for why the actor is in metadata.
+    metadata: {
+      from: existing.status,
+      hasReason: input.reason !== null,
+      ...(actorSource === undefined ? {} : { actorSource }),
+    },
   });
 };
 
@@ -936,12 +956,21 @@ export const reschedule = async (
   appointmentId: string,
   input: RescheduleAppointmentInput,
   now?: Date,
+  options: { readonly actorSource?: AppointmentSource } = {},
 ): Promise<BookingResult> => {
   requirePermission('appointments', 'write', principal);
   const organisationId = organisationInScope(principal, requestedOrganisationId);
 
   return withOrganisationScope(principal, organisationId, 'appointments.reschedule', (db) =>
-    rescheduleWithin(db, principal, organisationId, appointmentId, input, now ?? new Date()),
+    rescheduleWithin(
+      db,
+      principal,
+      organisationId,
+      appointmentId,
+      input,
+      now ?? new Date(),
+      options.actorSource,
+    ),
   );
 };
 
@@ -951,12 +980,21 @@ export const cancel = async (
   appointmentId: string,
   input: CancelAppointmentInput,
   now?: Date,
+  options: { readonly actorSource?: AppointmentSource } = {},
 ): Promise<void> => {
   requirePermission('appointments', 'write', principal);
   const organisationId = organisationInScope(principal, requestedOrganisationId);
 
   await withOrganisationScope(principal, organisationId, 'appointments.cancel', (db) =>
-    cancelWithin(db, principal, organisationId, appointmentId, input, now ?? new Date()),
+    cancelWithin(
+      db,
+      principal,
+      organisationId,
+      appointmentId,
+      input,
+      now ?? new Date(),
+      options.actorSource,
+    ),
   );
 };
 

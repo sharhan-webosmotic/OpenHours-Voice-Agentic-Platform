@@ -86,6 +86,15 @@ const CASES: readonly {
     run: (db, organisationId) => patients.list(db, { organisationId, take: 50, sort: 'recent' }),
   },
   {
+    name: 'patients.findByExactPhone',
+    /**
+     * The voice agent's own read. It is the one that matters most here: the agent resolves
+     * a caller from the number the telephone network gave it, so a read that was not
+     * confined would answer a call to one clinic with another clinic's patient.
+     */
+    run: (db, organisationId) => patients.findByExactPhone(db, organisationId, other.patientPhone),
+  },
+  {
     name: 'patients.list with a search',
     run: (db, organisationId) =>
       patients.list(db, { organisationId, take: 50, sort: 'name', search: 'Patient' }),

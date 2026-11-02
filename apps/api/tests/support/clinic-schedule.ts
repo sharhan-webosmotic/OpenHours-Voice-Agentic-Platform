@@ -1,4 +1,10 @@
-import { addDays, weekdayOf, zonedParts, zonedTimeToUtc } from '@clinicai/shared';
+import {
+  addDays,
+  formatMinuteOfDay,
+  weekdayOf,
+  zonedParts,
+  zonedTimeToUtc,
+} from '@clinicai/shared';
 import type { Tx } from './db.js';
 
 /**
@@ -87,4 +93,18 @@ export const nextBookableStart = (now?: Date): string => bookableStart(cursor++,
 /** Resets the counter, for a file that wants deterministic slots. */
 export const resetBookableCursor = (): void => {
   cursor = 0;
+};
+
+/**
+ * The same instant as `nextBookableStart`, as the clinic's own date and time.
+ *
+ * The voice tools take `date` and `time` in the clinic's zone rather than a UTC instant,
+ * because that is what a patient says out loud, so a recipe driving them needs the local
+ * pair. Derived from the same counter, so a voice recipe and an HTTP recipe in one file
+ * cannot be handed the same slot.
+ */
+export const nextBookableLocal = (now?: Date): { readonly date: string; readonly time: string } => {
+  const parts = zonedParts(new Date(nextBookableStart(now)), TIME_ZONE);
+
+  return { date: parts.day, time: formatMinuteOfDay(parts.minuteOfDay) };
 };

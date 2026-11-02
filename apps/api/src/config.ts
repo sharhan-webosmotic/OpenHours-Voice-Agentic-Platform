@@ -69,6 +69,17 @@ const configSchema = z
      * differ between a test run, a single-tenant staging box and production behind a
      * load balancer.
      */
+    /**
+     * Voice tool calls allowed per clinic per minute, and per address before the clinic is
+     * known.
+     *
+     * Tunable because the right number is a property of a clinic's call volume rather than
+     * of the code, and because the only way to prove the limiter is keyed per clinic is to
+     * lower it in a test and watch one clinic throttle while another does not. The defaults
+     * and the arithmetic behind them are in `voice/tools.routes.ts`.
+     */
+    VOICE_TOOL_CALLS_PER_MINUTE_PER_CLINIC: z.coerce.number().int().positive().default(600),
+    VOICE_TOOL_CALLS_PER_MINUTE_PER_ADDRESS: z.coerce.number().int().positive().default(3_000),
     AUTH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
     AUTH_RATE_LIMIT_MAX_PER_IP: z.coerce.number().int().positive().default(10),
     AUTH_RATE_LIMIT_MAX_PER_EMAIL: z.coerce.number().int().positive().default(5),

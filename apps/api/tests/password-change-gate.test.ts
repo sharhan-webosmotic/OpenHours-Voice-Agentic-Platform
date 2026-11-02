@@ -66,6 +66,48 @@ const EXEMPT = new Map<string, string>([
  * redeems a code, which a gated user therefore cannot obtain, and it ignores an
  * `Authorization` header entirely.
  */
+const VOICE_TOOL_PATHS = [
+  'book',
+  'cancel',
+  'check-availability',
+  'clinic-info',
+  'lookup-patient',
+  'reschedule',
+] as const;
+
+/**
+ * The voice tool endpoints, which authenticate with a per-clinic secret and nothing else.
+ *
+ * NOT exemptions, for the reason above: a user's access token is not a credential there at
+ * all, so there is no gate to apply. The proof is the same for all six, so it is written
+ * once: present a gated user's token as the bearer and watch it refused with a 401. If
+ * anybody ever mounted `requireAuth` on these, that 401 would become a 200 or a 403 and
+ * this suite would say so.
+ *
+ * The first-login gate is genuinely wrong for these routes rather than merely inapplicable.
+ * It exists so a person who was handed a temporary password cannot use the product until
+ * they have chosen their own. The agent has no password, and a clinic whose owner has not
+ * signed in yet still has patients ringing it.
+ */
+const voiceToolEntries = VOICE_TOOL_PATHS.map(
+  (
+    path,
+  ): [string, { readonly reason: string; readonly prove: (token: string) => Promise<void> }] => [
+    `POST /voice/tools/${path}`,
+    {
+      reason: 'authenticated by the per-clinic voice tool secret; a user access token is not one',
+      prove: async (token: string) => {
+        const response = await request(app)
+          .post(`/voice/tools/${path}`)
+          .set('Authorization', `Bearer ${token}`)
+          .send({});
+
+        expect(response.status).toBe(401);
+      },
+    },
+  ],
+);
+
 const NO_USER_SESSION = new Map<
   string,
   { readonly reason: string; readonly prove: (token: string, email: string) => Promise<void> }
@@ -117,6 +159,7 @@ const NO_USER_SESSION = new Map<
       },
     },
   ],
+  ...voiceToolEntries,
 ]);
 
 /** Drives one route as the holder of `token`, returning the status. */

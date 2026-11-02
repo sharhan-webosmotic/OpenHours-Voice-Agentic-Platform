@@ -33,6 +33,8 @@ export type OrganisationGraph = {
   readonly organisationId: string;
   /** Row id per table, so a test can target a specific foreign organisation's row. */
   readonly ids: Readonly<Record<string, string>>;
+  /** The patient's number, for the reads that find a patient by their telephone. */
+  readonly patientPhone: string;
 };
 
 /**
@@ -409,6 +411,7 @@ export const createOrganisationGraph = async (
 
   return {
     organisationId,
+    patientPhone: `+9188${suffix}`,
     ids: {
       organisations: organisationId,
       users: userId,

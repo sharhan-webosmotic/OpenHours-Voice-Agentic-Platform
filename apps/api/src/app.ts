@@ -30,6 +30,7 @@ import { auditRouter } from './modules/audit/audit.routes.js';
 import { organisationsRouter } from './modules/organisations/organisations.routes.js';
 import { patientsRouter } from './modules/patients/patients.routes.js';
 import { appointmentsRouter } from './modules/appointments/appointments.routes.js';
+import { voiceToolsRouter } from './voice/tools.routes.js';
 
 export type AppDependencies = {
   readonly readiness: ReadinessProbe;
@@ -102,6 +103,11 @@ export const ROUTER_MOUNTS: readonly (readonly [string, () => Router])[] = [
   ['/api/v1/organisations', organisationsRouter],
   ['/api/v1/patients', patientsRouter],
   ['/api/v1/appointments', appointmentsRouter],
+  /**
+   * Deliberately NOT under `/api/v1`: a provider-facing surface authenticated by a
+   * per-clinic secret rather than a session. See the note in `voice/tools.routes.ts`.
+   */
+  ['/voice/tools', voiceToolsRouter],
 ];
 
 export const createApp = ({ readiness, config = appConfig }: AppDependencies): Express => {

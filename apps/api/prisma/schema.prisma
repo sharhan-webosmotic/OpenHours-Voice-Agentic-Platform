@@ -246,6 +246,12 @@ model VoiceAgent {
   /// a double-submitted "create clinic" cannot leave two agent shells behind.
   @@unique([organisationId, provider])
   @@unique([provider, sarvamAppId])
+  /// The tool secret is what every voice tool call presents, so resolving it to a clinic is
+  /// an index probe rather than a scan of one row per clinic, which is what it was before.
+  /// UNIQUE as well as indexed, because two clinics sharing a secret would mean either
+  /// clinic's agent could act on the other's patients, and nothing else would notice.
+  /// PostgreSQL allows many NULLs in a unique index, so clinics with no secret yet are fine.
+  @@unique([toolSecretHash])
   @@index([organisationId, status])
   @@map("voice_agents")
 }

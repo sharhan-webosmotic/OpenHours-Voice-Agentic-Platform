@@ -55,6 +55,35 @@ export const findById = async (
     select: PATIENT_SELECT,
   });
 
+/**
+ * Every patient whose stored number is exactly `phone`, newest first.
+ *
+ * FOR THE VOICE AGENT, where the number comes from the telephone network rather than from
+ * somebody typing, so it is complete and an EQUALITY match uses the
+ * `(organisation_id, phone)` index. The dashboard's search deliberately does the opposite,
+ * a `contains` on digits, because a receptionist types fragments. Two different reads for
+ * two genuinely different inputs: the fragment search would scan, on a path with a 400 ms
+ * budget, to answer a question the exact number already answers.
+ *
+ * RETURNS A LIST, NOT A ROW, and the caller must handle more than one. `phone` is not
+ * unique on purpose: a family shares a number. Picking the first match would book one
+ * person's appointment under their relative's name, so the agent asks for a name instead.
+ *
+ * Bounded at five. A sixth record on one number is a data-quality problem for a human, not
+ * something to read out on a call.
+ */
+export const findByExactPhone = async (
+  db: TenantDb,
+  organisationId: string,
+  phone: string,
+): Promise<readonly PatientRow[]> =>
+  db.patient.findMany({
+    where: { organisationId, phone, deletedAt: null },
+    select: PATIENT_SELECT,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: 5,
+  });
+
 export type ListFilters = {
   readonly organisationId: string;
   readonly search?: string;
