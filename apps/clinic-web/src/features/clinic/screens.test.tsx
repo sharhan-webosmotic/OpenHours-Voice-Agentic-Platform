@@ -13,7 +13,7 @@ import { ServicesPage } from '../services/ServicesPage';
 import { StaffPage } from '../staff/StaffPage';
 import { SettingsPage } from '../settings/SettingsPage';
 import { OverviewPage } from '../overview/OverviewPage';
-import { CallsPage, RemindersPage, ReportsPage } from '../placeholders/pages';
+import { RemindersPage, ReportsPage } from '../placeholders/pages';
 
 /**
  * The screens that read and write the clinic's own configuration, plus the three that have no
@@ -387,8 +387,11 @@ describe('the overview', () => {
 });
 
 describe('the screens with no endpoint', () => {
+  /**
+   * Call History is NO LONGER ONE OF THESE. It was an honest empty state while nothing wrote
+   * a call row; it now reads the real endpoint, and its own suite covers it.
+   */
   it.each([
-    ['Call History', CallsPage, /no call endpoints yet/],
     ['Reminders', RemindersPage, /no tables and no endpoints/],
     ['Reports', ReportsPage, /no analytics endpoint/],
   ])('%s says what is missing rather than showing invented data', (_name, Page, expected) => {

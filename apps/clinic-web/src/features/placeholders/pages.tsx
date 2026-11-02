@@ -15,13 +15,6 @@ import { PlaceholderPage } from './PlaceholderPage';
  * Doctors and Staff, Services and Clinic Settings are built against real endpoints.
  */
 
-export const CallsPage = () => (
-  <PlaceholderPage
-    description="Every call the AI receptionist handled, with its transcript and recording."
-    next="There are no call endpoints yet. They arrive with the Sarvam voice integration, which also brings the webhook that records a call, the transcript, and the recording served as a short-lived link. Nothing is shown here until a real call has been received, because a sample call in a clinical record is indistinguishable from a real one."
-  />
-);
-
 export const RemindersPage = () => (
   <PlaceholderPage
     description="Appointment reminders, and when they go out."

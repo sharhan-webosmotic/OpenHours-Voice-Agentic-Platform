@@ -31,6 +31,9 @@ export const DASHBOARD_PATHS = {
   reschedule: (appointmentId: string) => `/api/v1/appointments/${appointmentId}/reschedule`,
   cancel: (appointmentId: string) => `/api/v1/appointments/${appointmentId}/cancel`,
   status: (appointmentId: string) => `/api/v1/appointments/${appointmentId}/status`,
+  calls: '/api/v1/calls',
+  call: (callId: string) => `/api/v1/calls/${callId}`,
+  callRecordingUrl: (callId: string) => `/api/v1/calls/${callId}/recording-url`,
 } as const;
 
 // ─── Patients ───────────────────────────────────────────────────────────────────
@@ -225,4 +228,77 @@ export const toQueryString = (filters: Record<string, unknown>): string => {
 
   const query = params.toString();
   return query === '' ? '' : `?${query}`;
+};
+
+// ─── Calls ──────────────────────────────────────────────────────────────────────
+
+export const CALL_STATUSES = [
+  'RINGING',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'MISSED',
+  'ABANDONED',
+  'FAILED',
+] as const;
+
+export type CallStatus = (typeof CALL_STATUSES)[number];
+
+export type CallView = {
+  readonly id: string;
+  /** The provider's interaction id. Shown to staff only as a reference for support. */
+  readonly externalCallId: string;
+  readonly direction: 'INBOUND' | 'OUTBOUND';
+  readonly status: CallStatus;
+  readonly outcome: string;
+  /**
+   * NULL FOR A PLATFORM ROLE, whose matrix scope on `call_history` is `metadata`. A call's
+   * numbers are personal data in their own right, so support sees that a call happened
+   * without seeing who it was with.
+   */
+  readonly fromE164: string | null;
+  readonly toE164: string | null;
+  readonly startedAt: string | null;
+  readonly endedAt: string | null;
+  readonly durationSeconds: number | null;
+  readonly patient: { readonly id: string; readonly fullName: string | null } | null;
+  readonly appointmentId: string | null;
+  /**
+   * WHETHER a recording exists, never where it is. The key is a path in our own bucket and
+   * is deliberately not part of this contract: a client that cannot learn it cannot try it.
+   */
+  readonly hasRecording: boolean;
+  readonly createdAt: string;
+};
+
+export type CallListPage = {
+  readonly items: readonly CallView[];
+  readonly nextCursor: string | null;
+};
+
+export type CallTranscriptTurn = {
+  readonly role: 'AGENT' | 'CALLER' | 'OTHER';
+  readonly text: string;
+};
+
+export type CallDetail = {
+  readonly call: CallView;
+  /** Empty for a platform role: a transcript is further from metadata than a number is. */
+  readonly transcript: readonly CallTranscriptTurn[];
+};
+
+export type CallRecordingUrl = {
+  readonly url: string;
+  readonly expiresInSeconds: number;
+};
+
+export type CallListQuery = {
+  /** Clinic-local days, resolved into instants by the API, which knows the time zone. */
+  readonly from?: string | undefined;
+  readonly to?: string | undefined;
+  readonly direction?: 'INBOUND' | 'OUTBOUND' | undefined;
+  readonly status?: readonly CallStatus[] | undefined;
+  /** Matched against the CALLER's number. The clinic's own number matches nothing. */
+  readonly q?: string | undefined;
+  readonly cursor?: string | undefined;
+  readonly limit?: number | undefined;
 };

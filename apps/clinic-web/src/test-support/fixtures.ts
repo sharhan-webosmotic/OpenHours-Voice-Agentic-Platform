@@ -3,6 +3,9 @@ import type {
   AppointmentListPage,
   AppointmentView,
   AvailabilityResult,
+  CallDetail,
+  CallListPage,
+  CallView,
   ClinicDetailView,
   PatientDetail,
   PatientListPage,
@@ -198,6 +201,36 @@ export const availability = (
 });
 
 /** The routes every screen needs, which a test then overrides one at a time. */
+export const CALL_ID = '01932b00-0000-7000-8000-00000000c411';
+
+export const call: CallView = {
+  id: CALL_ID,
+  // The provider's id carries a slash, which is the shape the contract documents.
+  externalCallId: '20261102/int_fixture_0001',
+  direction: 'INBOUND',
+  status: 'COMPLETED',
+  outcome: 'NONE',
+  fromE164: '+919876543210',
+  toE164: '+918000000001',
+  startedAt: '2026-11-02T06:30:00.000Z',
+  endedAt: '2026-11-02T06:31:32.000Z',
+  durationSeconds: 92,
+  patient: { id: PATIENT_ID, fullName: 'Test Patient One' },
+  appointmentId: APPOINTMENT_ID,
+  hasRecording: true,
+  createdAt: '2026-11-02T06:31:40.000Z',
+};
+
+export const callList: CallListPage = { items: [call], nextCursor: null };
+
+export const callDetail: CallDetail = {
+  call,
+  transcript: [
+    { role: 'CALLER', text: 'I would like an appointment on Tuesday.' },
+    { role: 'AGENT', text: 'There is ten thirty. Shall I book that?' },
+  ],
+};
+
 export const baseRoutes: StubRoutes = {
   [`GET /api/v1/organisations/${ORGANISATION_ID}`]: { body: clinic },
   'GET /api/v1/patients': { body: patientList },
@@ -205,4 +238,9 @@ export const baseRoutes: StubRoutes = {
   'GET /api/v1/appointments': { body: appointmentList },
   'GET /api/v1/appointments/agenda': { body: agenda() },
   'GET /api/v1/appointments/availability': { body: availability() },
+  'GET /api/v1/calls': { body: callList },
+  [`GET /api/v1/calls/${CALL_ID}`]: { body: callDetail },
+  [`GET /api/v1/calls/${CALL_ID}/recording-url`]: {
+    body: { url: 'https://storage.test/recording.wav?signature=stub', expiresInSeconds: 300 },
+  },
 };

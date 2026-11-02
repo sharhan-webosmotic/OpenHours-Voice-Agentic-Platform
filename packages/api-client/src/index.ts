@@ -47,6 +47,7 @@ export type {
  * Query over `apiClient.request` (D-015), so it needs the contract rather than a client.
  */
 export {
+  CALL_STATUSES,
   DASHBOARD_PATHS,
   toQueryString,
   type AgendaCounts,
@@ -60,6 +61,13 @@ export {
   type AvailabilityResult,
   type AvailabilitySlot,
   type BookingResult,
+  type CallDetail,
+  type CallListPage,
+  type CallListQuery,
+  type CallRecordingUrl,
+  type CallStatus,
+  type CallTranscriptTurn,
+  type CallView,
   type PatientAppointment,
   type PatientDetail,
   type PatientListPage,

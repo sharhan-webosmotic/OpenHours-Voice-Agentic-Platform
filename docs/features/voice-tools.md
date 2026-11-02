@@ -122,13 +122,86 @@ than the work, so every one of those flattered the result.
 - `tests/password-change-gate.test.ts`: all six routes carried as ones a user access token
   does not authenticate, each driven with a gated user's token.
 
-## What this half does not cover
+## The second half: the webhook, the transcript, the recording and the catch-up
 
-- **No webhook, no transcript, no recording, no catch-up import.** All four need Sarvam's
-  payload shapes and API paths. `docs/sarvam-contract.md` says what is missing and why
-  writing them from a summary would be worse than not writing them.
-- **No Call History screens**, which read call rows that nothing writes yet.
+Built from `docs/sarvam-contract.md`, read from Sarvam's own documentation on 2026-10-27.
+
+### Where Sarvam's shapes live
+
+`apps/api/src/voice/providers/sarvam.ts` and its fixture, and nowhere else. The rest of the
+platform sees a normalised `CallEvent` with no provider field names in it, which is what the
+`VoiceProvider` interface is for. Two details from the contract that cost something to get
+wrong, and are therefore each in one place:
+
+- **`interaction_id` contains a slash** (`<YYYYMMDD>/<id>`), so it is stored verbatim and
+  `encodeURIComponent`-ed at the point of use. The contract says an id without a slash is
+  answered with a 400.
+- **Analytics has a different path shape** from the other services, `/v1/{org}/{ws}/{app}/…`
+  rather than `/v1/orgs/{org}/workspaces/{ws}/…`, and authenticates with `X-API-Key` rather
+  than a bearer token. Getting either wrong is a 404 that reads as a missing interaction.
+
+### How a webhook is authenticated, given that it is not signed
+
+D-006's three measures, in the order they run:
+
+1. A per-clinic secret in the URL path, stored only as a hash, in its own column. It resolves
+   the clinic, so a request without it addresses nobody.
+2. An allow-list of Sarvam's two published egress addresses, configurable and off by default,
+   because a developer replaying an event is not coming from Mumbai.
+3. **The one that holds:** the interaction is re-read from the authenticated analytics API
+   and the provider's own figures are preferred field by field. An event the provider has no
+   record of is marked FAILED and creates nothing. `metadata.clinic_id` is cross-checked and
+   never believed: a mismatch is logged and the secret's answer stands.
+
+### The jobs
+
+pg-boss 12.38.0, pinned, in its own `pgboss` schema in the same database. Three queues: process
+an event, copy a recording, catch up. Every one is idempotent on the interaction id by unique
+index rather than by checking. The worker runs in the API process, which is a decision with a
+stated cost (see `jobs/queue.ts`) and the same scaling trigger as D-020.
+
+The catch-up runs hourly over a **six-hour window**, deliberately overlapping, because the
+contract records UNKNOWN against whether Sarvam retries a delivery at all. Re-reading hours it
+has already seen writes nothing.
+
+### Deviations in the ingestion half
+
+| Deviation                                                                                                                                  | Why                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **The transcript is its own table**, not the `call_transcripts` the contract's mapping names, and `calls.transcript` keeps the plain text. | The dashboard shows an attributed conversation, so the turns need rows. The text column already existed and is what an export or a search wants.                                                                                                                                                      |
+| **`calls.outcome` is never written.**                                                                                                      | Deciding that a call resulted in a booking means reading what the agent did during it. That is the outcome work, and inventing it from the status would be a fact the clinic acts on. The UI reads "Not classified".                                                                                  |
+| **Outbound calls are parsed but not ingested.**                                                                                            | `attempt_id` marks an outbound attempt (contract section 4), and an outbound webhook arriving here must not be filed as somebody ringing the clinic. Outbound reminders are a later milestone.                                                                                                        |
+| **The authoritative re-read is a filtered list**, not a read of one interaction.                                                           | The contract documents no single-interaction endpoint. It is weaker than a direct read and still the strongest available: a forged payload must name an interaction that genuinely exists in that workspace, in the window it claims. Question 3 in the contract's own list is what would replace it. |
+
+## The Call History screens
+
+`docs/prototype/laptop-14-calls-list.png` and `laptop-15-call-detail.png`, which are the most
+fictional captures in the export: the prototype's own banner says its call records and
+summaries are invented. So the work here was mostly deciding what to say instead.
+
+| The capture shows                                    | Here                                                                                    | Why                                                                                                                                                              |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A generated **conversation summary**                 | The card keeps its place and says no summary is generated, with the transcript below it | A summary of a clinical conversation invented by this screen would be read as the clinic's own record of the call                                                |
+| **Call type**: New patient, Reschedule, Cancellation | Direction: incoming or outgoing                                                         | Deriving a call type from a transcript is an inference the clinic would act on                                                                                   |
+| **Outcome**: Booked, Updated, Resolved               | The status, plus the outcome when it is set                                             | Nothing writes `calls.outcome` yet, so a filter on it would only ever match one value                                                                            |
+| A **REVIEW column** and "Mark as reviewed"           | The column is gone; the drawer's control is present and visibly disabled                | A column saying the same thing on every row is decoration. The control belongs where somebody would look for it, inert, as with the header's search box          |
+| **Create follow-up**                                 | Present and disabled                                                                    | Follow-ups were left out of this feature entirely                                                                                                                |
+| No recording and no transcript at all                | Both, in the drawer's own idiom                                                         | Agreed as an addition. Three honest states each, because "no recording", "not copied yet" and "your role may not hear it" are different things to a receptionist |
+
+The recording URL is minted when somebody presses play, never when the drawer opens, because
+every mint is an audit row against the person who asked and a drawer opening is not somebody
+listening.
+
+## What Phase 3 does not cover
+
+- **No outbound calls.** Reminders and confirmations are a later milestone, and the adapter
+  only reads the direction so one cannot be mistaken for an inbound call.
 - **No `reschedule` or `cancel` in the measured figures.** Each is a locate plus the same
   write as `book`, so the honest expectation is `book` plus one read, and it is not measured.
 - **No load test at 20 concurrent CALLS**, only 20 concurrent tool requests. A call is a
   sequence of tool calls with a person speaking between them, which is a gentler shape.
+- **No real call has happened.** Every fixture is synthetic and built from the documented
+  field list. The adapter is provisional until the pilot call, after which the raw body in
+  `webhook_events.payload` is the evidence to check it against.
+- **The webhook's IP allow-list is off by default**, so it is a production setting somebody
+  has to turn on. `release-readiness` owns that.

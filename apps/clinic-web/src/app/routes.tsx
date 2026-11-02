@@ -74,7 +74,9 @@ const PatientProfilePage = lazy(async () => ({
  */
 const AppShell = lazy(async () => ({ default: (await import('./AppShell')).AppShell }));
 
-const CallsPage = lazy(async () => ({ default: (await placeholders()).CallsPage }));
+const CallsPage = lazy(async () => ({
+  default: (await import('../features/calls/CallsPage')).CallsPage,
+}));
 const RemindersPage = lazy(async () => ({ default: (await placeholders()).RemindersPage }));
 const ReportsPage = lazy(async () => ({ default: (await placeholders()).ReportsPage }));
 
