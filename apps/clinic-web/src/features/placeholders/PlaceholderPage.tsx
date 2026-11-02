@@ -1,4 +1,3 @@
-import { PageHeading } from '../../app/AppShell';
 import { EmptyState } from '../../components/ui/EmptyState';
 
 /**
@@ -12,17 +11,20 @@ import { EmptyState } from '../../components/ui/EmptyState';
  * as data.
  */
 export const PlaceholderPage = ({
-  title,
   description,
   next,
 }: {
-  readonly title: string;
   readonly description: string;
   /** What will be here, named plainly. */
   readonly next: string;
 }) => (
+  /*
+   * No heading here: the shell renders it for every page, including this one. Rendering a
+   * second would put two titles on the screen, which is what happened when the real screens
+   * arrived and is why the shell took it over.
+   */
   <>
-    <PageHeading title={title} description={description} />
+    <p className="mb-5 text-muted text-xs">{description}</p>
     <EmptyState title="Not built yet" body={next} />
   </>
 );

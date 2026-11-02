@@ -26,7 +26,21 @@ export const api = createApi({
    * never declared is silently ignored, so a missing entry here is a stale screen with no
    * error anywhere. They are listed in the order the features arrive.
    */
-  tagTypes: ['Patient', 'Appointment', 'Availability', 'Agenda', 'Call', 'Doctor', 'Service'],
+  tagTypes: [
+    'Patient',
+    'Appointment',
+    'Availability',
+    'Agenda',
+    'Call',
+    /**
+     * The clinic's own configuration, which is one cache entry covering services, doctors,
+     * hours, the booking policy and the agent's behaviour. The API returns them together and
+     * four screens read them together, so a section save invalidates this one tag and every
+     * screen showing any part of it re-reads. Separate `Doctor` and `Service` tags would be
+     * two ways to invalidate one document.
+     */
+    'Clinic',
+  ],
 
   endpoints: () => ({}),
 

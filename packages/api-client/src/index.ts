@@ -39,3 +39,30 @@ export type {
   ServiceView,
   TelephonyView,
 } from './clinics.js';
+
+/**
+ * The clinic dashboard's read surface: paths and response types, no fetching.
+ *
+ * Exported separately from `createClinicsApi` because the dashboard's transport is RTK
+ * Query over `apiClient.request` (D-015), so it needs the contract rather than a client.
+ */
+export {
+  DASHBOARD_PATHS,
+  toQueryString,
+  type AgendaCounts,
+  type AgendaQuery,
+  type AgendaResult,
+  type AppointmentListPage,
+  type AppointmentListQuery,
+  type AppointmentView,
+  type AvailabilityQuery,
+  type AvailabilityReason,
+  type AvailabilityResult,
+  type AvailabilitySlot,
+  type BookingResult,
+  type PatientAppointment,
+  type PatientDetail,
+  type PatientListPage,
+  type PatientListQuery,
+  type PatientSummary,
+} from './dashboard.js';

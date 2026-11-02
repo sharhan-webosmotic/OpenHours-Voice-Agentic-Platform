@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, Outlet } from 'react-router';
+import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import {
   Activity,
   BarChart3,
@@ -134,6 +134,7 @@ export const AppShell = ({
         </header>
 
         <main className="min-w-0 flex-1 p-6">
+          <PageTitle items={visible} />
           <Outlet />
         </main>
       </div>
@@ -141,7 +142,49 @@ export const AppShell = ({
   );
 };
 
-/** A page heading, used by every placeholder and every real page after this feature. */
+/**
+ * The breadcrumb and heading every page carries, rendered ONCE by the shell.
+ *
+ * ─── WHY IT IS HERE AND NOT IN EACH SCREEN ──────────────────────────────────────
+ *
+ * The prototype draws the same treatment at the top of all nine screens: "Overview /
+ * Patients" above a large title. Nine copies would be nine chances for one of them to use a
+ * different size, and the detail screens show that it is not really a property of a screen at
+ * all: the patient profile's heading is "Patients", the list it came from, with its own back
+ * link underneath.
+ *
+ * THE ACTIVE ITEM IS THE LONGEST MATCHING PREFIX, which is what makes `/patients/:id` carry
+ * the Patients heading. Exact matching would leave every detail page with no title.
+ */
+const PageTitle = ({ items }: { readonly items: readonly NavItem[] }) => {
+  const { pathname } = useLocation();
+
+  const active = [...items]
+    .filter((item) => pathname === item.path || pathname.startsWith(`${item.path}/`))
+    .sort((a, b) => b.path.length - a.path.length)[0];
+
+  if (active === undefined) {
+    return null;
+  }
+
+  const isOverview = active.path === '/overview';
+
+  return (
+    <div className="mb-5 flex flex-col gap-1">
+      {!isOverview && (
+        <p className="m-0 text-muted text-xs">
+          <Link to="/overview" className="text-accent hover:underline">
+            Overview
+          </Link>{' '}
+          / {active.label}
+        </p>
+      )}
+      <h1 className="m-0 font-bold text-default text-xl">{active.label}</h1>
+    </div>
+  );
+};
+
+/** A page heading for a screen that needs its own, inside the shell's. */
 export const PageHeading = ({
   title,
   description,

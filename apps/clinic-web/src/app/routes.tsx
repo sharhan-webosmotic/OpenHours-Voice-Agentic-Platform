@@ -30,6 +30,36 @@ import { useAuth } from './AuthProvider';
 const placeholders = () => import('../features/placeholders/pages');
 
 /**
+ * The built screens, each lazily loaded on its own.
+ *
+ * ONE CHUNK EACH, unlike the placeholders, which share one. A placeholder is three lines of
+ * prose and nine route-level splits for nine of them would add nine requests to save
+ * nothing. A real screen carries its forms, its table and its feature's endpoints, so the
+ * split is what keeps the entry chunk inside the budget in `vite.config.ts`.
+ */
+const AppointmentsPage = lazy(async () => ({
+  default: (await import('../features/appointments/AppointmentsPage')).AppointmentsPage,
+}));
+const OverviewPage = lazy(async () => ({
+  default: (await import('../features/overview/OverviewPage')).OverviewPage,
+}));
+const SettingsPage = lazy(async () => ({
+  default: (await import('../features/settings/SettingsPage')).SettingsPage,
+}));
+const ServicesPage = lazy(async () => ({
+  default: (await import('../features/services/ServicesPage')).ServicesPage,
+}));
+const StaffPage = lazy(async () => ({
+  default: (await import('../features/staff/StaffPage')).StaffPage,
+}));
+const PatientsPage = lazy(async () => ({
+  default: (await import('../features/patients/PatientsPage')).PatientsPage,
+}));
+const PatientProfilePage = lazy(async () => ({
+  default: (await import('../features/patients/PatientProfilePage')).PatientProfilePage,
+}));
+
+/**
  * The shell is lazy, which is what keeps the entry chunk inside the budget.
  *
  * It carries the sidebar, the top bar and every icon they use, and none of it is needed by
@@ -44,15 +74,9 @@ const placeholders = () => import('../features/placeholders/pages');
  */
 const AppShell = lazy(async () => ({ default: (await import('./AppShell')).AppShell }));
 
-const OverviewPage = lazy(async () => ({ default: (await placeholders()).OverviewPage }));
-const AppointmentsPage = lazy(async () => ({ default: (await placeholders()).AppointmentsPage }));
-const PatientsPage = lazy(async () => ({ default: (await placeholders()).PatientsPage }));
-const StaffPage = lazy(async () => ({ default: (await placeholders()).StaffPage }));
-const ServicesPage = lazy(async () => ({ default: (await placeholders()).ServicesPage }));
 const CallsPage = lazy(async () => ({ default: (await placeholders()).CallsPage }));
 const RemindersPage = lazy(async () => ({ default: (await placeholders()).RemindersPage }));
 const ReportsPage = lazy(async () => ({ default: (await placeholders()).ReportsPage }));
-const SettingsPage = lazy(async () => ({ default: (await placeholders()).SettingsPage }));
 
 /**
  * The element for each navigation path.
@@ -140,6 +164,25 @@ export const AppRoutes = () => (
     <Route element={<RequireSession />}>
       <Route element={<Shell />}>
         <Route index element={<Landing />} />
+        {/*
+         * Detail routes, which the navigation does not list.
+         *
+         * They sit beside the nav-driven routes rather than inside them because a patient
+         * profile is not a menu item: it is reached from a row. The permission is the same
+         * cell as the list, declared here rather than inherited, so reading this file
+         * answers "who may open this" without following a parent route.
+         */}
+        <Route
+          path="/patients/:patientId"
+          element={
+            <RequirePermission resource="patients" action="read" fallback={<NoAccessPage />}>
+              <Suspense fallback={<Spinner />}>
+                <PatientProfilePage />
+              </Suspense>
+            </RequirePermission>
+          }
+        />
+
         {CLINIC_NAV.map((item) => (
           <Route
             key={item.path}

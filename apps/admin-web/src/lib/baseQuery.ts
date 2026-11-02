@@ -23,6 +23,12 @@ export type ApiRequest = {
   readonly path: string;
   readonly method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   readonly body?: unknown;
+  /**
+   * Extra headers, for the one thing a body cannot carry: `Idempotency-Key` (root CLAUDE.md
+   * rule 8). The client applies them before its own, so none of these can overwrite the
+   * `Authorization` or CSRF headers.
+   */
+  readonly headers?: Readonly<Record<string, string>>;
 };
 
 /**
@@ -36,11 +42,11 @@ export type ApiQueryError = ProblemDetails;
 
 const createTransport =
   (client: ApiClient): BaseQueryFn<ApiRequest, unknown, ApiQueryError> =>
-  async ({ path, method = 'GET', body }) => {
+  async ({ path, method = 'GET', body, headers }) => {
     let response: Response;
 
     try {
-      response = await client.request(path, method, body);
+      response = await client.request(path, method, body, headers);
     } catch (cause) {
       /**
        * A transport failure, which is not a problem+json because no server answered.
