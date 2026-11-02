@@ -24,6 +24,7 @@
     "db:restore-check": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env prisma/restore-check.ts",
     "provision:clinic": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env prisma/provision-clinic.ts",
     "bootstrap:super-admin": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env prisma/bootstrap-super-admin.ts",
+    "voice:measure": "VOICE_TOOL_CALLS_PER_MINUTE_PER_CLINIC=1000000 VOICE_TOOL_CALLS_PER_MINUTE_PER_ADDRESS=1000000 tsx --env-file-if-exists=../../.env --env-file-if-exists=.env prisma/measure-voice-tools.ts",
     "prompt:render": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env prisma/render-prompt.ts"
   },
   "dependencies": {

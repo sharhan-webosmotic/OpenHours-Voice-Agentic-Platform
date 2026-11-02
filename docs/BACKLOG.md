@@ -151,3 +151,31 @@ decoy hash at startup so the first request is not an outlier, or stop describing
 as a verified control and record it in the source and the report as a best-effort mitigation.
 One of the two must happen. What must not survive the audit is the present state, where the
 comments claim a control the suite does not check.
+
+## V1 The audit trail cannot name the voice agent as an actor
+
+**Due: before a second clinic takes live calls.** Not before the pilot call, because the
+information is recorded today, in the wrong place.
+
+`audit_logs.actor_user_id` points at a user and `audit_logs.actor_role` IS the database's
+`role` enum, which has six values and deliberately no `VOICE_AGENT` (D-021). So an
+appointment booked, moved or cancelled by the agent is audited with no actor at all. Who did
+it is recoverable only from `metadata.source` on a booking and `metadata.actorSource` on a
+reschedule or a cancellation, both of which are conventions that nothing enforces.
+
+**Why it matters:** this is a regulated domain and "who changed this appointment" is the
+question an audit trail exists to answer. A convention answers it until somebody adds a write
+path and forgets the metadata, and then the row is silently anonymous.
+
+**What the fix probably is**, in order of preference:
+
+1. An `actor_kind` column (`USER`, `VOICE_AGENT`, `SYSTEM`) with `actor_role` and
+   `actor_user_id` nullable as now. Additive, and it makes the absence of a user explicit
+   rather than indistinguishable from a bug.
+2. Add `VOICE_AGENT` to the database `role` enum AND a CHECK constraint on `users.role`
+   forbidding it. Smaller, but it puts a non-user value in a column named for users and
+   relies on a constraint to keep it out of the one table that must not have it.
+
+Either is a migration reviewed by a second person, and option 1 changes the audit reader and
+its tests. `tests/voice-tools.test.ts` asserts the current shape, including the nulls, so the
+test that has to change is the one that documents the gap.

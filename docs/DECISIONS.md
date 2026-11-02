@@ -485,6 +485,83 @@ free-tier database and D-016's deferral of M1-14 all stop being defensible toget
 
 ---
 
+## D-021 The voice agent is a seventh role in the matrix, and never a user
+
+`VOICE_AGENT` is a role in `packages/shared/permissions.ts` with its own column: appointments
+read and write, patients read and write, a read of the clinic's settings and of doctors,
+services and hours. Everything else is denied, including recordings, prescriptions,
+follow-ups, analytics and the audit trail.
+
+**Why a role rather than a separate capability table:** the matrix is already the one place
+the guards, the tests and both menus hang off. A second table would be a second place to look,
+and the service layer would still need a principal with a role to reuse the scope and masking
+logic. One readable column that says what the agent can and cannot do is worth more than
+keeping the list at six.
+
+**It is a principal, not a person, and four controls say so.** Each has a test:
+
+- the Prisma `Role` enum stays at six values, so no user row can store it. A test inserts one
+  and asserts PostgreSQL refuses the cast, which is also why no API path can assign it.
+- `verifyAccessToken` uses `isUserRole`, so a validly signed token carrying the role is
+  refused, with the same error as a token naming a role that does not exist.
+- `USER_ROLES` is a TYPE as well as a list, so a map from roles to labels or form fields that
+  includes the agent does not compile.
+- it belongs to no login audience, and the clinic dashboard's menu returns nothing for a
+  non-user role.
+
+**The last one was a real hole.** The dashboard's menu filters on the matrix alone, so the
+agent's genuine grants would have shown it five pages. A matrix-derived test accepted that,
+which is why that assertion is deliberately not derived from the matrix.
+
+**What this decision could not fix.** `audit_logs.actor_role` IS the database's `role` enum,
+so an action by the agent can name its actor in neither `actor_role` nor `actor_user_id`.
+Those rows carry `metadata.source` or `metadata.actorSource` instead, which is a naming
+convention standing in for a column in a regulated trail. The proper fix is a schema change
+and is in `docs/BACKLOG.md`.
+
+**Patient write is a ceiling, not a licence.** The matrix cannot express "create but not
+update", and the agent must be able to book for a first-time caller. The control is the
+ABSENCE OF AN ENDPOINT: the tool surface exposes a lookup and a create and no way to edit or
+delete an existing record.
+
+---
+
+## D-022 The voice tool endpoints answer 200 with a speakable sentence, except twice
+
+`POST /voice/tools/*`, outside `/api/v1`, authenticated by `Authorization: Bearer <per-clinic
+secret>` and nothing else. Every answer is `{ ok, message, data }`. `message` is a whole short
+sentence, because it is read to a patient.
+
+**Why almost always 200:** an HTTP error reaches a patient as silence or as a crash
+mid-sentence. A refused booking, an unidentifiable doctor or a slot taken a second ago is a
+thing to say, not a status code.
+
+**The two exceptions, and why each earns one:**
+
+- **401** when the secret does not authenticate. That is a misconfigured deployment or
+  somebody probing. Neither is a thing to tell a caller, and a 200 would hide both from
+  whoever is watching the service.
+- **429** when a clinic exceeds its limit, so the provider can back off rather than being
+  told everything is fine.
+
+A 5xx is never returned: an unexpected failure becomes a neutral sentence and a logged error,
+because the call is still in progress.
+
+**Not under `/api/v1`**, per `sarvam-voice-integration`. It is a provider surface with its own
+authentication, and the shared prefix would imply that a session reaches it.
+
+**The rate limit is keyed on the clinic, never on the address.** Sarvam calls from a handful
+of fixed addresses, so an address bucket would throttle every clinic at once. 600 per clinic
+per minute, with a 3,000-per-address backstop ahead of authentication, both configurable. The
+arithmetic is in `voice/tools.routes.ts`.
+
+**The bearer header is our contract and Sarvam's half is unconfirmed.** Whether their API tool
+can send a custom `Authorization` header is an open question in `docs/voice/sarvam-contract.md`.
+If it cannot, the fallback is the webhook's arrangement, the secret in the URL path (D-006),
+which is a change in one function.
+
+---
+
 ## What no automated test currently covers
 
 **That the refresh cookie is actually sent: NOW VERIFIED.** This was the open item here and it
