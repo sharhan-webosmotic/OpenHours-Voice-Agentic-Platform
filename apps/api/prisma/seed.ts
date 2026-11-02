@@ -55,7 +55,7 @@ const WEEKDAYS: readonly Weekday[] = [
 const MINUTE = 60 * 1000;
 
 /** Local development password for every seeded user. Never used outside a dev database. */
-const DEV_PASSWORD = 'openhours-dev-password';
+const DEV_PASSWORD = 'clinicai-dev-password';
 
 const out = (line: string): void => {
   process.stdout.write(`${line}\n`);
@@ -72,7 +72,7 @@ type SeedUser = {
 const SEED_USERS: readonly SeedUser[] = [
   {
     id: '01930000-0000-7000-8000-000000000101',
-    email: 'super.admin@openhours.test',
+    email: 'super.admin@clinicai.test',
     fullName: 'Platform Super Admin',
     role: Role.SUPER_ADMIN,
     organisationId: null,
@@ -82,6 +82,13 @@ const SEED_USERS: readonly SeedUser[] = [
     email: 'owner@demo-clinic.test',
     fullName: 'Demo Clinic Owner',
     role: Role.CLINIC_OWNER,
+    organisationId: DEMO_ORGANISATION_ID,
+  },
+  {
+    id: '01930000-0000-7000-8000-000000000105',
+    email: 'manager@demo-clinic.test',
+    fullName: 'Demo Clinic Manager',
+    role: Role.CLINIC_MANAGER,
     organisationId: DEMO_ORGANISATION_ID,
   },
   {

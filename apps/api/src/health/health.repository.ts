@@ -26,7 +26,7 @@ export const createReadinessRepository = (appConfig: Config): ReadinessRepositor
       // A readiness probe must fail fast rather than hold the request open.
       connectionTimeoutMillis: 2_000,
       max: 2,
-      application_name: 'openhours-api-readiness',
+      application_name: 'clinicai-api-readiness',
     }),
   });
 

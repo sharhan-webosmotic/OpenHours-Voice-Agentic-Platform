@@ -1,4 +1,4 @@
-import { isPlatformRole, type Role } from '@openhours/shared';
+import { isPlatformRole, type Role } from '@clinicai/shared';
 import { UnauthorizedError } from '../common/errors.js';
 import { asSystem, withTenant, type TenantDb } from './tenant-client.js';
 

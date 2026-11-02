@@ -1,4 +1,4 @@
-// OpenHours schema. Conventions, applied to every model:
+// ClinicAI schema. Conventions, applied to every model:
 //  - UUID v7 primary keys generated in the application (uuidV7()), never by the database,
 //    so an id exists before the row is written and sorts by creation time.
 //  - snake_case in PostgreSQL via @map / @@map; camelCase in TypeScript.

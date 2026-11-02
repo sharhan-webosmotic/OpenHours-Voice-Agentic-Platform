@@ -49,7 +49,7 @@ describe('AppError subclasses render as problem+json', () => {
 
       expect(problem.status).toBe(status);
       expect(problem.title).toBe(title);
-      expect(problem.type).toMatch(/^https:\/\/openhours\.health\/problems\//);
+      expect(problem.type).toMatch(/^https:\/\/clinicai\.health\/problems\//);
       expect(problem.detail).toBe(error.detail);
       expect(problem.requestId).toBe('req-1');
       expect(problem).not.toHaveProperty('stack');
@@ -78,7 +78,7 @@ describe('AppError subclasses render as problem+json', () => {
 describe('non-AppError values become an opaque 500', () => {
   it('leaks neither message nor stack', () => {
     const problem = toProblemDetails(
-      new Error('ECONNREFUSED postgres://user:pa55w0rd@10.0.0.4:5432/openhours'),
+      new Error('ECONNREFUSED postgres://user:pa55w0rd@10.0.0.4:5432/clinicai'),
       'req-3',
     );
 

@@ -2,7 +2,11 @@ import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { registerRoute } from '../../common/route-registry.js';
 import { validate, validatedData } from '../../common/validate.js';
-import { requireAuth, requireUser } from '../../common/auth.middleware.js';
+import {
+  requireAuth,
+  requirePasswordChangeComplete,
+  requireUser,
+} from '../../common/auth.middleware.js';
 import { currentPrincipal } from '../../common/permissions.js';
 import * as service from './support-sessions.service.js';
 
@@ -33,6 +37,7 @@ export const supportSessionsRouter = (): Router => {
     '/',
     requireAuth,
     requireUser,
+    requirePasswordChangeComplete,
     validate({ body: supportSessionBodySchema }),
     async (req: Request, res: Response) => {
       const { body } = validatedData<unknown, unknown, { organisationId: string; reason: string }>(

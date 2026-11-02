@@ -9,7 +9,7 @@ import {
   type Action,
   type Resource,
   type Role,
-} from '@openhours/shared';
+} from '@clinicai/shared';
 import { createApp } from '../src/app.js';
 import { getRegisteredRoutes, type RouteDescriptor } from '../src/common/route-registry.js';
 import { hashPassword } from '../src/common/passwords.js';

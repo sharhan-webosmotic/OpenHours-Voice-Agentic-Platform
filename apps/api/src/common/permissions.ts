@@ -1,10 +1,11 @@
 import {
+  isRole,
   permissionScope,
   type Action,
   type Resource,
   type Role,
   type Scope,
-} from '@openhours/shared';
+} from '@clinicai/shared';
 import { ForbiddenError, UnauthorizedError } from './errors.js';
 import { getContext } from './request-context.js';
 
@@ -31,9 +32,22 @@ export const currentPrincipal = (): Principal => {
     throw new UnauthorizedError('no authenticated principal', 'Authentication is required.');
   }
 
+  /**
+   * Checked, not cast. The context holds `role` as a string because it comes from a token
+   * claim, and an `as Role` here asserted something nothing had verified. The verifier
+   * already refuses an unrecognised claim, so reaching this is a bug rather than an
+   * attack, and it fails closed as a 401 instead of a TypeError deeper in the matrix.
+   */
+  if (!isRole(context.role)) {
+    throw new UnauthorizedError(
+      `unrecognised role on principal: ${context.role}`,
+      'Authentication is required.',
+    );
+  }
+
   return {
     userId: context.userId,
-    role: context.role as Role,
+    role: context.role,
     organisationId: context.organisationId,
   };
 };

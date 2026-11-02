@@ -1,1 +1,1 @@
-React internal admin console for OpenHours staff. Scaffolded in a later prompt.
+React internal admin console for ClinicAI staff. Scaffolded in a later prompt.

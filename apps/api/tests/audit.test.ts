@@ -5,6 +5,7 @@ import { hashPassword } from '../src/common/passwords.js';
 import { uuidV7 } from '../src/common/uuid.js';
 import { jsonBody } from '../src/test-support/http.js';
 import { openSupportSession } from '../src/modules/support-sessions/support-sessions.service.js';
+import { asSystem } from '../src/db/tenant-client.js';
 import {
   asPlatform,
   asOrganisation,
@@ -265,6 +266,42 @@ describe('sensitive actions write an entry', () => {
     );
 
     expect(after).toBeGreaterThan(before);
+  });
+
+  /**
+   * The row used to be written inside the work transaction, so a callback that threw
+   * rolled back its own audit row. The three events that left no trace at all were a
+   * rejected password change, a failed device pairing and a rejected device token, which
+   * are the three an investigator would most want. Review finding I3.
+   */
+  it('leaves a record even when the work it opened the scope for fails', async () => {
+    const reason = `test.failing-scope.${Date.now()}`;
+
+    const before = await asPlatform(ownerClient(), (tx) =>
+      tx.auditLog.count({ where: { action: 'system.scope.used' } }),
+    );
+
+    await expect(
+      // Not an `async` arrow: it has nothing to await, and the lint rule is right to
+      // say so. A rejected promise is the same failure to asSystem's signature.
+      asSystem(reason, () =>
+        Promise.reject(new Error('the work failed after the scope was opened')),
+      ),
+    ).rejects.toThrow('the work failed after the scope was opened');
+
+    const after = await asPlatform(ownerClient(), (tx) =>
+      tx.auditLog.count({ where: { action: 'system.scope.used' } }),
+    );
+
+    expect(after).toBe(before + 1);
+
+    // The reason is what identifies which call opened the scope, so it has to survive
+    // too: a count that went up without it would not tell an investigator anything.
+    const rows = await asPlatform(ownerClient(), (tx) =>
+      tx.auditLog.findMany({ where: { action: 'system.scope.used' }, take: 200 }),
+    );
+    const reasons = rows.map((row) => (row.metadata as { reason?: string } | null)?.reason);
+    expect(reasons).toContain(reason);
   });
 });
 

@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import { ForbiddenError, UnauthorizedError } from './errors.js';
+import { ForbiddenError, PasswordChangeRequiredError, UnauthorizedError } from './errors.js';
 import { getContext, runWithContext } from './request-context.js';
 import { verifyAccessToken } from '../modules/auth/auth.tokens.js';
 import { authenticateDevice } from '../modules/devices/devices.service.js';
@@ -45,6 +45,7 @@ export const requireAuth = (req: Request, _res: Response, next: NextFunction): v
           ...existing,
           userId: claims.userId,
           role: claims.role,
+          mustChangePassword: claims.mustChangePassword,
           ...(claims.organisationId === null ? {} : { organisationId: claims.organisationId }),
         },
         () => {
@@ -118,6 +119,48 @@ export const requireDevice = (req: Request, _res: Response, next: NextFunction):
       );
     })
     .catch(next);
+};
+
+/**
+ * Refuses a user who still holds an administrator-issued temporary password.
+ *
+ * D-003: there is no email provider, so a new user is created with a one-time password
+ * handed over out of band and `mustChangePassword` set. Until they replace it, a password
+ * someone else chose and may still remember is a live credential, so it must not reach
+ * anything but the handful of endpoints needed to replace it.
+ *
+ * MOUNTED BEHIND `requireAuth`, AND ONLY THERE. It reads the flag from the request
+ * context, which only `requireAuth` populates, so on its own it would pass everything.
+ * `tests/password-change-gate.test.ts` walks the route registry and fails if an
+ * authenticated route is missing it, so a route added later cannot quietly skip it.
+ *
+ * The exempt routes are the ones a gated user must still reach: `/auth/me` to discover
+ * the state, `/auth/change-password` to leave it, and logout and refresh, which take no
+ * access token at all and so never pass through here.
+ */
+export const requirePasswordChangeComplete = (
+  _req: Request,
+  _res: Response,
+  next: NextFunction,
+): void => {
+  const context = getContext();
+
+  if (context?.userId === undefined) {
+    next(new UnauthorizedError('not authenticated', 'Authentication is required.'));
+    return;
+  }
+
+  if (context.mustChangePassword === true) {
+    next(
+      new PasswordChangeRequiredError(
+        'temporary password not yet changed',
+        'Please change your temporary password before continuing.',
+      ),
+    );
+    return;
+  }
+
+  next();
 };
 
 /** Rejects a principal that is a device, for endpoints that require a human user. */

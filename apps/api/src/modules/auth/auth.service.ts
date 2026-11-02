@@ -1,3 +1,4 @@
+import { roleBelongsInAudience, type LoginAudience, type Role } from '@clinicai/shared';
 import { config } from '../../config.js';
 import { logger } from '../../common/logger.js';
 import { ForbiddenError, UnauthorizedError, ValidationError } from '../../common/errors.js';
@@ -10,6 +11,7 @@ import {
 } from '../../common/passwords.js';
 import { generateOpaqueToken, hashToken } from '../../common/tokens.js';
 import { asSystem } from '../../db/tenant-client.js';
+import * as audit from '../audit/audit.service.js';
 import { signAccessToken } from './auth.tokens.js';
 import * as repository from './auth.repository.js';
 
@@ -32,7 +34,7 @@ export type LoginResult = {
   readonly user: {
     readonly id: string;
     readonly organisationId: string | null;
-    readonly role: string;
+    readonly role: Role;
   };
 };
 
@@ -40,18 +42,42 @@ export type LoginResult = {
 const loginFailed = (): UnauthorizedError =>
   new UnauthorizedError('login failed', 'Email or password is incorrect.');
 
+/**
+ * Whether the organisation this user belongs to may still be signed in to.
+ *
+ * Null is "not applicable", not "unknown": the two platform roles belong to no
+ * organisation, and treating null as a refusal would lock every platform admin out. A
+ * clinic user always has one, enforced by a CHECK constraint on `organisation_id`, so a
+ * null here for a clinic role cannot happen without the schema being wrong.
+ *
+ * SUSPENDED and DEACTIVATED both refuse. Only ACTIVE passes, so a status added to the
+ * enum later is refused until someone decides otherwise, which is the direction that
+ * fails closed.
+ */
+const organisationAllowsSignIn = (organisationStatus: string | null): boolean =>
+  organisationStatus === null || organisationStatus === 'ACTIVE';
+
 const refreshTtl = (): Date =>
   new Date(Date.now() + config.REFRESH_TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
 
 const issueTokens = async (
   db: Parameters<Parameters<typeof asSystem>[1]>[0],
-  user: { id: string; organisationId: string | null; role: string },
+  user: {
+    id: string;
+    organisationId: string | null;
+    role: Role;
+    mustChangePassword: boolean;
+  },
   familyId: string,
 ): Promise<{ accessToken: string; refreshToken: string; expiresAt: Date }> => {
   const accessToken = await signAccessToken({
     userId: user.id,
     organisationId: user.organisationId,
     role: user.role,
+    // Carried in the token so the first-login gate needs no database read per request.
+    // Safe to cache for the token's lifetime because changing a password revokes every
+    // refresh token for the user, so a stale `true` cannot outlive the change.
+    mustChangePassword: user.mustChangePassword,
   });
 
   const refreshToken = generateOpaqueToken();
@@ -80,9 +106,28 @@ const issueTokens = async (
  */
 type LoginOutcome =
   | { readonly kind: 'ok'; readonly result: LoginResult }
-  | { readonly kind: 'failed'; readonly reason: string; readonly userId?: string };
+  | { readonly kind: 'failed'; readonly reason: string; readonly userId?: string }
+  /**
+   * Separate from `failed` because this one is ANSWERED SPECIFICALLY.
+   *
+   * Every other failure collapses into one message so login cannot be used to discover
+   * which accounts exist. This one is different in kind: the credentials were correct, and
+   * telling the person to use the other application reveals nothing they did not just
+   * prove they know. Hiding it would leave them stuck at a login screen that rejects a
+   * password they typed correctly.
+   */
+  | {
+      readonly kind: 'wrong-audience';
+      readonly userId: string;
+      readonly role: Role;
+      readonly audience: LoginAudience;
+    };
 
-export const login = async (email: string, password: string): Promise<LoginResult> => {
+export const login = async (
+  email: string,
+  password: string,
+  audience?: LoginAudience,
+): Promise<LoginResult> => {
   const outcome = await asSystem('auth.login', async (db): Promise<LoginOutcome> => {
     const user = await repository.findUserByEmail(db, email);
 
@@ -111,6 +156,18 @@ export const login = async (email: string, password: string): Promise<LoginResul
       return { kind: 'failed', reason: 'inactive', userId: user.id };
     }
 
+    /**
+     * A deactivated clinic cannot be signed in to, by any of its users.
+     *
+     * Checked here rather than in a middleware because the organisation is a RESULT of
+     * authenticating: there is nothing to check until the user is known. The decoy work
+     * is spent so the response time does not separate this from a wrong password.
+     */
+    if (!organisationAllowsSignIn(user.organisationStatus)) {
+      await spendVerificationWork(password);
+      return { kind: 'failed', reason: 'org-inactive', userId: user.id };
+    }
+
     if (!(await verifyPassword(user.passwordHash, password))) {
       await repository.recordFailedLogin(
         db,
@@ -119,6 +176,20 @@ export const login = async (email: string, password: string): Promise<LoginResul
         config.LOCKOUT_MINUTES,
       );
       return { kind: 'failed', reason: 'bad-password', userId: user.id };
+    }
+
+    /**
+     * AFTER the password has verified, deliberately. Checking before would answer "does
+     * this address belong to a platform admin?" to anyone who typed the address, with no
+     * password at all. Here it costs a correct password to learn, which is a fact the
+     * caller already holds.
+     *
+     * No token is issued and no cookie is set on this path, which is the point: refusing
+     * in the front end alone would leave a live refresh cookie for a session the
+     * application is about to reject.
+     */
+    if (audience !== undefined && !roleBelongsInAudience(user.role, audience)) {
+      return { kind: 'wrong-audience', userId: user.id, role: user.role, audience };
     }
 
     await repository.recordSuccessfulLogin(db, user.id);
@@ -137,6 +208,19 @@ export const login = async (email: string, password: string): Promise<LoginResul
       },
     };
   });
+
+  if (outcome.kind === 'wrong-audience') {
+    logger.info(
+      { userId: outcome.userId, role: outcome.role, audience: outcome.audience },
+      'login refused: wrong application',
+    );
+    throw new ForbiddenError(
+      `${outcome.role} signed in to the ${outcome.audience} application`,
+      outcome.audience === 'admin'
+        ? 'This console is for ClinicAI staff. Please sign in to your clinic dashboard instead.'
+        : 'This dashboard is for clinic staff. Please sign in to the ClinicAI admin console instead.',
+    );
+  }
 
   if (outcome.kind === 'failed') {
     logger.warn({ reason: outcome.reason, userId: outcome.userId }, 'login failed');
@@ -166,7 +250,7 @@ type RefreshOutcome =
   | { readonly kind: 'ok'; readonly result: LoginResult }
   | {
       readonly kind: 'rejected';
-      readonly reason: 'unknown' | 'reuse' | 'expired' | 'inactive';
+      readonly reason: 'unknown' | 'reuse' | 'expired' | 'inactive' | 'org-inactive';
       readonly userId?: string;
       readonly revoked?: number;
     };
@@ -197,6 +281,21 @@ export const refresh = async (presentedToken: string): Promise<LoginResult> => {
     if (user === null || user.status !== 'ACTIVE') {
       const revoked = await repository.revokeTokenFamily(db, stored.familyId);
       return { kind: 'rejected', reason: 'inactive', userId: stored.userId, revoked };
+    }
+
+    /**
+     * Deactivating a clinic ends its users' live sessions, it does not merely stop new
+     * ones. Refresh is the only place that can do it, because an access token is
+     * self-contained and cannot be revoked once issued, so the window is the access
+     * token's remaining lifetime.
+     *
+     * The family is revoked, as for a deactivated user: leaving it alive would let the
+     * session resume the moment the clinic were reactivated, which is a decision for
+     * whoever reactivates it rather than a side effect.
+     */
+    if (!organisationAllowsSignIn(user.organisationStatus)) {
+      const revoked = await repository.revokeTokenFamily(db, stored.familyId);
+      return { kind: 'rejected', reason: 'org-inactive', userId: stored.userId, revoked };
     }
 
     // Rotate: the presented token dies as its replacement is issued, in one
@@ -244,40 +343,79 @@ export const logout = async (presentedToken: string | undefined): Promise<void> 
     logger.info({ userId: stored.userId, revoked }, 'logout');
   });
 
+/**
+ * Why this returns an outcome instead of throwing on a wrong current password.
+ *
+ * The refusal has to leave a trace. Throwing inside `asSystem` rolls the transaction back,
+ * which would discard the audit row written alongside it, and a rejected password change is
+ * one of the three events an investigator most wants (the same reasoning as the login and
+ * refresh outcomes above, and as the `system.scope.used` row in db/tenant-client.ts). So
+ * the transaction records the refusal and commits, and the error is thrown after it.
+ */
+type ChangePasswordOutcome = { readonly kind: 'ok' } | { readonly kind: 'wrong-current-password' };
+
 export const changePassword = async (
   userId: string,
   currentPassword: string,
   newPassword: string,
-): Promise<void> =>
-  asSystem('auth.change-password', async (db) => {
-    if (newPassword.length < MINIMUM_PASSWORD_LENGTH) {
-      throw new ValidationError('password too short', 'The new password is too short.', [
-        {
-          field: 'body.newPassword',
-          message: `Must be at least ${MINIMUM_PASSWORD_LENGTH} characters`,
-        },
-      ]);
-    }
+): Promise<void> => {
+  const outcome = await asSystem(
+    'auth.change-password',
+    async (db): Promise<ChangePasswordOutcome> => {
+      if (newPassword.length < MINIMUM_PASSWORD_LENGTH) {
+        // Thrown rather than returned: nothing has been written, and a request that never
+        // reached the password check is a validation failure rather than a security event.
+        throw new ValidationError('password too short', 'The new password is too short.', [
+          {
+            field: 'body.newPassword',
+            message: `Must be at least ${MINIMUM_PASSWORD_LENGTH} characters`,
+          },
+        ]);
+      }
 
-    const user = await repository.findUserById(db, userId);
-    if (user === null) {
-      throw new UnauthorizedError('user not found', 'Please sign in again.');
-    }
+      const user = await repository.findUserById(db, userId);
+      if (user === null) {
+        throw new UnauthorizedError('user not found', 'Please sign in again.');
+      }
 
-    if (!(await verifyPassword(user.passwordHash, currentPassword))) {
-      logger.warn({ userId }, 'password change rejected: current password incorrect');
-      throw new ForbiddenError('current password incorrect', 'Current password is incorrect.');
-    }
+      if (!(await verifyPassword(user.passwordHash, currentPassword))) {
+        /**
+         * Audited, so repeated wrong current passwords are visible to someone reading the
+         * trail. Review finding I5: this route verifies a password with argon2 and had
+         * neither a throttle nor any record of a failure, so an attacker holding a stolen
+         * access token could guess unobserved for the token's whole life, and a successful
+         * guess revokes every session and takes the account. The throttle is the limiter on
+         * the route; this is the visibility half.
+         *
+         * No password, no hash and no patient data in the payload: the user id is the
+         * actor, taken from context by `audit.record`, and that is the whole record.
+         */
+        await audit.record(db, {
+          action: 'auth.change-password.rejected',
+          entityType: 'user',
+          entityId: userId,
+          metadata: { reason: 'current-password-incorrect' },
+        });
+        logger.warn({ userId }, 'password change rejected: current password incorrect');
+        return { kind: 'wrong-current-password' };
+      }
 
-    await repository.updatePassword(db, userId, await hashPassword(newPassword));
+      await repository.updatePassword(db, userId, await hashPassword(newPassword));
 
-    // Changing a password ends every session for this user, not just this family: if
-    // the reason for the change was a compromise, leaving other sessions alive defeats
-    // it. (An earlier version passed the user id to the family revoker, which matches
-    // no family and would have revoked nothing.)
-    const revoked = await repository.revokeAllTokensForUser(db, userId);
-    logger.info({ userId, revoked }, 'password changed');
-  });
+      // Changing a password ends every session for this user, not just this family: if
+      // the reason for the change was a compromise, leaving other sessions alive defeats
+      // it. (An earlier version passed the user id to the family revoker, which matches
+      // no family and would have revoked nothing.)
+      const revoked = await repository.revokeAllTokensForUser(db, userId);
+      logger.info({ userId, revoked }, 'password changed');
+      return { kind: 'ok' };
+    },
+  );
+
+  if (outcome.kind === 'wrong-current-password') {
+    throw new ForbiddenError('current password incorrect', 'Current password is incorrect.');
+  }
+};
 
 export const currentUser = async (userId: string) =>
   asSystem('auth.me', async (db) => {

@@ -15,6 +15,14 @@ export type RequestContext = {
   readonly userId?: string;
   readonly role?: string;
   /**
+   * Set from the access token's `pwd` claim for an authenticated user.
+   *
+   * Undefined means "no authenticated user in this context", not "no temporary password":
+   * `requirePasswordChangeComplete` is only ever mounted behind `requireAuth`, which
+   * always sets it.
+   */
+  readonly mustChangePassword?: boolean;
+  /**
    * Set only for a paired Android device. A device is not a user: it has an
    * organisation but no role, which is what keeps it off the user endpoints.
    */

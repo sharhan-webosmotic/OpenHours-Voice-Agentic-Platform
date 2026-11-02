@@ -1,5 +1,5 @@
 {
-  "name": "@openhours/api",
+  "name": "@clinicai/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,7 +7,7 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "tsx watch --env-file-if-exists=../../.env --env-file-if-exists=.env src/server.ts",
     "generate": "prisma generate",
     "build": "tsc --build tsconfig.build.json",
     "start": "node dist/server.js",
@@ -16,13 +16,14 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "db:migrate": "prisma migrate deploy",
-    "db:migrate:create": "tsx prisma/create-migration.ts",
-    "db:sql": "tsx prisma/sql/apply.ts",
-    "db:check-policies": "tsx prisma/sql/check-policies.ts",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:migrate:create": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env prisma/create-migration.ts",
+    "db:sql": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env prisma/sql/apply.ts",
+    "db:check-policies": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env prisma/sql/check-policies.ts",
+    "db:seed": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env prisma/seed.ts",
+    "provision:clinic": "tsx --env-file-if-exists=../../.env --env-file-if-exists=.env prisma/provision-clinic.ts"
   },
   "dependencies": {
-    "@openhours/shared": "workspace:*",
+    "@clinicai/shared": "workspace:*",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
     "argon2": "0.45.1",

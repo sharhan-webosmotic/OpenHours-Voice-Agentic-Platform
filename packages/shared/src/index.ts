@@ -10,8 +10,11 @@
 /** Semantic version of the shared contract package, for diagnostics endpoints. */
 export const SHARED_CONTRACT_VERSION = '0.1.0';
 
+export { CSRF_HEADER_NAME } from './session.js';
+
 export {
   ACTIONS,
+  LOGIN_AUDIENCES,
   PERMISSIONS,
   PLATFORM_ROLES,
   RESOURCES,
@@ -19,9 +22,12 @@ export {
   SCOPES,
   isPermitted,
   isPlatformRole,
+  isRole,
   permissionScope,
+  roleBelongsInAudience,
   type Action,
   type Grant,
+  type LoginAudience,
   type Matrix,
   type Resource,
   type Role,

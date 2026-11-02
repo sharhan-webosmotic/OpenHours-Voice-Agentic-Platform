@@ -3,7 +3,7 @@ import { ForbiddenError } from '../../common/errors.js';
 import { uuidV7 } from '../../common/uuid.js';
 import { asSystem } from '../../db/tenant-client.js';
 import * as audit from '../audit/audit.service.js';
-import { isPlatformRole, type Role } from '@openhours/shared';
+import { isPlatformRole, type Role } from '@clinicai/shared';
 
 /**
  * Support sessions: a time-boxed, audited grant that unmasks patient fields for ONE

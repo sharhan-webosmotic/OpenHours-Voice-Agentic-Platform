@@ -15,7 +15,10 @@ export type FieldError = {
   readonly code?: string;
 };
 
-const PROBLEM_BASE = 'https://openhours.health/problems';
+const PROBLEM_BASE = 'https://clinicai.health/problems';
+
+/** Exported so both web apps can branch on it without matching a message. */
+export const PASSWORD_CHANGE_REQUIRED_TYPE = `${PROBLEM_BASE}/password-change-required`;
 
 export abstract class AppError extends Error {
   abstract readonly status: number;
@@ -58,6 +61,20 @@ export class ForbiddenError extends AppError {
   readonly status = 403;
   readonly type = `${PROBLEM_BASE}/forbidden`;
   readonly title = 'Forbidden';
+}
+
+/**
+ * The signed-in user holds a temporary password and has not replaced it yet.
+ *
+ * A distinct type rather than a plain 403 because the client must act on it, by routing to
+ * the password-change screen, and a generic "You do not have permission" is both wrong and
+ * a dead end. `PASSWORD_CHANGE_REQUIRED_TYPE` is exported so the client can match the
+ * `type` member instead of parsing prose.
+ */
+export class PasswordChangeRequiredError extends AppError {
+  readonly status = 403;
+  readonly type = PASSWORD_CHANGE_REQUIRED_TYPE;
+  readonly title = 'Password Change Required';
 }
 
 export class NotFoundError extends AppError {

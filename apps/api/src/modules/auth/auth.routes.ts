@@ -5,8 +5,10 @@ import {
   type Request,
   type Response,
 } from 'express';
+import type { LoginAudience } from '@clinicai/shared';
 import { config } from '../../config.js';
 import { readCookie } from '../../common/cookies.js';
+import { requireSameSiteRequest } from '../../common/csrf.js';
 import { createRateLimiter } from '../../common/rate-limit.js';
 import { UnauthorizedError } from '../../common/errors.js';
 import { getContext } from '../../common/request-context.js';
@@ -24,7 +26,7 @@ import * as service from './auth.service.js';
  * and is expected to live in memory only.
  */
 
-export const REFRESH_COOKIE = 'openhours_refresh';
+export const REFRESH_COOKIE = 'clinicai_refresh';
 
 const refreshCookieOptions = (expiresAt: Date): CookieOptions => ({
   httpOnly: true,
@@ -73,6 +75,31 @@ const loginEmailLimiter = createRateLimiter({
 const refreshLimiter = createRateLimiter({
   windowMs: config.AUTH_RATE_LIMIT_WINDOW_MS,
   limit: config.AUTH_RATE_LIMIT_MAX_PER_IP * 3,
+});
+
+/**
+ * Change-password, keyed on the signed-in user rather than the address.
+ *
+ * WHY IT EXISTS. This route verifies the current password with argon2id at 64 MiB per
+ * call and had no limiter at all, while `/login` carries two for exactly that reason.
+ * Fifteen consecutive wrong guesses returned fifteen 403s with no throttle and no lockout.
+ * That is two problems in one: unbounded concurrent 64 MiB allocations are a memory
+ * amplification attack available to any authenticated caller, and a holder of a stolen
+ * access token could guess the current password unobserved for the token's 15 minute life,
+ * where a correct guess revokes every session and takes the account. Review finding I5.
+ *
+ * KEYED ON THE USER, NOT THE IP, which is why it is mounted after `requireAuth`: the
+ * context has no user id before that. An IP bucket would be wrong in both directions here,
+ * throttling a whole clinic behind one address while leaving an attacker free to rotate
+ * addresses against one account.
+ *
+ * The limit mirrors the login lockout (`LOGIN_MAX_FAILURES` over `LOCKOUT_MINUTES`),
+ * because the thing being bounded is the same thing: guesses at a password.
+ */
+const changePasswordLimiter = createRateLimiter({
+  windowMs: config.LOCKOUT_MINUTES * 60_000,
+  limit: config.LOGIN_MAX_FAILURES,
+  keyGenerator: () => getContext()?.userId ?? 'anonymous',
 });
 
 /**
@@ -125,12 +152,15 @@ export type AuthRouterOptions = {
   /** Overridable so a test can mount a deliberately low limit and assert the 429. */
   readonly ipLimiter?: RequestHandler;
   readonly emailLimiter?: RequestHandler;
+  /** Overridable for the same reason: a test needs a limit it can actually reach. */
+  readonly changePasswordLimiter?: RequestHandler;
 };
 
 export const authRouter = (options: AuthRouterOptions = {}): Router => {
   const router = Router();
   const ipLimiter = options.ipLimiter ?? loginIpLimiter;
   const emailLimiter = options.emailLimiter ?? loginEmailLimiter;
+  const passwordLimiter = options.changePasswordLimiter ?? changePasswordLimiter;
 
   router.post(
     '/login',
@@ -138,8 +168,12 @@ export const authRouter = (options: AuthRouterOptions = {}): Router => {
     emailLimiter,
     validate({ body: loginBodySchema }),
     async (req: Request, res: Response) => {
-      const { body } = validatedData<unknown, unknown, { email: string; password: string }>(req);
-      const result = await service.login(body.email, body.password);
+      const { body } = validatedData<
+        unknown,
+        unknown,
+        { email: string; password: string; audience?: LoginAudience }
+      >(req);
+      const result = await service.login(body.email, body.password, body.audience);
 
       res.cookie(
         REFRESH_COOKIE,
@@ -154,28 +188,39 @@ export const authRouter = (options: AuthRouterOptions = {}): Router => {
     },
   );
 
-  router.post('/refresh', refreshLimiter, async (req: Request, res: Response) => {
-    const presented = readCookie(req.headers.cookie, REFRESH_COOKIE);
+  /**
+   * The two routes below are the only ones that authenticate from a cookie rather than an
+   * `Authorization` header, so they are the only ones a cross-site page could trigger
+   * with the victim's credential attached. `requireSameSiteRequest` is why they cannot.
+   * See common/csrf.ts for what each layer covers.
+   */
+  router.post(
+    '/refresh',
+    requireSameSiteRequest,
+    refreshLimiter,
+    async (req: Request, res: Response) => {
+      const presented = readCookie(req.headers.cookie, REFRESH_COOKIE);
 
-    if (presented === undefined) {
-      throw new UnauthorizedError('no refresh cookie', 'Please sign in again.');
-    }
+      if (presented === undefined) {
+        throw new UnauthorizedError('no refresh cookie', 'Please sign in again.');
+      }
 
-    const result = await service.refresh(presented);
+      const result = await service.refresh(presented);
 
-    res.cookie(
-      REFRESH_COOKIE,
-      result.refreshToken,
-      refreshCookieOptions(result.refreshTokenExpiresAt),
-    );
-    res.status(200).json({
-      accessToken: result.accessToken,
-      mustChangePassword: result.mustChangePassword,
-      user: result.user,
-    });
-  });
+      res.cookie(
+        REFRESH_COOKIE,
+        result.refreshToken,
+        refreshCookieOptions(result.refreshTokenExpiresAt),
+      );
+      res.status(200).json({
+        accessToken: result.accessToken,
+        mustChangePassword: result.mustChangePassword,
+        user: result.user,
+      });
+    },
+  );
 
-  router.post('/logout', async (req: Request, res: Response) => {
+  router.post('/logout', requireSameSiteRequest, async (req: Request, res: Response) => {
     await service.logout(readCookie(req.headers.cookie, REFRESH_COOKIE));
     res.clearCookie(REFRESH_COOKIE, { path: '/api/v1/auth' });
     res.status(204).send();
@@ -185,6 +230,8 @@ export const authRouter = (options: AuthRouterOptions = {}): Router => {
     '/change-password',
     requireAuth,
     requireUser,
+    // After requireAuth, because the limiter keys on the context user id.
+    passwordLimiter,
     validate({ body: changePasswordBodySchema }),
     async (req: Request, res: Response) => {
       const { body } = validatedData<
