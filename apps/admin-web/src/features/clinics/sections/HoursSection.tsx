@@ -1,5 +1,11 @@
 import { useState } from 'react';
-import { WEEKDAYS, clinicHoursSchema, type ClinicHoursInput, type Weekday } from '@clinicai/shared';
+import {
+  MINUTES_IN_DAY,
+  WEEKDAYS,
+  clinicHoursSchema,
+  type ClinicHoursInput,
+  type Weekday,
+} from '@clinicai/shared';
 import type { ClinicDetailView } from '@clinicai/api-client';
 import { Alert } from '../../../components/ui/Alert';
 import { Button } from '../../../components/ui/Button';
@@ -40,6 +46,63 @@ const clockToMinutes = (clock: string): number => {
 };
 
 const DEFAULT_SEGMENT: Segment = { opens: '09:00', closes: '17:00' };
+
+/** The gap a newly added break opens up, in minutes. */
+const NEW_BREAK_MINUTES = 60;
+
+/**
+ * Adds a break to a day, by SPLITTING its last opening rather than appending after it.
+ *
+ * THIS WAS A REAL DEFECT, and only running the form in a browser found it. Appending a
+ * segment after the last one produced 09:00-17:00 followed by 17:00-20:00, which touch, and
+ * the schema refuses touching segments because they are one opening written as two. So the
+ * primary affordance for adding a break failed validation on its first click, and the user
+ * had to work out for themselves that they also needed to shorten the morning.
+ *
+ * Splitting is also what the button actually means. A clinic with one 09:00-17:00 opening
+ * that takes a lunch break has 09:00-13:00 and 14:00-17:00, which is this function's output,
+ * and is a valid state the moment it appears.
+ *
+ * A day whose last opening is too short to split takes an appended segment instead, after a
+ * real gap, and only when the day has room for one. Returning the day unchanged is the right
+ * answer for a day that is already full: the button is hidden at four segments, and a day
+ * ending at 23:30 has nowhere to put a fifth.
+ */
+const withBreakAdded = (segments: readonly Segment[]): readonly Segment[] => {
+  const last = segments[segments.length - 1];
+
+  if (last === undefined) {
+    return [DEFAULT_SEGMENT];
+  }
+
+  const opens = clockToMinutes(last.opens);
+  const closes = clockToMinutes(last.closes);
+  const length = closes - opens;
+
+  // Long enough to hold two openings and a gap between them.
+  if (length >= NEW_BREAK_MINUTES * 3) {
+    const midpoint = opens + Math.round((length - NEW_BREAK_MINUTES) / 2);
+
+    return [
+      ...segments.slice(0, -1),
+      { opens: last.opens, closes: minutesToClock(midpoint) },
+      { opens: minutesToClock(midpoint + NEW_BREAK_MINUTES), closes: last.closes },
+    ];
+  }
+
+  // Too short to split: append after a gap, if the day has room.
+  const appendedOpens = closes + NEW_BREAK_MINUTES;
+  const appendedCloses = appendedOpens + NEW_BREAK_MINUTES;
+
+  if (appendedCloses > MINUTES_IN_DAY) {
+    return segments;
+  }
+
+  return [
+    ...segments,
+    { opens: minutesToClock(appendedOpens), closes: minutesToClock(appendedCloses) },
+  ];
+};
 
 /**
  * Built by reduce rather than `Object.fromEntries`, which types its result as an index
@@ -237,7 +300,7 @@ export const HoursSection = ({
                     <Button
                       kind="secondary"
                       onClick={() => {
-                        setDay(weekday, [...segments, { opens: '17:00', closes: '20:00' }]);
+                        setDay(weekday, withBreakAdded(segments));
                       }}
                     >
                       Add a break

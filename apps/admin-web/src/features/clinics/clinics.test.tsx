@@ -464,6 +464,92 @@ describe('the clinic detail page', () => {
     ]);
   });
 
+  it('adding a break produces a schedule that saves, rather than one the schema refuses', async () => {
+    saveHours.mockResolvedValue(undefined);
+
+    renderWith(<AppRoutes />, asSuperAdmin(), [`/clinics/${CLINIC_ID}`]);
+    await screen.findByRole('heading', { name: 'Opening hours' });
+
+    /**
+     * THIS IS A REGRESSION TEST FOR A DEFECT A BROWSER FOUND AND JSDOM DID NOT.
+     *
+     * "Add a break" used to append 17:00-20:00 after the default 09:00-17:00. Those two
+     * touch, the schema refuses touching segments as one opening written as two, and so the
+     * primary way to add a break failed on its first click. It now splits the opening
+     * instead, which is both valid and what the button means.
+     */
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Monday closed' }));
+    await userEvent.click(screen.getAllByRole('button', { name: 'Add a break' })[0]!);
+    await userEvent.click(screen.getByRole('button', { name: /Save opening hours/i }));
+
+    await waitFor(() => {
+      expect(saveHours).toHaveBeenCalled();
+    });
+
+    // Saved, not refused. The assertion that matters is the absence of the schema's message.
+    expect(screen.queryByText(/must not overlap or touch/)).not.toBeInTheDocument();
+    expect(await screen.findByText('Opening hours saved.')).toBeInTheDocument();
+
+    const payload = saveHours.mock.calls[0]?.[1] as {
+      days: readonly {
+        weekday: string;
+        segments: readonly { opensAtMinute: number; closesAtMinute: number }[];
+      }[];
+    };
+    const monday = payload.days.find((day) => day.weekday === 'MONDAY');
+
+    // Two openings with a real gap between them, which is what a break is.
+    expect(monday?.segments).toHaveLength(2);
+    const [morning, afternoon] = monday?.segments ?? [];
+    expect(afternoon!.opensAtMinute).toBeGreaterThan(morning!.closesAtMinute);
+  });
+
+  it('leaves an unanswered question unanswered, rather than storing it as "no"', async () => {
+    saveBookingPolicy.mockResolvedValue(undefined);
+
+    renderWith(<AppRoutes />, asSuperAdmin(), [`/clinics/${CLINIC_ID}`]);
+    await screen.findByRole('heading', { name: 'Booking policy' });
+
+    /**
+     * REGRESSION TEST FOR A DEFECT THE RENDERED PROMPT EXPOSED.
+     *
+     * "Accepting new patients" is tri-state: not asked, yes, no. React Hook Form hands the
+     * STORED value to `setValueAs` when a control has never been touched, so an uncollected
+     * `null` fell past the empty-string test and `null === 'true'` produced `false`. The
+     * clinic was stored as NOT accepting new patients, and the prompt then instructed the
+     * agent to tell callers so. Nobody had answered the question.
+     */
+    await userEvent.type(screen.getByLabelText('Slot length, in minutes'), '15');
+    await userEvent.click(screen.getByRole('button', { name: /Save booking policy/i }));
+
+    await waitFor(() => {
+      expect(saveBookingPolicy).toHaveBeenCalled();
+    });
+
+    const payload = saveBookingPolicy.mock.calls[0]?.[1] as { acceptsNewPatients: unknown };
+
+    // Null, not false. The difference is what the agent says to a patient.
+    expect(payload.acceptsNewPatients).toBeNull();
+  });
+
+  it('still records a deliberate "no" as a real answer', async () => {
+    saveBookingPolicy.mockResolvedValue(undefined);
+
+    renderWith(<AppRoutes />, asSuperAdmin(), [`/clinics/${CLINIC_ID}`]);
+    await screen.findByRole('heading', { name: 'Booking policy' });
+
+    // The other half of the fix: choosing "No" must still mean no.
+    await userEvent.selectOptions(screen.getByLabelText('Accepting new patients'), 'false');
+    await userEvent.click(screen.getByRole('button', { name: /Save booking policy/i }));
+
+    await waitFor(() => {
+      expect(saveBookingPolicy).toHaveBeenCalled();
+    });
+
+    const payload = saveBookingPolicy.mock.calls[0]?.[1] as { acceptsNewPatients: unknown };
+    expect(payload.acceptsNewPatients).toBe(false);
+  });
+
   it('shows a not-found message rather than an empty page for a clinic it cannot reach', async () => {
     get.mockRejectedValue(
       new ApiError({

@@ -144,9 +144,19 @@ export const BookingPolicySection = ({
             { value: 'false', label: 'No' },
           ]}
           {...register('acceptsNewPatients' as never, {
-            // A tri-state select: the empty option is "not asked", which is not the same
-            // answer as "no".
-            setValueAs: (value: unknown) => (value === '' ? null : value === 'true'),
+            /**
+             * A tri-state select: not asked, yes, no. The empty option is "not asked",
+             * which is NOT the same answer as "no".
+             *
+             * THE NULL AND UNDEFINED CASES ARE THE BUG THIS GUARDS, and a rendered prompt
+             * is what exposed it. React Hook Form passes the STORED value here when the
+             * control has never been touched, not the DOM's empty string, so a clinic
+             * nobody had asked arrived as `null`, fell past the `=== ''` test, and
+             * `null === 'true'` evaluated to `false`. The clinic was then stored as not
+             * accepting new patients, and the agent would have told callers exactly that.
+             */
+            setValueAs: (value: unknown) =>
+              value === '' || value === null || value === undefined ? null : value === 'true',
           })}
         />
       </div>
