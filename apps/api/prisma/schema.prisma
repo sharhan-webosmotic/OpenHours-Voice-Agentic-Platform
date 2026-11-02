@@ -111,6 +111,7 @@ model Organisation {
   patients            Patient[]
   appointments        Appointment[]
   calls               Call[]
+  callTranscriptTurns CallTranscriptTurn[]
   prescriptions       Prescription[]
   prescriptionItems   PrescriptionItem[]
   followUps           FollowUp[]
@@ -229,6 +230,14 @@ model VoiceAgent {
   /// generation and is never stored, never logged and never returned by any endpoint.
   toolSecretHash     String?            @map("tool_secret_hash")
   toolSecretSetAt    DateTime?          @map("tool_secret_set_at") @db.Timestamptz(6)
+  /// SHA-256 of the secret that appears in this clinic's webhook URL path (D-006).
+  ///
+  /// SEPARATE FROM THE TOOL SECRET ON PURPOSE. This one travels in a URL, where proxies,
+  /// access logs and browser history can see it, so it must not also be the credential the
+  /// tool endpoints accept in a header. Same storage rule as the tool secret: minted by the
+  /// platform, shown once, stored only as a hash, never returned by any endpoint.
+  webhookSecretHash  String?            @map("webhook_secret_hash")
+  webhookSecretSetAt DateTime?          @map("webhook_secret_set_at") @db.Timestamptz(6)
   /// Which master prompt version is loaded into the Sarvam agent right now, so a prompt
   /// change in this repository can be compared with what the agent is actually running.
   promptVersion      String?            @map("prompt_version")
@@ -252,6 +261,13 @@ model VoiceAgent {
   /// clinic's agent could act on the other's patients, and nothing else would notice.
   /// PostgreSQL allows many NULLs in a unique index, so clinics with no secret yet are fine.
   @@unique([toolSecretHash])
+  /// Resolves an incoming webhook to a clinic by the secret in its URL, as an index probe.
+  /// Unique for the same reason the tool secret is: two clinics sharing it would mean either
+  /// clinic's calls could be attributed to the other.
+  @@unique([webhookSecretHash])
+  /// The webhook payload names a deployment, and the clinic is resolved from OUR table by
+  /// that id rather than from anything the payload asserts about itself.
+  @@index([provider, sarvamDeploymentId])
   @@index([organisationId, status])
   @@map("voice_agents")
 }
@@ -451,6 +467,20 @@ enum OutboundCallStatus {
   CANCELLED
 
   @@map("outbound_call_status")
+}
+
+/// Who spoke a turn of a call transcript.
+///
+/// `OTHER` is not a placeholder for a bug: Sarvam does not enumerate the roles it sends on
+/// the webhook's `interaction_transcript` (docs/sarvam-contract.md section 3), and a turn
+/// whose speaker we cannot label is still part of what was said. Dropping it would make the
+/// transcript a clinician reads differ from the conversation that happened.
+enum CallTranscriptRole {
+  AGENT
+  CALLER
+  OTHER
+
+  @@map("call_transcript_role")
 }
 
 enum WebhookEventStatus {
@@ -669,15 +699,45 @@ model Call {
   createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-  patient      Patient?     @relation(fields: [patientId], references: [id], onDelete: SetNull)
-  appointment  Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  organisation   Organisation         @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  patient        Patient?             @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  appointment    Appointment?         @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  transcriptTurns CallTranscriptTurn[]
 
   @@unique([provider, externalCallId])
   @@index([organisationId, startedAt])
   @@index([organisationId, status, startedAt])
   @@index([organisationId, patientId, startedAt])
   @@map("calls")
+}
+
+/// One turn of one call's transcript. PHI, every word of it.
+///
+/// ITS OWN TABLE RATHER THAN TEXT ON `calls`, for two reasons. The dashboard shows a
+/// transcript as a conversation, with each turn attributed, and a single text column would
+/// mean inventing a line format and parsing it back out in the browser. And the mapping in
+/// docs/sarvam-contract.md section 8 names a transcript table for the same reason.
+///
+/// `calls.transcript` remains as the plain-text rendering, which is what a search or an
+/// export wants and what a reader gets if this table is empty.
+model CallTranscriptTurn {
+  id             String             @id @db.Uuid
+  organisationId String             @map("organisation_id") @db.Uuid
+  callId         String             @map("call_id") @db.Uuid
+  /// Position in the conversation, from zero. Part of the unique key, so re-ingesting the
+  /// same call replaces its turns instead of appending a second copy of them.
+  turnIndex      Int                @map("turn_index")
+  role           CallTranscriptRole
+  /// PHI: the words themselves. Never logged, never in an audit payload.
+  text           String
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  call         Call         @relation(fields: [callId], references: [id], onDelete: Cascade)
+
+  @@unique([callId, turnIndex])
+  @@index([organisationId, callId, turnIndex])
+  @@map("call_transcript_turns")
 }
 
 model WebhookEvent {

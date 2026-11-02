@@ -10,6 +10,7 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
   'Appointment',
   'AuditLog',
   'Call',
+  'CallTranscriptTurn',
   'ClinicAgentProfile',
   'ClinicBookingPolicy',
   'ClinicFaq',

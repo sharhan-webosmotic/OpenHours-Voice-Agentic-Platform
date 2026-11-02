@@ -47,7 +47,7 @@ const spokenName = z.string().trim().min(1).max(200);
  * The provider's own identifiers for the call and this tool invocation.
  *
  * BOTH OPTIONAL AND BOTH UNKNOWN. Whether Sarvam sends anything of the kind to a tool is
- * an open question in `docs/voice/sarvam-contract.md`. When they arrive they compose the
+ * an open question in `docs/sarvam-contract.md`. When they arrive they compose the
  * idempotency key, so a retried tool call books once. When they do not, an
  * `Idempotency-Key` header is used if present, and without either a retry books twice,
  * which is why the question matters and is written down rather than assumed away.

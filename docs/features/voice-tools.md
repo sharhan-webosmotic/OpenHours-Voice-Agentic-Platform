@@ -125,7 +125,7 @@ than the work, so every one of those flattered the result.
 ## What this half does not cover
 
 - **No webhook, no transcript, no recording, no catch-up import.** All four need Sarvam's
-  payload shapes and API paths. `docs/voice/sarvam-contract.md` says what is missing and why
+  payload shapes and API paths. `docs/sarvam-contract.md` says what is missing and why
   writing them from a summary would be worse than not writing them.
 - **No Call History screens**, which read call rows that nothing writes yet.
 - **No `reschedule` or `cancel` in the measured figures.** Each is a locate plus the same

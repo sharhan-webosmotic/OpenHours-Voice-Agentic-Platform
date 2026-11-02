@@ -160,6 +160,25 @@ const NO_USER_SESSION = new Map<
     },
   ],
   ...voiceToolEntries,
+  [
+    'POST /webhooks/sarvam/:secret',
+    {
+      reason: 'authenticated by the secret in its own URL path (D-006); no token is read',
+      prove: async (token: string) => {
+        /**
+         * A gated user's token in the header changes nothing, because the URL is the
+         * credential. The 404 is for the secret `not-a-secret-at-all` matching no clinic,
+         * which is the same answer any wrong URL gets.
+         */
+        const response = await request(app)
+          .post('/webhooks/sarvam/not-a-secret-at-all-but-long-enough')
+          .set('Authorization', `Bearer ${token}`)
+          .send({ interaction_id: '20261102/gate' });
+
+        expect(response.status).toBe(404);
+      },
+    },
+  ],
 ]);
 
 /** Drives one route as the holder of `token`, returning the status. */

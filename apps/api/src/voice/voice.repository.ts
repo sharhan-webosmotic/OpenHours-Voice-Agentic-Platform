@@ -11,6 +11,8 @@ export type AgentCredentialRow = {
   readonly id: string;
   readonly organisationId: string;
   readonly toolSecretHash: string | null;
+  readonly appId: string | null;
+  readonly deploymentId: string | null;
   readonly status: 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED';
   readonly organisationStatus: 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED';
   readonly sarvamAppId: string | null;
@@ -40,6 +42,7 @@ export const findAgentBySecretHash = async (
       toolSecretHash: true,
       status: true,
       sarvamAppId: true,
+      sarvamDeploymentId: true,
       organisation: { select: { status: true } },
     },
   });
@@ -53,6 +56,8 @@ export const findAgentBySecretHash = async (
         status: row.status,
         organisationStatus: row.organisation.status,
         sarvamAppId: row.sarvamAppId,
+        appId: row.sarvamAppId,
+        deploymentId: row.sarvamDeploymentId,
       };
 };
 
@@ -180,4 +185,198 @@ export const clinicInformation = async (
     faqs,
     services,
   };
+};
+
+/**
+ * The agent whose WEBHOOK secret hashes to `hash`, or null.
+ *
+ * A separate column and a separate function from the tool secret, because the two credentials
+ * travel differently: this one is in a URL path (D-006), where proxies and access logs see
+ * it, and the other is a header. Sharing one value would mean a leaked access log handed
+ * somebody the credential for the tool endpoints as well.
+ *
+ * Cross-tenant by necessity and narrow by design, exactly as the tool lookup is: it is the
+ * query that decides which clinic the event belongs to.
+ */
+export const findAgentByWebhookSecretHash = async (
+  db: TenantDb,
+  hash: string,
+): Promise<AgentCredentialRow | null> => {
+  const row = await db.voiceAgent.findUnique({
+    where: { webhookSecretHash: hash },
+    select: {
+      id: true,
+      organisationId: true,
+      toolSecretHash: true,
+      status: true,
+      sarvamAppId: true,
+      sarvamDeploymentId: true,
+      organisation: { select: { status: true } },
+    },
+  });
+
+  return row === null
+    ? null
+    : {
+        id: row.id,
+        organisationId: row.organisationId,
+        toolSecretHash: row.toolSecretHash,
+        status: row.status,
+        organisationStatus: row.organisation.status,
+        sarvamAppId: row.sarvamAppId,
+        appId: row.sarvamAppId,
+        deploymentId: row.sarvamDeploymentId,
+      };
+};
+
+export type InboxInsert = {
+  readonly id: string;
+  readonly organisationId: string;
+  readonly externalEventId: string;
+  readonly eventType: string;
+  readonly payload: object;
+};
+
+/**
+ * Stores a webhook event, or reports that it was already stored.
+ *
+ * STORED BEFORE IT IS UNDERSTOOD, which is the inbox pattern and the reason the route can
+ * answer in milliseconds. The unique index on `(provider, external_event_id)` is what makes a
+ * repeat delivery a no-op rather than a second call row, so the deduplication is the
+ * database's rather than a check-then-insert that two concurrent deliveries would both pass.
+ */
+export const insertInboxEvent = async (
+  db: TenantDb,
+  input: InboxInsert,
+): Promise<{ readonly stored: boolean; readonly id: string }> => {
+  const result = await db.webhookEvent.createMany({
+    data: [
+      {
+        id: input.id,
+        organisationId: input.organisationId,
+        provider: 'SARVAM',
+        externalEventId: input.externalEventId,
+        eventType: input.eventType,
+        payload: input.payload,
+      },
+    ],
+    skipDuplicates: true,
+  });
+
+  if (result.count === 1) {
+    return { stored: true, id: input.id };
+  }
+
+  const existing = await db.webhookEvent.findFirst({
+    where: { provider: 'SARVAM', externalEventId: input.externalEventId },
+    select: { id: true },
+  });
+
+  return { stored: false, id: existing?.id ?? input.id };
+};
+
+export type InboxEventRow = {
+  readonly id: string;
+  readonly organisationId: string | null;
+  readonly externalEventId: string;
+  readonly status: 'RECEIVED' | 'PROCESSED' | 'FAILED';
+  readonly payload: unknown;
+  readonly attempts: number;
+};
+
+/**
+ * One stored webhook event.
+ *
+ * Read with `asSystem` by the job, because the row's own `organisation_id` is what says which
+ * tenant to open: a tenant-scoped read would need the answer in order to ask the question.
+ */
+export const findInboxEvent = async (db: TenantDb, id: string): Promise<InboxEventRow | null> => {
+  const row = await db.webhookEvent.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      organisationId: true,
+      externalEventId: true,
+      status: true,
+      payload: true,
+      attempts: true,
+    },
+  });
+
+  return row === null ? null : { ...row, payload: row.payload };
+};
+
+/**
+ * Records what happened to an event.
+ *
+ * `attempts` is incremented on every call, including the successful one, so the row says how
+ * many tries it took rather than only whether it eventually worked. `lastError` is a MESSAGE
+ * and never a payload: the payload is in the same row and is full of patient data.
+ */
+export const markInboxEvent = async (
+  db: TenantDb,
+  id: string,
+  status: 'PROCESSED' | 'FAILED',
+  lastError: string | null,
+  processedAt?: Date,
+): Promise<void> => {
+  await db.webhookEvent.update({
+    where: { id },
+    data: {
+      status,
+      lastError,
+      attempts: { increment: 1 },
+      ...(processedAt === undefined ? {} : { processedAt }),
+    },
+  });
+};
+
+export type AgentForIngestion = {
+  readonly id: string;
+  readonly organisationId: string;
+  readonly appId: string | null;
+};
+
+/** The clinic's agent, for the app id the analytics API is addressed by. */
+export const findAgentByOrganisation = async (
+  db: TenantDb,
+  organisationId: string,
+): Promise<AgentForIngestion | null> => {
+  const row = await db.voiceAgent.findFirst({
+    where: { organisationId, provider: 'SARVAM' },
+    select: { id: true, organisationId: true, sarvamAppId: true },
+  });
+
+  return row === null
+    ? null
+    : { id: row.id, organisationId: row.organisationId, appId: row.sarvamAppId };
+};
+
+/**
+ * Every active agent that can be asked about its interactions, for the catch-up job.
+ *
+ * Cross-tenant by nature: the job runs for the platform rather than for a clinic, and it
+ * opens each clinic's own scope to write. Bounded, because an unbounded read in a job that
+ * then makes one HTTP call per row is how a nightly task becomes an outage.
+ */
+export const findActiveAgentsWithAppId = async (
+  db: TenantDb,
+): Promise<readonly { readonly organisationId: string; readonly appId: string }[]> => {
+  const rows = await db.voiceAgent.findMany({
+    where: {
+      provider: 'SARVAM',
+      status: 'ACTIVE',
+      sarvamAppId: { not: null },
+      organisation: { status: 'ACTIVE' },
+    },
+    select: { organisationId: true, sarvamAppId: true },
+    orderBy: [{ organisationId: 'asc' }],
+    take: 500,
+  });
+
+  return rows.flatMap((row) =>
+    row.sarvamAppId === null
+      ? []
+      : [{ organisationId: row.organisationId, appId: row.sarvamAppId }],
+  );
 };

@@ -39,7 +39,10 @@ vi.mock('../src/common/logger.js', async () => {
 });
 
 const { createApp } = await import('../src/app.js');
-const { asPlatform, disconnectAll, mintToolSecret, ownerClient } = await import('./support/db.js');
+const { asPlatform, disconnectAll, mintToolSecret, mintWebhookSecret, ownerClient } =
+  await import('./support/db.js');
+const { processWebhookEvent } = await import('../src/voice/ingest.service.js');
+const { sarvamProvider } = await import('../src/voice/providers/sarvam.js');
 const { createOrganisationGraph } = await import('./support/fixtures.js');
 const { markHoursCollected, nextBookableLocal } = await import('./support/clinic-schedule.js');
 const { uuidV7 } = await import('../src/common/uuid.js');
@@ -52,6 +55,7 @@ const app = createApp({ readiness: () => Promise.resolve() });
 
 let organisationId: string;
 let secret: string;
+let webhookSecret: string;
 
 beforeAll(async () => {
   await asPlatform(ownerClient(), async (tx) => {
@@ -59,6 +63,7 @@ beforeAll(async () => {
     organisationId = graph.organisationId;
     await markHoursCollected(tx, organisationId);
     secret = await mintToolSecret(tx, organisationId);
+    webhookSecret = await mintWebhookSecret(tx, organisationId);
   });
 }, 180_000);
 
@@ -145,5 +150,117 @@ describe('nothing a patient said reaches the log', () => {
     // incident, so the shape is asserted too.
     expect(log).toContain('/voice/tools/clinic-info');
     expect(log).toMatch(/reqId|requestId/);
+  });
+});
+
+/**
+ * The webhook is the worst case, and it is the one the requirement names.
+ *
+ * A tool call carries a name and a number. A WEBHOOK CARRIES THE WHOLE CONVERSATION: every
+ * word the patient said, in a field called `interaction_transcript`, inside a body that is
+ * stored verbatim and passed to a parser, a job and an audit call. If anything in the
+ * platform logs a request body, this is where it shows.
+ */
+describe('nothing from a call webhook reaches the log', () => {
+  const COMPLAINT = 'my tooth has been aching since Diwali and the swelling is worse';
+  const CALLER_NAME = 'Oleander Thistlewood';
+  const CALLER_PHONE = '+919812399777';
+
+  const body = (interactionId: string): object => ({
+    interaction_id: interactionId,
+    deployment_id: 'dep_phi_logs',
+    user_phone_number: CALLER_PHONE,
+    agent_phone_number: '+918000000777',
+    duration: 140,
+    start_datetime: '2026-11-02T07:00:00.000Z',
+    end_datetime: '2026-11-02T07:02:20.000Z',
+    metadata: { clinic_id: organisationId, patient_name: CALLER_NAME },
+    interaction_transcript: [
+      { role: 'user', en_text: COMPLAINT },
+      { role: 'assistant', en_text: `Thank you ${CALLER_NAME}, I can offer Tuesday.` },
+    ],
+  });
+
+  it('logs nothing identifying when the webhook is received and processed', async () => {
+    const before = captured.length;
+    const interactionId = `20261102/phi_${Date.now()}`;
+
+    const received = await request(app)
+      .post(`/webhooks/sarvam/${webhookSecret}`)
+      .send(body(interactionId));
+
+    expect(received.status).toBe(200);
+
+    const stored = await asPlatform(ownerClient(), (tx) =>
+      tx.webhookEvent.findFirstOrThrow({
+        where: { externalEventId: interactionId },
+        select: { id: true },
+      }),
+    );
+
+    /**
+     * Processed with a stubbed provider, so the job runs its whole path (parse, re-read,
+     * write the call, write the transcript, audit) without a network. That path is where the
+     * transcript is in scope, which is what makes this the interesting log to read.
+     */
+    await processWebhookEvent(stored.id, {
+      provider: {
+        ...sarvamProvider,
+        getInteraction: () =>
+          Promise.resolve({
+            externalCallId: interactionId,
+            startedAt: new Date('2026-11-02T07:00:00.000Z'),
+            endedAt: new Date('2026-11-02T07:02:20.000Z'),
+            durationSeconds: 140,
+            direction: 'INBOUND' as const,
+            fromE164: null,
+            toE164: null,
+            endedBy: 'caller',
+            failureReason: null,
+          }),
+        fetchTranscript: () => Promise.resolve([]),
+      },
+    });
+
+    const log = captured.slice(before).join('\n');
+
+    expect(captured.length).toBeGreaterThan(before);
+    expect(log).not.toContain(COMPLAINT);
+    expect(log).not.toContain(CALLER_NAME);
+    expect(log).not.toContain(CALLER_PHONE);
+    expect(log).not.toContain('9812399777');
+    // The transcript was genuinely stored, so the absence above is about the logging rather
+    // than about a path that never ran.
+    const turns = await asPlatform(ownerClient(), (tx) =>
+      tx.callTranscriptTurn.count({ where: { call: { externalCallId: interactionId } } }),
+    );
+    expect(turns).toBe(2);
+  });
+
+  it('logs nothing identifying when the payload cannot be parsed', async () => {
+    const before = captured.length;
+
+    // No `interaction_id`, so the route stores it under a digest and the job's parse throws.
+    // The error path is the one most likely to interpolate a body into a message.
+    const received = await request(app)
+      .post(`/webhooks/sarvam/${webhookSecret}`)
+      .send({ user_phone_number: CALLER_PHONE, note: COMPLAINT });
+
+    expect(received.status).toBe(200);
+
+    const stored = await asPlatform(ownerClient(), (tx) =>
+      tx.webhookEvent.findFirstOrThrow({
+        where: { organisationId, externalEventId: { startsWith: 'unparsed:' } },
+        select: { id: true },
+        orderBy: { receivedAt: 'desc' },
+      }),
+    );
+
+    await expect(processWebhookEvent(stored.id)).rejects.toThrow();
+
+    const log = captured.slice(before).join('\n');
+
+    expect(log).not.toContain(COMPLAINT);
+    expect(log).not.toContain(CALLER_PHONE);
   });
 });

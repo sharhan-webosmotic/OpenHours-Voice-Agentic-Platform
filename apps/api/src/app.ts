@@ -31,6 +31,7 @@ import { organisationsRouter } from './modules/organisations/organisations.route
 import { patientsRouter } from './modules/patients/patients.routes.js';
 import { appointmentsRouter } from './modules/appointments/appointments.routes.js';
 import { voiceToolsRouter } from './voice/tools.routes.js';
+import { sarvamWebhookRouter } from './voice/webhook.routes.js';
 
 export type AppDependencies = {
   readonly readiness: ReadinessProbe;
@@ -108,6 +109,11 @@ export const ROUTER_MOUNTS: readonly (readonly [string, () => Router])[] = [
    * per-clinic secret rather than a session. See the note in `voice/tools.routes.ts`.
    */
   ['/voice/tools', voiceToolsRouter],
+  /**
+   * Also outside `/api/v1`, and for a stronger reason than the tool endpoints: the secret
+   * that authenticates it is IN THE PATH (D-006), so the URL itself is a credential.
+   */
+  ['/webhooks/sarvam', sarvamWebhookRouter],
 ];
 
 export const createApp = ({ readiness, config = appConfig }: AppDependencies): Express => {

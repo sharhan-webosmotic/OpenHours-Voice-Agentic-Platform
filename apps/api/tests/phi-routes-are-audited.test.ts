@@ -5,7 +5,14 @@ import { getRegisteredRoutes, type RouteDescriptor } from '../src/common/route-r
 import { hashPassword } from '../src/common/passwords.js';
 import { uuidV7 } from '../src/common/uuid.js';
 import { jsonBody } from '../src/test-support/http.js';
-import { asPlatform, disconnectAll, mintToolSecret, ownerClient } from './support/db.js';
+import {
+  asPlatform,
+  disconnectAll,
+  mintToolSecret,
+  mintWebhookSecret,
+  ownerClient,
+} from './support/db.js';
+import { inboundCallFinished } from '../src/voice/providers/__fixtures__/inbound-call-finished.js';
 import { createOrganisationGraph, type OrganisationGraph } from './support/fixtures.js';
 import {
   markHoursCollected,
@@ -37,6 +44,7 @@ let ownerUserId: string;
 let superAdminEmail: string;
 let superAdminUserId: string;
 let toolSecret: string;
+let webhookSecret: string;
 
 beforeAll(async () => {
   const passwordHash = await hashPassword(PASSWORD);
@@ -48,6 +56,8 @@ beforeAll(async () => {
     await markHoursCollected(tx, org.organisationId);
     // The voice tool routes authenticate with this and nothing else.
     toolSecret = await mintToolSecret(tx, org.organisationId);
+    // The webhook's secret is a different value in a different place: the URL (D-006).
+    webhookSecret = await mintWebhookSecret(tx, org.organisationId);
     ownerEmail = `phi.audit.owner.${Date.now()}@test.invalid`;
     ownerUserId = uuidV7();
     superAdminEmail = `phi.audit.super.${Date.now()}@test.invalid`;
@@ -323,6 +333,22 @@ const RECIPES = new Map<string, () => Promise<Driven>>([
         // appointments by this point in the file, and the tool correctly refuses to guess
         // which one a caller means. That refusal has its own test.
         .send({ appointmentId, date: when.date, time: when.time });
+      return { status: response.status, actorUserId: null };
+    },
+  ],
+  [
+    'POST /webhooks/sarvam/:secret',
+    async () => {
+      /**
+       * A FRESH interaction id per run, because the audit row is written only when the event
+       * is genuinely new: the unique index deduplicates a repeat delivery, and a row per
+       * retry would make the trail describe Sarvam's delivery behaviour. The guard drives
+       * each recipe twice and expects one row each time, so each run must be a new call.
+       */
+      const response = await request(app)
+        .post(`/webhooks/sarvam/${webhookSecret}`)
+        .send({ ...inboundCallFinished, interaction_id: `20261102/phi_guard_${Date.now()}` });
+
       return { status: response.status, actorUserId: null };
     },
   ],

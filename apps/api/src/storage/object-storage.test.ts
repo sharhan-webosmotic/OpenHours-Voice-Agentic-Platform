@@ -72,7 +72,8 @@ describe('createS3Client', () => {
 
 describe('the keys', () => {
   it('puts the organisation first in a recording key, so a clinic is one prefix', () => {
-    expect(recordingKey('org-1', 'call-9')).toBe('recordings/org-1/call-9.mp3');
+    // `wav`, which is what docs/sarvam-contract.md section 5 says the provider sends.
+    expect(recordingKey('org-1', 'call-9')).toBe('recordings/org-1/call-9.wav');
   });
 
   it('builds a dated, sortable backup key', () => {
@@ -90,6 +91,6 @@ describe('the keys', () => {
   it('contains no patient identifier of any kind', () => {
     // A key reaches provider logs, bucket listings and billing exports, none of which this
     // product controls. Ids only, which this asserts structurally.
-    expect(recordingKey('org-1', 'call-9')).toMatch(/^recordings\/[\w-]+\/[\w-]+\.mp3$/);
+    expect(recordingKey('org-1', 'call-9')).toMatch(/^recordings\/[\w-]+\/[\w-]+\.wav$/);
   });
 });

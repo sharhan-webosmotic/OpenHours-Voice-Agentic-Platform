@@ -103,3 +103,21 @@ export const mintToolSecret = async (tx: Tx, organisationId: string): Promise<st
 
   return secret;
 };
+
+/**
+ * Gives an organisation's voice agent a WEBHOOK secret, and returns it.
+ *
+ * Separate from the tool secret for the same reason the columns are separate: this one
+ * travels in a URL path (D-006), so a test that used one value for both would not notice if
+ * the application started accepting a URL secret as a bearer credential.
+ */
+export const mintWebhookSecret = async (tx: Tx, organisationId: string): Promise<string> => {
+  const secret = generateOpaqueToken();
+
+  await tx.voiceAgent.update({
+    where: { organisationId_provider: { organisationId, provider: 'SARVAM' } },
+    data: { webhookSecretHash: hashToken(secret), webhookSecretSetAt: new Date() },
+  });
+
+  return secret;
+};

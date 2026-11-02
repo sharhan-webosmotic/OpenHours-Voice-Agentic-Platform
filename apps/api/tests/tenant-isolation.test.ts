@@ -30,6 +30,7 @@ import { uuidV7 } from '../src/common/uuid.js';
 const TENANT_TABLES = [
   'appointments',
   'audit_logs',
+  'call_transcript_turns',
   'calls',
   'clinic_agent_profiles',
   'clinic_booking_policies',

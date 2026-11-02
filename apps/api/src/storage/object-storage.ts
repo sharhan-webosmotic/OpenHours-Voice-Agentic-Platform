@@ -173,8 +173,21 @@ export const createObjectStorage = (
  * per-clinic retention sweep and a per-clinic deletion on offboarding possible without a
  * database query.
  */
-export const recordingKey = (organisationId: string, callId: string): string =>
-  `recordings/${organisationId}/${callId}.mp3`;
+export const recordingKey = (
+  organisationId: string,
+  callId: string,
+  /**
+   * `wav`, because that is what the provider sends.
+   *
+   * It was `mp3` when this helper was written, before anybody had read the contract.
+   * `docs/sarvam-contract.md` section 5 is explicit: the recording endpoint answers
+   * `audio/wav` as a binary stream. A key whose extension disagrees with its bytes is the
+   * kind of thing that works until a browser refuses to play it or a support engineer
+   * downloads a file their player will not open. The parameter exists because the extension
+   * is a property of what we fetched, not of this function.
+   */
+  extension: 'wav' | 'mp3' = 'wav',
+): string => `recordings/${organisationId}/${callId}.${extension}`;
 
 /**
  * The key a nightly dump is stored under.

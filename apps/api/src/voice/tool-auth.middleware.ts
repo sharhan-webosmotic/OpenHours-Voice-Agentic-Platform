@@ -33,7 +33,7 @@ const store = new WeakMap<Request, VoiceAgentIdentity>();
  * OURS TO DEFINE, and that is the honest status of it: these are our endpoints, so the
  * header they expect is our contract. Whether Sarvam's API tool can send a custom
  * `Authorization` header is recorded as an open question in
- * `docs/voice/sarvam-contract.md`. If it cannot, the fallback is the same arrangement as
+ * `docs/sarvam-contract.md`. If it cannot, the fallback is the same arrangement as
  * the webhook: the secret in the URL path (D-006). That is a small change here and
  * nowhere else, which is why it is in one function.
  */

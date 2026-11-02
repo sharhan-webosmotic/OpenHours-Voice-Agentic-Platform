@@ -26,7 +26,16 @@ const DEFINITIONS = ['db/tenant-client.ts', 'db/index.ts'];
 const ALLOWED_CALL_SITES: Readonly<Record<string, string>> = {
   'voice/tool-secret.ts':
     'resolves the per-clinic voice tool secret to a clinic, which is the query that decides the tenant',
+  'voice/webhook.routes.ts':
+    'resolves the secret in a webhook URL to a clinic, the same question for the other credential (D-006)',
 };
+
+/**
+ * `ingest.service.ts` is deliberately NOT here. It reads a stored event cross-tenant too,
+ * and it uses the AUDITED `asSystem` for it: that runs once per call rather than once per
+ * sentence spoken, so the extra transaction and the audit row it writes are affordable and
+ * worth having. The unaudited variant is for the two credential lookups and nothing else.
+ */
 
 const walk = async (directory: string): Promise<readonly string[]> => {
   const entries = await readdir(directory, { withFileTypes: true });

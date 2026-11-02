@@ -297,6 +297,20 @@ export const createOrganisationGraph = async (
     },
   });
 
+  const callTranscriptTurnId = uuidV7();
+  await tx.callTranscriptTurn.create({
+    data: {
+      id: callTranscriptTurnId,
+      organisationId,
+      callId,
+      turnIndex: 0,
+      role: 'CALLER',
+      // Synthetic, and not a sentence a patient would say: the isolation suite reads these
+      // rows across tenants on purpose, so even the fixture keeps nothing realistic in them.
+      text: `transcript ${label}`,
+    },
+  });
+
   const webhookEventId = uuidV7();
   await tx.webhookEvent.create({
     data: {
@@ -436,6 +450,7 @@ export const createOrganisationGraph = async (
       patients: patientId,
       appointments: appointmentId,
       calls: callId,
+      call_transcript_turns: callTranscriptTurnId,
       webhook_events: webhookEventId,
       prescriptions: prescriptionId,
       prescription_items: prescriptionItemId,

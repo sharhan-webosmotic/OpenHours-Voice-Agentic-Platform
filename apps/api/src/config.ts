@@ -17,6 +17,22 @@ const originListSchema = z
   );
 
 /**
+ * Comma-separated IP addresses. Empty means "do not check the source address".
+ *
+ * Trimmed and emptied-out entries dropped, like the origin list above, so a trailing comma
+ * in an environment file does not become an entry that matches nothing.
+ */
+const addressListSchema = z
+  .string()
+  .default('')
+  .transform((raw) =>
+    raw
+      .split(',')
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0),
+  );
+
+/**
  * `false`, or the number of reverse-proxy hops to trust.
  *
  * Deliberately cannot be `true`. Express's `trust proxy: true` trusts the whole
@@ -78,6 +94,42 @@ const configSchema = z
      * lower it in a test and watch one clinic throttle while another does not. The defaults
      * and the arithmetic behind them are in `voice/tools.routes.ts`.
      */
+    /**
+     * Sarvam's management API, from `docs/sarvam-contract.md`.
+     *
+     * The key is OPTIONAL, and that is deliberate rather than lax: nothing on the clinic
+     * dashboard needs it, the test suite must not have one, and an API that refused to boot
+     * without a provider credential would be unrunnable for every developer who is not
+     * working on the voice path. The adapter refuses at the point of use instead, which is a
+     * clear error naming the missing setting rather than a process that will not start.
+     */
+    SARVAM_API_KEY: z.string().min(8).optional(),
+    SARVAM_ORG_ID: z.string().min(1).optional(),
+    SARVAM_WORKSPACE_ID: z.string().min(1).optional(),
+    SARVAM_ANALYTICS_BASE_URL: z.url().default('https://apps.sarvam.ai/api/analytics'),
+    /**
+     * Sarvam's two published egress addresses (contract section 2), as the SECOND of D-006's
+     * three measures. Configurable because they are a published fact about somebody else's
+     * infrastructure, which can change without our deployment changing.
+     *
+     * Empty means the check is off. That is the right default for development, where a
+     * webhook is replayed from a terminal, and the wrong one for production, which is why
+     * `release-readiness` has it on its list.
+     */
+    SARVAM_WEBHOOK_SOURCE_IPS: addressListSchema,
+    /**
+     * Whether to re-read the interaction from Sarvam before acting on a webhook.
+     *
+     * The third and strongest of D-006's measures: a forged payload cannot make the platform
+     * act if the platform only ever acts on what it re-read from the provider. On by default.
+     * It is a flag because the contract documents no single-interaction endpoint, so the
+     * re-read is a filtered list call, and if that proves unusable in practice the fallback
+     * has to be a deliberate decision rather than a silent one.
+     */
+    SARVAM_REFETCH_BEFORE_ACTING: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((value) => value === 'true'),
     VOICE_TOOL_CALLS_PER_MINUTE_PER_CLINIC: z.coerce.number().int().positive().default(600),
     VOICE_TOOL_CALLS_PER_MINUTE_PER_ADDRESS: z.coerce.number().int().positive().default(3_000),
     AUTH_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),

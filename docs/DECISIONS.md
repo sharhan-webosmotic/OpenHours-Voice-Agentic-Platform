@@ -556,7 +556,7 @@ per minute, with a 3,000-per-address backstop ahead of authentication, both conf
 arithmetic is in `voice/tools.routes.ts`.
 
 **The bearer header is our contract and Sarvam's half is unconfirmed.** Whether their API tool
-can send a custom `Authorization` header is an open question in `docs/voice/sarvam-contract.md`.
+can send a custom `Authorization` header is an open question in `docs/sarvam-contract.md`.
 If it cannot, the fallback is the webhook's arrangement, the secret in the URL path (D-006),
 which is a change in one function.
 
