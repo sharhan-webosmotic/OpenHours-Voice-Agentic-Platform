@@ -89,14 +89,6 @@
   --ca-red-500: #df4f5d;
   --ca-red-050: #fff0f2;
 
-  /**
-   * The patient avatar's female tint, from the patients reference, which draws a female
-   * patient's symbol in magenta on a pale pink tile. A male patient uses the accent pair, as
-   * the reference does.
-   */
-  --ca-pink-500: #b8407f;
-  --ca-pink-050: #fdeef5;
-
   /* ---- Semantic: everything a component may read. ---- */
 
   /* Surfaces. */
@@ -131,10 +123,6 @@
    */
   --ca-color-accent-surface: var(--ca-blue-050);
   --ca-color-accent-surface-soft: var(--ca-blue-025);
-
-  /* A patient avatar recorded as female. The icon, not the colour, carries the meaning. */
-  --ca-color-female: var(--ca-pink-500);
-  --ca-color-female-surface: var(--ca-pink-050);
   --ca-color-accent-contrast: var(--ca-blue-100);
 
   /**

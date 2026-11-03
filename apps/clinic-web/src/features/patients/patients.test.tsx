@@ -43,7 +43,9 @@ describe('the patient list', () => {
     expect(within(row).getByText('Consultation')).toBeInTheDocument();
     expect(within(row).getByText('AI Booking')).toBeInTheDocument();
     // A date of birth is a calendar day, never shifted through a zone.
-    expect(within(row).getByText(/^Female · 14 Jun 1988 · \d+ yrs$/)).toBeInTheDocument();
+    expect(within(row).getByText(/^14 Jun 1988 · \d+ yrs$/)).toBeInTheDocument();
+    // Sex is shown in words on the profile only, never as a mark on every row.
+    expect(within(row).queryByText(/Female/)).not.toBeInTheDocument();
     expect(within(row).getByText('test.patient.one@example.test')).toBeInTheDocument();
   });
 

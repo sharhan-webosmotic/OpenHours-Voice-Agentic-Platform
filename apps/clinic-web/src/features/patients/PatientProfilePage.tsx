@@ -6,6 +6,7 @@ import { Avatar } from '../../components/ui/Avatar';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Spinner } from '../../components/ui/Spinner';
+import type { PatientSex } from '@clinicai/shared';
 import { useCan } from '../../lib/useCan';
 import { errorMessage, isNotFound } from '../../lib/problem';
 import { ageOn, clinicToday, formatDateOfBirth } from '../../lib/clinicTime';
@@ -13,7 +14,6 @@ import { formatPhone } from '../../lib/phone';
 import { useClinic } from '../clinic/api';
 import { PatientForm } from './PatientForm';
 import { usePatientQuery } from './api';
-import { SEX_LABELS } from './directory';
 import { AppointmentOverlay, NextAppointmentCard, PatientTimeline } from './profile';
 
 /**
@@ -38,6 +38,9 @@ import { AppointmentOverlay, NextAppointmentCard, PatientTimeline } from './prof
  *
  * Follow-ups, documents and uploads are not on the timeline: see `profile.tsx`.
  */
+
+/** A recorded sex, in words. Shown on the profile only, where the record is read in full. */
+const SEX_LABELS: Record<PatientSex, string> = { FEMALE: 'Female', MALE: 'Male' };
 
 export const PatientProfilePage = () => {
   const { patientId } = useParams<{ patientId: string }>();
@@ -113,7 +116,7 @@ export const PatientProfilePage = () => {
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
         <Card className="flex flex-col gap-5">
           <div className="flex flex-col items-center gap-2 text-center">
-            <Avatar name={patient.fullName} sex={patient.sex} size="xl" />
+            <Avatar name={patient.fullName} size="xl" />
             <strong className="pt-1 font-semibold text-default text-md">
               {patient.fullName ?? 'Name hidden'}
             </strong>

@@ -80,10 +80,12 @@ export const findByExactPhone = async (
   db: TenantDb,
   organisationId: string,
   phone: string,
-): Promise<readonly PatientRow[]> =>
+): Promise<readonly { readonly id: string; readonly fullName: string }[]> =>
   db.patient.findMany({
     where: { organisationId, phone, deletedAt: null },
-    select: PATIENT_SELECT,
+    // The voice agent's read: the id and the name it confirms with the caller, and nothing it
+    // never returns. Selecting the whole record read sex, email and notes for every call.
+    select: { id: true, fullName: true },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: 5,
   });

@@ -26,7 +26,7 @@ import { usePatientsQuery } from './api';
 
 const LIMIT = 8;
 
-type Choice = Pick<PatientSummary, 'id' | 'fullName' | 'phone' | 'sex'>;
+type Choice = Pick<PatientSummary, 'id' | 'fullName' | 'phone'>;
 
 export const PatientPicker = ({
   selected,
@@ -70,7 +70,7 @@ export const PatientPicker = ({
       <div className="flex flex-col gap-1.5">
         <span className="font-semibold text-default text-xs">Select patient</span>
         <div className="flex items-center gap-3 rounded-control border border-accent/40 bg-accent-surface/40 px-3 py-2">
-          <Avatar name={selected.fullName} sex={selected.sex} />
+          <Avatar name={selected.fullName} />
           <span className="flex min-w-0 flex-1 flex-col">
             <strong className="truncate font-semibold text-default text-sm">
               {selected.fullName ?? 'Name hidden'}
@@ -192,7 +192,7 @@ export const PatientPicker = ({
                     index === active && 'bg-accent-surface',
                   )}
                 >
-                  <Avatar name={option.fullName} sex={option.sex} />
+                  <Avatar name={option.fullName} />
                   <span className="flex min-w-0 flex-col">
                     <span className="truncate font-semibold text-default text-sm">
                       {option.fullName ?? 'Name hidden'}
