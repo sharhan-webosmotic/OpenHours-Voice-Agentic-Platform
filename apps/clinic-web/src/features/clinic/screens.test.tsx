@@ -430,12 +430,18 @@ describe('the overview', () => {
     });
   });
 
-  it('draws the outcome ring from recorded outcomes, unclassified calls as Other', async () => {
+  it('leads with the upcoming appointments, then the recent calls, and draws no charts', async () => {
     renderWith(<OverviewPage />, signedIn());
 
-    // Six calls: two booked, one enquiry, three nobody classified, which are Other.
-    expect(await screen.findByText('2 · 33%')).toBeInTheDocument();
-    expect(screen.getByText('3 · 50%')).toBeInTheDocument();
+    const upcoming = await screen.findByRole('heading', { name: 'Upcoming Appointments' });
+    const recent = screen.getByRole('heading', { name: 'Recent AI Calls' });
+
+    // Upcoming comes first in the document, which is also the order a screen reader reads.
+    expect(
+      upcoming.compareDocumentPosition(recent) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'AI Call Activity' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Call Outcomes' })).not.toBeInTheDocument();
   });
 
   it('starts the calendar on Sunday, as the reference does', async () => {

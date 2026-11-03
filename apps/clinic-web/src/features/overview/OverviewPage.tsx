@@ -20,7 +20,7 @@ import {
 } from '../calls/status';
 import { useOverviewQuery } from './api';
 import { CalendarCard } from './CalendarCard';
-import { ActivityCard, HeroCard, KpiRow, OutcomesCard, Panel, RevenueCard } from './cards';
+import { HeroCard, KpiRow, Panel, RevenueCard } from './cards';
 
 /**
  * The Overview, as the dashboard design lays it out and as the clinic's reference crops show.
@@ -102,16 +102,8 @@ export const OverviewPage = () => {
           )}
 
           <KpiRow overview={overview.data} range={range} />
-
-          <div className="grid gap-4 @4xl:grid-cols-[minmax(0,1fr)_420px]">
-            <ActivityCard overview={overview.data} />
-            <OutcomesCard overview={overview.data} />
-          </div>
-
-          <div className="grid gap-4 @3xl:grid-cols-2">
-            <RecentCalls timeZone={timeZone} />
-            <UpcomingAppointments timeZone={timeZone} now={now} />
-          </div>
+          <UpcomingAppointments timeZone={timeZone} now={now} />
+          <RecentCalls timeZone={timeZone} />
         </div>
 
         <CalendarCard timeZone={timeZone} today={today} />

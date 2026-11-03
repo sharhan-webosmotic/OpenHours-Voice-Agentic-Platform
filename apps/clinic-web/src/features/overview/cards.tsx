@@ -10,7 +10,7 @@ import {
 import type { OverviewRange, OverviewResult } from '@clinicai/api-client';
 import { cn } from '../../components/ui/cn';
 import { formatMoney } from '../../lib/clinicTime';
-import { ActivityBars, Donut, RevenueBars, Sparkline, type DonutSegment } from './charts';
+import { RevenueBars, Sparkline } from './charts';
 
 /**
  * The overview's cards, each measured from the dashboard design's Figma export.
@@ -433,117 +433,5 @@ export const KpiRow = ({
         trend={daily.map((day) => day.needsAttention)}
       />
     </div>
-  );
-};
-
-/** `Mon` for a week of days, `3` for a month of them. */
-const columnLabel = (day: string, dense: boolean): string =>
-  dense
-    ? String(Number(day.slice(-2)))
-    : new Intl.DateTimeFormat('en-GB', { weekday: 'short', timeZone: 'UTC' }).format(
-        new Date(`${day}T12:00:00.000Z`),
-      );
-
-/** "AI Call Activity", from node `1:279`: answered calls and AI bookings, day by day. */
-export const ActivityCard = ({ overview }: { readonly overview: OverviewResult | undefined }) => {
-  const daily = overview?.daily ?? [];
-  const dense = daily.length > 7;
-
-  return (
-    <Panel className="min-w-0 p-5">
-      <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-3">
-        <div className="min-w-0">
-          <h2 className="m-0 font-bold text-default text-md tracking-[-0.25px]">
-            AI Call Activity
-          </h2>
-          <p className="m-0 pt-[5px] text-muted text-xs">
-            Answered calls and AI-secured bookings ·{' '}
-            {overview === undefined ? '' : RANGE_LABELS[overview.range].toLowerCase()}
-          </p>
-        </div>
-        <div className="flex shrink-0 gap-3.5">
-          <span className="flex items-center gap-[5px] font-medium text-default text-xs">
-            <span className="size-2 rounded-[3px] bg-accent" />
-            Calls answered
-          </span>
-          <span className="flex items-center gap-[5px] font-medium text-default text-xs">
-            <span className="size-2 rounded-[3px] bg-[#8b6ae8]" />
-            AI bookings
-          </span>
-        </div>
-      </div>
-
-      {/* Room above the plot for the top axis label, which sits on the top gridline. */}
-      <div className="pt-5">
-        <ActivityBars
-          columns={daily.map((day) => ({
-            label: columnLabel(day.day, dense),
-            calls: day.callsAnswered,
-            bookings: day.aiBookings,
-          }))}
-        />
-      </div>
-    </Panel>
-  );
-};
-
-/**
- * "Call Outcomes", from node `1:378`.
- *
- * The design's five labels map onto the five outcomes the platform records. "Other" is the
- * honest home for a call nobody classified, which today is every call: nothing writes
- * `calls.outcome` yet, so until the outcome work lands this ring is one colour.
- */
-export const OutcomesCard = ({ overview }: { readonly overview: OverviewResult | undefined }) => {
-  const outcomes = overview?.outcomes;
-  const segments: readonly DonutSegment[] = [
-    { label: 'Booked', value: outcomes?.BOOKED ?? 0, colour: '#356ae6' },
-    { label: 'Enquiries', value: outcomes?.INFORMATION ?? 0, colour: '#8b6ae8' },
-    { label: 'Reschedules', value: outcomes?.RESCHEDULED ?? 0, colour: '#20b486' },
-    { label: 'Cancellations', value: outcomes?.CANCELLED ?? 0, colour: '#f3a64a' },
-    {
-      label: 'Other',
-      value: (outcomes?.NONE ?? 0) + (outcomes?.TRANSFERRED ?? 0),
-      colour: '#b7c0d1',
-    },
-  ];
-  const total = segments.reduce((sum, segment) => sum + segment.value, 0);
-
-  return (
-    <Panel className="p-5">
-      <div className="flex items-start justify-between">
-        <div>
-          <h2 className="m-0 font-bold text-default text-md tracking-[-0.25px]">Call Outcomes</h2>
-          <p className="m-0 pt-[5px] text-muted text-xs">
-            All {total} calls ·{' '}
-            {overview === undefined ? '' : RANGE_LABELS[overview.range].toLowerCase()}
-          </p>
-        </div>
-        <a href="/calls" className="font-bold text-accent text-xs hover:underline">
-          Details
-        </a>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-6 pt-10">
-        <Donut segments={segments} total={total} caption="Total calls" />
-
-        <ul className="m-0 flex min-w-[170px] flex-1 list-none flex-col gap-2.5 p-0">
-          {segments.map((segment) => (
-            <li key={segment.label} className="flex items-center justify-between gap-3 text-xs">
-              <span className="flex items-center gap-2 text-default">
-                <span
-                  className="size-[7px] rounded-full"
-                  style={{ backgroundColor: segment.colour }}
-                />
-                {segment.label}
-              </span>
-              <span className="font-semibold text-default">
-                {segment.value} · {total === 0 ? 0 : Math.round((segment.value / total) * 100)}%
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </Panel>
   );
 };
