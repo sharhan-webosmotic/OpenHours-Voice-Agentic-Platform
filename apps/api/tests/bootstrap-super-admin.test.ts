@@ -1,11 +1,14 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import pg from 'pg';
+import { afterAll, beforeAll, describe, expect, inject, it } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { jsonBody } from '../src/test-support/http.js';
 import {
+  BOOTSTRAP_LOCK_KEY,
   BootstrapRefused,
   CONFIRMATION_PHRASE,
   bootstrapSuperAdmin,
+  runBootstrapCommand,
 } from '../prisma/bootstrap-super-admin.js';
 import { asPlatform, disconnectAll, ownerClient } from './support/db.js';
 
@@ -196,39 +199,167 @@ describe('bootstrapSuperAdmin', () => {
     expect(await superAdminCount()).toBe(1);
   });
 
-  it('leaves exactly one winner when two runs race', async () => {
+  it('serialises concurrent runs on the advisory lock, so exactly one wins', async () => {
     /**
-     * The guard is a count inside a transaction, which on its own is not enough: two
-     * concurrent runs would both read zero and both insert. An advisory transaction lock
-     * serialises them, and this is what proves it rather than the comment claiming it.
+     * DETERMINISTIC, NOT A RACE THAT HAPPENS TO GO ONE WAY. The previous version of this test
+     * started two runs and counted winners, and it passed with the lock deleted: both runs live
+     * in one Node process and their timing serialised them by luck. Without the lock, three
+     * real concurrent runs of the command created three super admins in every round.
      *
-     * The existing super admin is demoted first so both contenders start from zero, which
-     * is the only state in which the race is possible at all.
+     * So this test takes the bootstrap's own advisory lock first, from a separate session, and
+     * starts two runs. With the lock in the command, both must WAIT for it, which is observable
+     * in `pg_locks` as two ungranted advisory requests, and neither may finish while it is held.
+     * Only then is the lock released and the outcome checked. Without the lock in the command,
+     * neither run ever waits, so the first assertion fails instead of the test passing by luck.
      */
     await asPlatform(ownerClient(), (tx) =>
       tx.user.updateMany({ where: { role: 'SUPER_ADMIN' }, data: { role: 'INTERNAL_ADMIN' } }),
     );
-
     expect(await superAdminCount()).toBe(0);
 
-    const results = await Promise.allSettled([
-      bootstrapSuperAdmin(ownerClient(), {
-        email: email('race-a'),
-        fullName: 'Race A',
-        confirmation: CONFIRMATION_PHRASE,
-      }),
-      bootstrapSuperAdmin(ownerClient(), {
-        email: email('race-b'),
-        fullName: 'Race B',
-        confirmation: CONFIRMATION_PHRASE,
-      }),
-    ]);
+    const holder = new pg.Client({ connectionString: inject('ownerUrl') });
+    await holder.connect();
 
-    const fulfilled = results.filter((result) => result.status === 'fulfilled');
-    const rejected = results.filter((result) => result.status === 'rejected');
+    try {
+      await holder.query('SELECT pg_advisory_lock($1)', [BOOTSTRAP_LOCK_KEY.toString()]);
 
-    expect(fulfilled).toHaveLength(1);
-    expect(rejected).toHaveLength(1);
-    expect(await superAdminCount()).toBe(1);
+      let finished = 0;
+      const runs = (['race-a', 'race-b'] as const).map((label) =>
+        bootstrapSuperAdmin(ownerClient(), {
+          email: email(label),
+          fullName: `Race ${label}`,
+          confirmation: CONFIRMATION_PHRASE,
+        }).finally(() => {
+          finished += 1;
+        }),
+      );
+      // Observed through Promise.allSettled below; this keeps an early rejection from being
+      // reported as unhandled while the lock is still held.
+      for (const run of runs) {
+        run.catch(() => undefined);
+      }
+
+      const waitingOnTheLock = async (): Promise<number> => {
+        const result = await holder.query<{ waiting: number }>(
+          `SELECT count(*)::int AS waiting FROM pg_locks
+           WHERE locktype = 'advisory' AND NOT granted`,
+        );
+        return result.rows[0]?.waiting ?? 0;
+      };
+
+      // Polled rather than slept: both runs hash a password before they reach the lock, and
+      // the wait ends as soon as both are queued on it, or after ten seconds if they never are.
+      const deadline = Date.now() + 10_000;
+      while ((await waitingOnTheLock()) < 2 && finished < 2 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+
+      expect(await waitingOnTheLock()).toBe(2);
+      expect(finished).toBe(0);
+      expect(await superAdminCount()).toBe(0);
+
+      await holder.query('SELECT pg_advisory_unlock($1)', [BOOTSTRAP_LOCK_KEY.toString()]);
+
+      const results = await Promise.allSettled(runs);
+      expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+      expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1);
+      expect(await superAdminCount()).toBe(1);
+    } finally {
+      await holder.end();
+    }
+  });
+});
+
+describe('the bootstrap command, as an operator runs it', () => {
+  /**
+   * The function underneath is tested above. These drive the command itself: the argument
+   * handling, the refusals and the printed handover, which is everything an operator sees and
+   * which no test used to reach.
+   */
+  const capture = () => {
+    const out: string[] = [];
+    const err: string[] = [];
+    return {
+      out,
+      err,
+      output: {
+        out: (line: string) => out.push(line),
+        err: (line: string) => err.push(line),
+      },
+    };
+  };
+
+  const env = (confirmed = true) => ({
+    DATABASE_URL: inject('ownerUrl'),
+    BOOTSTRAP_SUPER_ADMIN_CONFIRM: confirmed ? CONFIRMATION_PHRASE : undefined,
+  });
+
+  const passwordLines = (lines: readonly string[]) =>
+    lines.filter((line) => line.trim().startsWith('Password:'));
+
+  it('refuses without DATABASE_URL, printing no password', async () => {
+    const run = capture();
+    const code = await runBootstrapCommand(
+      [email('nourl'), 'No Url'],
+      { BOOTSTRAP_SUPER_ADMIN_CONFIRM: CONFIRMATION_PHRASE },
+      run.output,
+    );
+
+    expect(code).toBe(1);
+    expect(run.out).toEqual([]);
+    expect(run.err.join('\n')).toMatch(/DATABASE_URL/);
+  });
+
+  it('prints its usage, and the confirmation it needs, when an argument is missing', async () => {
+    const run = capture();
+
+    expect(await runBootstrapCommand([email('usage')], env(), run.output)).toBe(1);
+    expect(run.out).toEqual([]);
+    expect(run.err.join('\n')).toMatch(/Usage: pnpm bootstrap:super-admin/);
+  });
+
+  it('refuses without the confirmation variable, on stderr, and writes nothing', async () => {
+    const before = await superAdminCount();
+    const run = capture();
+
+    expect(
+      await runBootstrapCommand([email('cli-unconfirmed'), 'Cli'], env(false), run.output),
+    ).toBe(1);
+    expect(run.out).toEqual([]);
+    expect(run.err.join('\n')).toMatch(/^Refused: BOOTSTRAP_SUPER_ADMIN_CONFIRM/);
+    expect(await superAdminCount()).toBe(before);
+  });
+
+  it('refuses when a super admin already exists', async () => {
+    expect(await superAdminCount()).toBeGreaterThan(0);
+    const run = capture();
+
+    expect(await runBootstrapCommand([email('cli-second'), 'Cli Second'], env(), run.output)).toBe(
+      1,
+    );
+    expect(run.err.join('\n')).toMatch(/already exist/);
+    expect(passwordLines(run.out)).toEqual([]);
+  });
+
+  it('prints the password exactly once, and the printed password signs in', async () => {
+    await asPlatform(ownerClient(), (tx) =>
+      tx.user.updateMany({ where: { role: 'SUPER_ADMIN' }, data: { role: 'INTERNAL_ADMIN' } }),
+    );
+    const address = email('cli-first');
+    const run = capture();
+
+    expect(await runBootstrapCommand([address, 'Cli First'], env(), run.output)).toBe(0);
+    expect(run.err).toEqual([]);
+
+    const printed = passwordLines(run.out);
+    expect(printed).toHaveLength(1);
+    const password = printed[0]?.split('Password:')[1]?.trim() ?? '';
+
+    const response = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: address, password, audience: 'admin' });
+
+    expect(response.status).toBe(200);
+    expect(jsonBody<{ mustChangePassword: boolean }>(response).mustChangePassword).toBe(true);
   });
 });

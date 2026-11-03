@@ -47,10 +47,31 @@ export default defineConfig({
         },
       },
     ],
+    /**
+     * Measured on every `pnpm test`, so the floors below are part of the gate rather than a
+     * report somebody has to remember to run.
+     *
+     * THE TWO OPERATOR COMMANDS ARE MEASURED TOO. They live in `prisma/`, outside `src/`, and
+     * were invisible here: the bootstrap that creates the first super admin sat at 43% and the
+     * prompt renderer's command at 0%, with the gate green. Every other script in `prisma/` is
+     * left out deliberately, because they are migration and maintenance tooling exercised by
+     * running them, not product code a request reaches.
+     *
+     * The floors are root CLAUDE.md's: 90% of lines for auth, tenancy and permissions, 80%
+     * elsewhere in the API. The per-file entries are the files whose floor is the higher one
+     * and that have fallen below it before.
+     */
     coverage: {
       provider: 'v8',
-      include: ['src/**/*.ts'],
+      include: ['src/**/*.ts', 'prisma/bootstrap-super-admin.ts', 'prisma/render-prompt.ts'],
       exclude: ['src/**/*.test.ts', 'src/server.ts', 'src/generated/**', 'src/test-support/**'],
+      reporter: ['text-summary'],
+      thresholds: {
+        lines: 80,
+        'prisma/bootstrap-super-admin.ts': { lines: 90 },
+        'prisma/render-prompt.ts': { lines: 80 },
+        'src/common/permissions.ts': { lines: 90 },
+      },
     },
   },
 });
