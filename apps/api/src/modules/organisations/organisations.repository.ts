@@ -383,7 +383,6 @@ export type CreateOrganisationRow = {
   readonly name: string;
   readonly timezone: string;
   readonly clinicPhone: string;
-  readonly promptVersion: string;
 };
 
 /**
@@ -438,7 +437,6 @@ export const createOrganisationWithShell = async (
       id: uuidV7(),
       organisationId: input.organisationId,
       provider: Provider.SARVAM,
-      promptVersion: input.promptVersion,
     },
   });
 };
@@ -455,12 +453,24 @@ export const updateOrganisation = async (
   await db.organisation.update({ where: { id: organisationId }, data });
 };
 
+/**
+ * The four one-row sections are UPSERTED, not updated.
+ *
+ * A clinic made by the console's create has all four rows from birth, but one made by
+ * `prisma/seed.ts` or `pnpm provision:clinic` has none, and an `update` of a missing row is
+ * Prisma's P2025, which surfaced as a 500 on every save. A section is a storable state whether
+ * or not it was created empty first, so a save creates the row it needs.
+ */
 export const updateClinicProfile = async (
   db: TenantDb,
   organisationId: string,
   data: ClinicProfileRow,
 ): Promise<void> => {
-  await db.clinicProfile.update({ where: { organisationId }, data });
+  await db.clinicProfile.upsert({
+    where: { organisationId },
+    create: { id: uuidV7(), organisationId, ...data },
+    update: data,
+  });
 };
 
 export const updateBookingPolicy = async (
@@ -468,7 +478,11 @@ export const updateBookingPolicy = async (
   organisationId: string,
   data: BookingPolicyRow,
 ): Promise<void> => {
-  await db.clinicBookingPolicy.update({ where: { organisationId }, data });
+  await db.clinicBookingPolicy.upsert({
+    where: { organisationId },
+    create: { id: uuidV7(), organisationId, ...data },
+    update: data,
+  });
 };
 
 export const updateAgentProfile = async (
@@ -483,16 +497,19 @@ export const updateAgentProfile = async (
     readonly neverPromise: readonly string[];
   },
 ): Promise<void> => {
-  await db.clinicAgentProfile.update({
+  const row = {
+    greeting: data.greeting,
+    languages: [...data.languages],
+    tone: data.tone,
+    fullyBookedResponse: data.fullyBookedResponse,
+    escalationRules: data.escalationRules,
+    neverPromise: [...data.neverPromise],
+  };
+
+  await db.clinicAgentProfile.upsert({
     where: { organisationId },
-    data: {
-      greeting: data.greeting,
-      languages: [...data.languages],
-      tone: data.tone,
-      fullyBookedResponse: data.fullyBookedResponse,
-      escalationRules: data.escalationRules,
-      neverPromise: [...data.neverPromise],
-    },
+    create: { id: uuidV7(), organisationId, ...row },
+    update: row,
   });
 };
 
@@ -501,7 +518,11 @@ export const updateTelephony = async (
   organisationId: string,
   data: TelephonyRow,
 ): Promise<void> => {
-  await db.clinicTelephony.update({ where: { organisationId }, data });
+  await db.clinicTelephony.upsert({
+    where: { organisationId },
+    create: { id: uuidV7(), organisationId, ...data },
+    update: data,
+  });
 };
 
 /**
@@ -726,23 +747,30 @@ export const updateSarvamMapping = async (
   organisationId: string,
   data: SarvamMappingWrite,
 ): Promise<void> => {
-  await db.voiceAgent.updateMany({
-    where: { organisationId, provider: Provider.SARVAM },
-    data: {
-      sarvamAppId: data.sarvamAppId,
-      sarvamAppVersion: data.sarvamAppVersion,
-      sarvamDeploymentId: data.sarvamDeploymentId,
-      sarvamConnectionId: data.sarvamConnectionId,
-      promptVersion: data.promptVersion,
-      ...(data.toolSecretHash === undefined ? {} : { toolSecretHash: data.toolSecretHash }),
-      ...(data.toolSecretSetAt === undefined ? {} : { toolSecretSetAt: data.toolSecretSetAt }),
-      ...(data.webhookSecretHash === undefined
-        ? {}
-        : { webhookSecretHash: data.webhookSecretHash }),
-      ...(data.webhookSecretSetAt === undefined
-        ? {}
-        : { webhookSecretSetAt: data.webhookSecretSetAt }),
-    },
+  const row = {
+    sarvamAppId: data.sarvamAppId,
+    sarvamAppVersion: data.sarvamAppVersion,
+    sarvamDeploymentId: data.sarvamDeploymentId,
+    sarvamConnectionId: data.sarvamConnectionId,
+    promptVersion: data.promptVersion,
+    ...(data.toolSecretHash === undefined ? {} : { toolSecretHash: data.toolSecretHash }),
+    ...(data.toolSecretSetAt === undefined ? {} : { toolSecretSetAt: data.toolSecretSetAt }),
+    ...(data.webhookSecretHash === undefined ? {} : { webhookSecretHash: data.webhookSecretHash }),
+    ...(data.webhookSecretSetAt === undefined
+      ? {}
+      : { webhookSecretSetAt: data.webhookSecretSetAt }),
+  };
+
+  /**
+   * UPSERTED, because a clinic made by the seed or by `pnpm provision:clinic` has no agent row.
+   * This was an `updateMany`, which matched nothing on such a clinic and returned normally, so
+   * the save answered 200 and showed both secrets while storing neither: the operator pasted
+   * credentials into Sarvam that authenticated nothing.
+   */
+  await db.voiceAgent.upsert({
+    where: { organisationId_provider: { organisationId, provider: Provider.SARVAM } },
+    create: { id: uuidV7(), organisationId, provider: Provider.SARVAM, ...row },
+    update: row,
   });
 };
 
@@ -781,6 +809,42 @@ export const setAgentNumber = async (
 };
 
 /** Replaces the clinic's own public line. One clinic, one line. */
+/** Whether each Sarvam secret exists, without reading either hash out of the function. */
+export const findSecretState = async (
+  db: TenantDb,
+  organisationId: string,
+): Promise<{ readonly toolSecretSet: boolean; readonly webhookSecretSet: boolean }> => {
+  const agent = await db.voiceAgent.findFirst({
+    where: { organisationId, provider: Provider.SARVAM },
+    select: { toolSecretHash: true, webhookSecretHash: true },
+  });
+
+  return {
+    toolSecretSet: agent?.toolSecretHash != null,
+    webhookSecretSet: agent?.webhookSecretHash != null,
+  };
+};
+
+const numberOfKind = async (
+  db: TenantDb,
+  organisationId: string,
+  kind: PhoneKind,
+): Promise<string | null> =>
+  (
+    await db.phoneNumber.findFirst({
+      where: { organisationId, kind },
+      select: { e164: true },
+    })
+  )?.e164 ?? null;
+
+/** The clinic's own line, the number the agent gives a caller who needs a person. */
+export const findClinicLine = (db: TenantDb, organisationId: string): Promise<string | null> =>
+  numberOfKind(db, organisationId, PhoneKind.CLINIC_LINE);
+
+/** The number patients dial to reach the agent. */
+export const findAgentNumber = (db: TenantDb, organisationId: string): Promise<string | null> =>
+  numberOfKind(db, organisationId, PhoneKind.AGENT_NUMBER);
+
 export const setClinicLine = async (
   db: TenantDb,
   organisationId: string,

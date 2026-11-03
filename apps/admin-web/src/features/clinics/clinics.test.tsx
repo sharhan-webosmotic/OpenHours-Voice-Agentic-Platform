@@ -624,24 +624,25 @@ describe('the Sarvam tool secret', () => {
     expect(screen.getByText(/shown once/i)).toBeInTheDocument();
     // Saved without asking to regenerate: a first save mints one, and an ordinary save
     // must not.
-    expect(saveSarvamMapping).toHaveBeenCalledWith(CLINIC_ID, expect.anything(), false);
+    expect(saveSarvamMapping).toHaveBeenCalledWith(CLINIC_ID, expect.anything(), {});
   });
 
-  it('asks for confirmation before regenerating, because it breaks the live agent', async () => {
-    get.mockResolvedValue(
-      detail({
-        sarvamMapping: {
-          sarvamAppId: 'app_123',
-          sarvamAppVersion: '1',
-          sarvamDeploymentId: 'dep_123',
-          sarvamConnectionId: 'conn_123',
-          agentPhone: '+919000000001',
-          promptVersion: 'v0-placeholder',
-          toolSecretSet: true,
-          toolSecretSetAt: '2026-10-03T00:00:00.000Z',
-        },
-      }),
-    );
+  const mappedClinic = () =>
+    detail({
+      sarvamMapping: {
+        sarvamAppId: 'app_123',
+        sarvamAppVersion: '1',
+        sarvamDeploymentId: 'dep_123',
+        sarvamConnectionId: 'conn_123',
+        agentPhone: '+919000000001',
+        promptVersion: 'v0-placeholder',
+        toolSecretSet: true,
+        toolSecretSetAt: '2026-10-03T00:00:00.000Z',
+      },
+    });
+
+  it('asks before regenerating the tool secret, and says it leaves the webhook alone', async () => {
+    get.mockResolvedValue(mappedClinic());
 
     renderWith(<AppRoutes />, asSuperAdmin(), [`/clinics/${CLINIC_ID}`]);
     await screen.findByRole('heading', { name: 'Sarvam mapping' });
@@ -650,18 +651,62 @@ describe('the Sarvam tool secret', () => {
 
     // Nothing is sent on the first click: the warning names the consequence first.
     expect(saveSarvamMapping).not.toHaveBeenCalled();
-    expect(
-      screen.getByText(/tool calls will fail until the new value is pasted/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/cannot check availability, book/i)).toBeInTheDocument();
+    expect(screen.getByText(/The webhook secret is not changed/i)).toBeInTheDocument();
 
     saveSarvamMapping.mockResolvedValue({ toolSecret: 'a-new-secret' });
-    await userEvent.click(screen.getByRole('button', { name: 'Regenerate it' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Regenerate the tool secret' }));
 
     await waitFor(() => {
-      expect(saveSarvamMapping).toHaveBeenCalledWith(CLINIC_ID, expect.anything(), true);
+      expect(saveSarvamMapping).toHaveBeenCalledWith(CLINIC_ID, expect.anything(), {
+        toolSecret: true,
+      });
     });
 
     expect(await screen.findByText('a-new-secret')).toBeInTheDocument();
+  });
+
+  it('asks before regenerating the webhook secret, and says it leaves the tool secret alone', async () => {
+    get.mockResolvedValue(mappedClinic());
+
+    renderWith(<AppRoutes />, asSuperAdmin(), [`/clinics/${CLINIC_ID}`]);
+    await screen.findByRole('heading', { name: 'Sarvam mapping' });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Regenerate the webhook secret' }));
+
+    expect(saveSarvamMapping).not.toHaveBeenCalled();
+    expect(screen.getByText(/Calls stop reaching this clinic/i)).toBeInTheDocument();
+    expect(screen.getByText(/The tool secret is not changed/i)).toBeInTheDocument();
+
+    saveSarvamMapping.mockResolvedValue({ webhookSecret: 'a-new-webhook-secret' });
+    await userEvent.click(screen.getByRole('button', { name: 'Regenerate the webhook secret' }));
+
+    await waitFor(() => {
+      expect(saveSarvamMapping).toHaveBeenCalledWith(CLINIC_ID, expect.anything(), {
+        webhookSecret: true,
+      });
+    });
+
+    expect(await screen.findByText('a-new-webhook-secret')).toBeInTheDocument();
+  });
+
+  it('stops showing an issued secret once the mapping is saved again', async () => {
+    get.mockResolvedValue(mappedClinic());
+
+    renderWith(<AppRoutes />, asSuperAdmin(), [`/clinics/${CLINIC_ID}`]);
+    await screen.findByRole('heading', { name: 'Sarvam mapping' });
+
+    saveSarvamMapping.mockResolvedValueOnce({ webhookSecret: 'shown-once-webhook-secret' });
+    await userEvent.click(screen.getByRole('button', { name: 'Regenerate the webhook secret' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Regenerate the webhook secret' }));
+    expect(await screen.findByText('shown-once-webhook-secret')).toBeInTheDocument();
+
+    saveSarvamMapping.mockResolvedValueOnce({});
+    await userEvent.click(screen.getByRole('button', { name: /Save sarvam mapping/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('shown-once-webhook-secret')).not.toBeInTheDocument();
+    });
   });
 
   it('never shows a secret for a mapping that already has one', async () => {
@@ -684,6 +729,6 @@ describe('the Sarvam tool secret', () => {
     await screen.findByRole('heading', { name: 'Sarvam mapping' });
 
     // Only that one exists and when it was set. The value is unrecoverable by design.
-    expect(screen.getByText(/The value itself cannot be shown again/)).toBeInTheDocument();
+    expect(screen.getByText(/Neither secret can be shown again/)).toBeInTheDocument();
   });
 });

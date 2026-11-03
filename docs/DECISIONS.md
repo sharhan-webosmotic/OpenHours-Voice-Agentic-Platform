@@ -359,6 +359,28 @@ also issues the queries a function that forgot its filter would issue. Deleting 
 repository function's filter fails none, which is the demonstration that the extension is the
 control.
 
+**CORRECTION, 2026-11-03: the organisations module was not covered, and is now.** The two
+paragraphs above were true of patients and appointments and were read as true of every path
+that touches one clinic. They were not. Clinic configuration (`modules/organisations`: the
+sections, services, doctors, a doctor's week and the Sarvam mapping) ran every platform-role
+read and write under unbounded `asSystem`, so its confinement was exactly the convention this
+decision exists to replace. The Feature 2 review demonstrated it: with one filter removed from
+`updateService`, a super admin's PATCH on clinic A's URL renamed clinic B's service, and the
+whole database suite stayed green.
+
+Every per-clinic function in that module now runs under `withClinicScope`
+(`db/principal-scope.ts`): `asOrganisationSystem` for a platform role, the caller's own tenant
+scope for a clinic role, and 404 for a clinic role naming another clinic in the URL.
+`tests/organisation-write-confinement.test.ts` is its guard. It fails on the old routing with a
+filter removed, and passes on the new routing with the same filter removed, which is the same
+demonstration as above. Two paths stay on `asSystem` because they have no single existing
+clinic: the clinic list, and clinic create, whose organisation does not exist until the
+transaction writes it.
+
+`tests/platform-scope-isolation.test.ts` still covers patients and appointments only. A module
+that reads or writes one clinic for a platform role needs its own case there or a file like
+the one above. Nothing finds such a module automatically.
+
 **A clinic principal cannot be scoped to another organisation at all.** `withOrganisationScope`
 refuses it rather than opening a scope, because reaching that line means an organisation came
 from something other than the token.

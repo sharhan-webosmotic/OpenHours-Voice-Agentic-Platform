@@ -153,13 +153,23 @@ export type SavedSarvamMapping = {
   /** Present only on the response that minted it. Shown once, then unrecoverable. */
   readonly toolSecret?: string;
   /**
-   * The path secret for this clinic's webhook URL, minted and shown with the tool secret.
+   * The path secret for this clinic's webhook URL, present only on the response that minted it.
    *
    * Two secrets because they travel differently: this one is a path segment in a URL and the
    * other is a bearer header, so one value for both would mean an access log handed somebody
    * the tool credential.
    */
   readonly webhookSecret?: string;
+};
+
+/**
+ * Which secrets a save should replace. Each one breaks something different until its new value
+ * is pasted into Sarvam: the tool secret stops the agent's tool calls, the webhook secret stops
+ * call events arriving.
+ */
+export type SarvamSecretRegeneration = {
+  readonly toolSecret?: boolean;
+  readonly webhookSecret?: boolean;
 };
 
 const BASE = '/api/v1/organisations';
@@ -255,10 +265,14 @@ export const createClinicsApi = (authed: AuthedFetch) => {
     saveSarvamMapping: async (
       id: string,
       mapping: SarvamMappingInput,
-      regenerateToolSecret = false,
+      regenerate: SarvamSecretRegeneration = {},
     ): Promise<SavedSarvamMapping> =>
       parse<SavedSarvamMapping>(
-        await authed(`${BASE}/${id}/sarvam-mapping`, 'PUT', { mapping, regenerateToolSecret }),
+        await authed(`${BASE}/${id}/sarvam-mapping`, 'PUT', {
+          mapping,
+          regenerateToolSecret: regenerate.toolSecret === true,
+          regenerateWebhookSecret: regenerate.webhookSecret === true,
+        }),
       ),
 
     createService: async (

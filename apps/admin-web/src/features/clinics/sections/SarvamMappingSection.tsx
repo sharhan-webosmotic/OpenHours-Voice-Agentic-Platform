@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { sarvamMappingSchema } from '@clinicai/shared';
-import type { ClinicDetailView } from '@clinicai/api-client';
+import type { ClinicDetailView, SarvamSecretRegeneration } from '@clinicai/api-client';
 import { Alert } from '../../../components/ui/Alert';
 import { Button } from '../../../components/ui/Button';
 import { Field } from '../../../components/ui/Field';
@@ -22,11 +22,30 @@ import { applyServerErrors, useSaveSarvamMapping } from '../useClinics';
  * the tool endpoints the agent calls, so an operator-supplied one would be as strong as
  * whoever typed it felt like making it.
  *
- * REGENERATING ASKS FIRST. A new secret invalidates the one the live agent is using, so the
- * clinic's agent stops working until the new value has been pasted into Sarvam. That is a
- * sensitive action in the sense the admin console rules mean, so it is confirmed rather than
- * done on one click.
+ * THE WEBHOOK SECRET IS THE SAME ARRANGEMENT, FOR A DIFFERENT JOB. It is the path segment of
+ * the URL Sarvam posts call events to, so it is minted on its own: the first time the mapping
+ * is saved, or on the next save for a clinic set up before webhook secrets existed.
+ *
+ * REGENERATING ASKS FIRST, AND SAYS WHAT BREAKS. Each secret is replaced on its own, never as a
+ * side effect of the other, because they break different things until the new value is pasted
+ * into Sarvam: a new tool secret stops the agent checking availability and booking, and a new
+ * webhook secret stops calls reaching the call history. The confirmation names exactly that.
  */
+
+type Secret = 'toolSecret' | 'webhookSecret';
+
+/** What replacing each secret breaks, said plainly, for the confirmation. */
+const REGENERATION_WARNING: Readonly<Record<Secret, string>> = {
+  toolSecret:
+    'The agent keeps answering calls, but it cannot check availability, book, reschedule or cancel until the new tool secret is pasted into Sarvam. The webhook secret is not changed, so calls keep reaching the call history.',
+  webhookSecret:
+    "Calls stop reaching this clinic's call history, and are not recorded here, until the new webhook URL is pasted into Sarvam. The tool secret is not changed, so the agent keeps answering and booking.",
+};
+
+const SECRET_LABEL: Readonly<Record<Secret, string>> = {
+  toolSecret: 'tool secret',
+  webhookSecret: 'webhook secret',
+};
 export const SarvamMappingSection = ({
   clinic,
   canWrite,
@@ -53,7 +72,7 @@ export const SarvamMappingSection = ({
   /** Shown once, in this component's state only. Never stored anywhere. */
   const [issuedSecret, setIssuedSecret] = useState<string | undefined>(undefined);
   const [issuedWebhookSecret, setIssuedWebhookSecret] = useState<string | undefined>(undefined);
-  const [confirmingRegenerate, setConfirmingRegenerate] = useState(false);
+  const [confirmingRegenerate, setConfirmingRegenerate] = useState<Secret | undefined>(undefined);
 
   const save = useSaveSarvamMapping(clinic.organisation.id);
 
@@ -61,10 +80,11 @@ export const SarvamMappingSection = ({
     setDraft((previous) => ({ ...previous, [field]: value }));
   };
 
-  const submit = (regenerate: boolean): void => {
+  const submit = (regenerate: SarvamSecretRegeneration): void => {
     setError(undefined);
     setSuccess(undefined);
     setIssuedSecret(undefined);
+    setIssuedWebhookSecret(undefined);
 
     // Empty means "not collected yet", which is a legitimate state for every field here:
     // the ids arrive one at a time as the manual setup progresses.
@@ -88,7 +108,7 @@ export const SarvamMappingSection = ({
     save
       .mutateAsync({ mapping: parsed.data, regenerate })
       .then((result) => {
-        setConfirmingRegenerate(false);
+        setConfirmingRegenerate(undefined);
 
         if (result.toolSecret !== undefined || result.webhookSecret !== undefined) {
           setIssuedSecret(result.toolSecret);
@@ -100,7 +120,7 @@ export const SarvamMappingSection = ({
         setSuccess('Mapping saved.');
       })
       .catch((caught: unknown) => {
-        setConfirmingRegenerate(false);
+        setConfirmingRegenerate(undefined);
         setError(applyServerErrors(caught, () => undefined) ?? 'The mapping was not saved.');
       });
   };
@@ -115,7 +135,7 @@ export const SarvamMappingSection = ({
       saving={save.isPending}
       error={error}
       success={success}
-      onSubmit={canWrite ? () => submit(false) : undefined}
+      onSubmit={canWrite ? () => submit({}) : undefined}
     >
       {issuedSecret !== undefined && (
         <Alert kind="success">
@@ -212,57 +232,60 @@ export const SarvamMappingSection = ({
       </div>
 
       <div className="flex flex-col gap-2 rounded-md border border-border p-3">
-        <strong className="font-semibold text-xs text-default">Tool secret</strong>
+        <strong className="font-semibold text-xs text-default">Secrets</strong>
 
         {mapping?.toolSecretSet === true ? (
           <p className="m-0 text-xs text-muted">
-            Set
+            Tool secret set
             {mapping.toolSecretSetAt === null
               ? ''
               : ` on ${new Date(mapping.toolSecretSetAt).toLocaleString('en-IN')}`}
-            . The value itself cannot be shown again.
+            . Neither secret can be shown again.
           </p>
         ) : (
           <p className="m-0 text-xs text-muted">
-            Not set yet. One is generated and shown the first time this mapping is saved.
+            Not set yet. Both are generated and shown the first time this mapping is saved.
           </p>
         )}
 
-        {canWrite && mapping?.toolSecretSet === true && !confirmingRegenerate && (
-          <div>
-            <Button
-              kind="secondary"
-              onClick={() => {
-                setConfirmingRegenerate(true);
-              }}
-            >
-              Regenerate the tool secret
-            </Button>
+        {canWrite && mapping?.toolSecretSet === true && confirmingRegenerate === undefined && (
+          <div className="flex flex-wrap gap-3">
+            {(['toolSecret', 'webhookSecret'] as const).map((secret) => (
+              <Button
+                key={secret}
+                kind="secondary"
+                onClick={() => {
+                  setConfirmingRegenerate(secret);
+                }}
+              >
+                Regenerate the {SECRET_LABEL[secret]}
+              </Button>
+            ))}
           </div>
         )}
 
-        {canWrite && confirmingRegenerate && (
+        {canWrite && confirmingRegenerate !== undefined && (
           <div className="flex flex-col gap-2">
             <Alert kind="danger">
-              Regenerating invalidates the secret this clinic&rsquo;s agent is using now. Its tool
-              calls will fail until the new value is pasted into Sarvam. Only do this if the current
-              secret has been lost or exposed.
+              <strong>Regenerate the {SECRET_LABEL[confirmingRegenerate]}?</strong>{' '}
+              {REGENERATION_WARNING[confirmingRegenerate]} Only do this if the current one has been
+              lost or exposed.
             </Alert>
             <div className="flex items-center gap-3">
               <Button
                 kind="danger"
                 loading={save.isPending}
                 onClick={() => {
-                  submit(true);
+                  submit({ [confirmingRegenerate]: true });
                 }}
               >
-                Regenerate it
+                Regenerate the {SECRET_LABEL[confirmingRegenerate]}
               </Button>
               <button
                 type="button"
                 className="text-xs text-muted hover:underline"
                 onClick={() => {
-                  setConfirmingRegenerate(false);
+                  setConfirmingRegenerate(undefined);
                 }}
               >
                 Cancel
