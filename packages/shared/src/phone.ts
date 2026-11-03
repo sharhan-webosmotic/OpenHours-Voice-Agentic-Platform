@@ -1,4 +1,4 @@
-import { parsePhoneNumberFromString } from 'libphonenumber-js/min';
+import { parsePhoneNumberFromString } from 'libphonenumber-js/max';
 
 /**
  * Phone number normalisation to E.164, with India as the default region.
@@ -16,10 +16,17 @@ import { parsePhoneNumberFromString } from 'libphonenumber-js/min';
  * of mobiles and false of every landline in Mumbai, Delhi, Chennai, Kolkata and Hyderabad. It
  * also read an Indian `1800` helpline as a US number and an 11-digit typo as an Iranian one. A
  * country's numbering plan is data that changes, and the library is where that data is kept up
- * to date. The `min` metadata is used: it validates against each country's number pattern and
- * possible lengths, which is everything this needs (it refuses the 11-digit typo), and it is
- * half the size of `max`, whose extra is telling a mobile from a landline. This module ships
- * in both web applications, which have an initial-JavaScript budget.
+ * to date.
+ *
+ * THE SERVER DECIDES, WITH THE FULL METADATA. This module imports `libphonenumber-js/max`, and
+ * that is what the API, its commands and its tests run. libphonenumber documents the `min` set
+ * as unsuitable for strict validation, so the number a clinic is allowed to store must not
+ * depend on it. The two web applications alias `libphonenumber-js/max` to `/min` in their
+ * `vite.config.ts`, because they have an initial-JavaScript budget and the browser's answer is
+ * only a convenience: it formats what was typed and catches the obvious mistakes, and the
+ * server's 400 is the verdict. The minimal set is the more lenient of the two, so the browser
+ * never refuses a number the server would accept. `phone-metadata-agreement.test.ts` holds both
+ * to that.
  *
  * WHY A DEFAULT REGION AT ALL. Clinic staff type `98765 43210` or `022 2345 6789`, and refusing
  * those would push the normalisation into whoever is doing data entry. The default applies
@@ -40,47 +47,60 @@ export type PhoneNormalisation =
 
 export type PhoneProblem = 'empty' | 'contains-letters' | 'has-extension' | 'not-a-real-number';
 
+/** The one libphonenumber function this needs, so the same rules can run on either metadata. */
+export type PhoneParser = typeof parsePhoneNumberFromString;
+
+/**
+ * Builds the normaliser around a parser.
+ *
+ * Exported so the agreement test can run these exact rules on the minimal metadata beside the
+ * full one. Product code uses `normalisePhone`, never this.
+ */
+export const createPhoneNormaliser =
+  (parse: PhoneParser) =>
+  (input: string): PhoneNormalisation => {
+    const trimmed = input.trim();
+
+    if (trimmed === '') {
+      return { ok: false, reason: 'empty' };
+    }
+
+    /**
+     * Letters are refused BEFORE parsing, because libphonenumber reads them as keypad digits
+     * (`1-800-FLOWERS`). `+91 98765 4321O` with a capital O is a transcription error, and turning
+     * the O into a 6 would store a wrong number that looks right. The one exception is an
+     * extension marker, refused separately below with its own reason.
+     */
+    if (/[a-z]/i.test(trimmed.replace(/\b(?:ext|extn|x)\.?\s*\d+\s*$/i, ''))) {
+      return { ok: false, reason: 'contains-letters' };
+    }
+
+    if (trimmed.replace(/[^\d]/g, '') === '') {
+      return { ok: false, reason: 'empty' };
+    }
+
+    const parsed = parse(trimmed, DEFAULT_REGION);
+
+    if (parsed === undefined || !parsed.isValid()) {
+      return { ok: false, reason: 'not-a-real-number' };
+    }
+
+    // An extension cannot be dialled by the voice agent or stored in E.164, so it is refused
+    // rather than silently dropped: the number left behind would reach a switchboard instead.
+    if (parsed.ext !== undefined) {
+      return { ok: false, reason: 'has-extension' };
+    }
+
+    return { ok: true, e164: parsed.number };
+  };
+
 /**
  * Normalises a typed phone number to E.164, or explains why it cannot be.
  *
  * Never throws: the caller decides whether a bad number is a validation error (a form) or a
  * value to drop (a provider payload or a number a caller spoke).
  */
-export const normalisePhone = (input: string): PhoneNormalisation => {
-  const trimmed = input.trim();
-
-  if (trimmed === '') {
-    return { ok: false, reason: 'empty' };
-  }
-
-  /**
-   * Letters are refused BEFORE parsing, because libphonenumber reads them as keypad digits
-   * (`1-800-FLOWERS`). `+91 98765 4321O` with a capital O is a transcription error, and turning
-   * the O into a 6 would store a wrong number that looks right. The one exception is an
-   * extension marker, refused separately below with its own reason.
-   */
-  if (/[a-z]/i.test(trimmed.replace(/\b(?:ext|extn|x)\.?\s*\d+\s*$/i, ''))) {
-    return { ok: false, reason: 'contains-letters' };
-  }
-
-  if (trimmed.replace(/[^\d]/g, '') === '') {
-    return { ok: false, reason: 'empty' };
-  }
-
-  const parsed = parsePhoneNumberFromString(trimmed, DEFAULT_REGION);
-
-  if (parsed === undefined || !parsed.isValid()) {
-    return { ok: false, reason: 'not-a-real-number' };
-  }
-
-  // An extension cannot be dialled by the voice agent or stored in E.164, so it is refused
-  // rather than silently dropped: the number left behind would reach a switchboard instead.
-  if (parsed.ext !== undefined) {
-    return { ok: false, reason: 'has-extension' };
-  }
-
-  return { ok: true, e164: parsed.number };
-};
+export const normalisePhone = createPhoneNormaliser(parsePhoneNumberFromString);
 
 /** True for a string already in E.164 form. Shape only: it does not ask whether it exists. */
 export const isE164 = (value: string): boolean => E164.test(value);

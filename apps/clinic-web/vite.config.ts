@@ -91,6 +91,19 @@ const bundleBudget = (): Plugin => ({
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), bundleBudget()],
+  resolve: {
+    /**
+     * The browser gets libphonenumber's minimal metadata, the server its full metadata.
+     *
+     * `@clinicai/shared` validates phones against the full set, which is what the API runs and
+     * what decides whether a number is stored. Here that would cost about 70 KB for an answer
+     * the server gives anyway, so the browser's copy uses the minimal set, which only formats
+     * and catches the obvious mistakes. It is the more lenient of the two, so it never refuses
+     * a number the server accepts: packages/shared/src/phone-metadata-agreement.test.ts holds
+     * both to that. Kept identical in both web applications (D-009).
+     */
+    alias: { 'libphonenumber-js/max': 'libphonenumber-js/min' },
+  },
   server: {
     // Named host rather than localhost: the API sets a SameSite=Strict cookie, and
     // same-site is evaluated on the registrable domain, so the dashboard and the API have
