@@ -32,16 +32,6 @@ describe('services', () => {
     expect(within(card!).getByText('₹500')).toBeInTheDocument();
   });
 
-  it('summarises only what can be booked today', async () => {
-    renderWith(<ServicesPage />, signedIn());
-
-    // The retired service is counted in the total and nowhere else: its fee and length
-    // describe nothing a patient can book.
-    expect(await screen.findByText('of 2')).toBeInTheDocument();
-    expect(screen.getByText('Average appointment').nextSibling).toHaveTextContent('30 min');
-    expect(screen.getByText('Current fee range').nextSibling).toHaveTextContent('₹500');
-  });
-
   it('shows an inactive service as inactive rather than hiding it', async () => {
     renderWith(<ServicesPage />, signedIn());
 

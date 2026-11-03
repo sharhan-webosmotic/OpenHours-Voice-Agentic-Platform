@@ -8,7 +8,7 @@ import { useCan } from '../../lib/useCan';
 import { errorMessage } from '../../lib/problem';
 import { useClinic, useUpdateServiceMutation } from '../clinic/api';
 import { ServiceForm } from './ServiceForm';
-import { CatalogueStats, ServiceCard, summarise } from './catalogue';
+import { ServiceCard } from './catalogue';
 
 /**
  * The services a clinic offers, from `docs/prototype/laptop-12-services.png`.
@@ -81,29 +81,6 @@ export const ServicesPage = () => {
 
   return (
     <>
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
-        <div className="flex flex-col gap-1">
-          <p className="m-0 font-bold text-accent text-xs uppercase tracking-[1px]">
-            Care catalogue
-          </p>
-          <p className="m-0 text-muted text-sm">
-            {`Manage the appointments patients can book at ${clinic.organisation.name}. Each service's length is what the booking grid is built from.`}
-          </p>
-        </div>
-
-        {canWrite && (
-          <Button
-            onClick={() => {
-              setAdding(true);
-            }}
-          >
-            ＋ Add service
-          </Button>
-        )}
-      </div>
-
-      {clinic.services.length > 0 && <CatalogueStats summary={summarise(clinic.services)} />}
-
       {problem !== undefined && (
         <div className="mb-4">
           <Alert kind="danger">{problem}</Alert>
@@ -127,19 +104,20 @@ export const ServicesPage = () => {
           }
         />
       ) : (
-        <section aria-labelledby="services-heading">
-          <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-            <div className="flex flex-col gap-0.5">
-              <h2 id="services-heading" className="m-0 font-bold text-default text-lg">
-                Services
-              </h2>
-              <p className="m-0 text-muted text-xs">
-                What the AI receptionist and the front desk can book.
-              </p>
-            </div>
-            <span className="text-muted text-xs">
-              {`${String(summarise(clinic.services).active)} bookable`}
-            </span>
+        <section aria-label="Services">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+            <p className="m-0 text-muted text-sm">
+              What the AI receptionist and the front desk can book.
+            </p>
+            {canWrite && (
+              <Button
+                onClick={() => {
+                  setAdding(true);
+                }}
+              >
+                ＋ Add service
+              </Button>
+            )}
           </div>
 
           <ul className="m-0 grid list-none grid-cols-1 gap-4 p-0 md:grid-cols-2 xl:grid-cols-3">
