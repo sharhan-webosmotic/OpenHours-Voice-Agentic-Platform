@@ -82,3 +82,39 @@ describe('updatePatientSchema', () => {
     expect(updatePatientSchema.safeParse({}).success).toBe(false);
   });
 });
+
+describe('sex and email on a patient', () => {
+  it('records neither when a caller sends neither, as the voice agent does', () => {
+    const parsed = patientSchema.parse(valid);
+
+    expect(parsed.sex).toBeUndefined();
+    expect(parsed.email).toBeUndefined();
+  });
+
+  it('accepts only the two values the clinic chose, and reads a blank as not recorded', () => {
+    expect(patientSchema.parse({ ...valid, sex: 'FEMALE' }).sex).toBe('FEMALE');
+    expect(patientSchema.parse({ ...valid, sex: '' }).sex).toBeNull();
+    expect(patientSchema.safeParse({ ...valid, sex: 'OTHER' }).success).toBe(false);
+  });
+
+  it('stores one address however it was typed', () => {
+    expect(patientSchema.parse({ ...valid, email: '  Laura@Example.COM ' }).email).toBe(
+      'laura@example.com',
+    );
+    expect(patientSchema.parse({ ...valid, email: '' }).email).toBeNull();
+  });
+
+  it('refuses an address that is not one, or is longer than SMTP allows', () => {
+    expect(patientSchema.safeParse({ ...valid, email: 'not-an-address' }).success).toBe(false);
+    expect(patientSchema.safeParse({ ...valid, email: `${'a'.repeat(250)}@x.in` }).success).toBe(
+      false,
+    );
+  });
+
+  it('leaves both alone on an update that does not name them', () => {
+    const parsed = updatePatientSchema.parse({ fullName: 'Renamed' });
+
+    expect('sex' in parsed).toBe(false);
+    expect('email' in parsed).toBe(false);
+  });
+});

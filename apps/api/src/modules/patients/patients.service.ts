@@ -1,4 +1,4 @@
-import type { PatientInput, UpdatePatientInput } from '@clinicai/shared';
+import type { PatientInput, PatientSex, UpdatePatientInput } from '@clinicai/shared';
 import { NotFoundError } from '../../common/errors.js';
 import {
   MATCHES_NO_DOCTOR,
@@ -69,6 +69,8 @@ export type PatientView = {
   readonly fullName: string | null;
   readonly phone: string | null;
   readonly dateOfBirth: string | null;
+  readonly sex: PatientSex | null;
+  readonly email: string | null;
   readonly notes: string | null;
   readonly lastAppointmentAt: string | null;
   readonly nextAppointmentAt: string | null;
@@ -209,6 +211,8 @@ export const list = async (
           fullName: row.fullName,
           phone: row.phone,
           dateOfBirth: toDay(row.dateOfBirth),
+          sex: row.sex,
+          email: row.email,
           lastAppointmentAt: boundsByPatient.get(row.id)?.lastAppointmentAt?.toISOString() ?? null,
           nextAppointmentAt: boundsByPatient.get(row.id)?.nextAppointmentAt?.toISOString() ?? null,
           nextAppointment: nextView(boundsByPatient.get(row.id)?.next ?? null),
@@ -284,6 +288,8 @@ export const get = async (
       fullName: patient.fullName,
       phone: patient.phone,
       dateOfBirth: toDay(patient.dateOfBirth),
+      sex: patient.sex,
+      email: patient.email,
       notes: patient.notes,
       lastAppointmentAt: bounds[0]?.lastAppointmentAt?.toISOString() ?? null,
       nextAppointmentAt: bounds[0]?.nextAppointmentAt?.toISOString() ?? null,
@@ -340,6 +346,8 @@ export const create = async (
       phone: input.phone,
       dateOfBirth:
         input.dateOfBirth === null ? null : new Date(`${input.dateOfBirth}T00:00:00.000Z`),
+      sex: input.sex ?? null,
+      email: input.email ?? null,
       notes: input.notes,
     });
 
@@ -348,7 +356,11 @@ export const create = async (
       entityType: 'patient',
       entityId: patientId,
       // No name, no number: the id is the record and the audit row points at it.
-      metadata: { hasDateOfBirth: input.dateOfBirth !== null },
+      metadata: {
+        hasDateOfBirth: input.dateOfBirth !== null,
+        hasSex: input.sex != null,
+        hasEmail: input.email != null,
+      },
     });
 
     return { patientId };
@@ -374,6 +386,8 @@ export const update = async (
             dateOfBirth:
               input.dateOfBirth === null ? null : new Date(`${input.dateOfBirth}T00:00:00.000Z`),
           }),
+      ...(input.sex === undefined ? {} : { sex: input.sex }),
+      ...(input.email === undefined ? {} : { email: input.email }),
       ...(input.notes === undefined ? {} : { notes: input.notes }),
     });
 

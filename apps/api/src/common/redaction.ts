@@ -42,6 +42,8 @@ const REDACTED_KEYS: ReadonlySet<string> = new Set([
   'dob',
   'dateofbirth',
   'email',
+  'sex',
+  'gender',
   'address',
   'notes',
   'transcript',

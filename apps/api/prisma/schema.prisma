@@ -608,20 +608,34 @@ model DoctorService {
   @@map("doctor_services")
 }
 
+/// A patient's recorded sex, as the clinic chose to capture it: two values, with "not
+/// recorded" as the column being null rather than a third value.
+enum PatientSex {
+  FEMALE
+  MALE
+
+  @@map("patient_sex")
+}
+
 model Patient {
-  id             String    @id @db.Uuid
-  organisationId String    @map("organisation_id") @db.Uuid
+  id             String      @id @db.Uuid
+  organisationId String      @map("organisation_id") @db.Uuid
   /// PHI. Trigram index for search added in M1-06.
-  fullName       String    @map("full_name")
+  fullName       String      @map("full_name")
   /// PHI, E.164. Indexed but NOT unique: families share numbers, and a clinic may hold
   /// two records for one number until they are merged.
   phone          String
-  dateOfBirth    DateTime? @map("date_of_birth") @db.Date
+  dateOfBirth    DateTime?   @map("date_of_birth") @db.Date
+  /// PHI. Optional, and null means not recorded. Only staff set it: the voice agent never
+  /// asks for it and never writes it.
+  sex            PatientSex?
+  /// PHI. Optional contact address, stored lower-cased.
+  email          String?
   notes          String?
   /// Soft delete: appointment and prescription history must survive a patient removal.
-  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?   @map("deleted_at") @db.Timestamptz(6)
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   organisation  Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
   appointments  Appointment[]

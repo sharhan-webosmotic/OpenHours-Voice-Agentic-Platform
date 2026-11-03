@@ -70,10 +70,41 @@ const dateOfBirth = z.preprocess(
     .nullable(),
 );
 
+/** The values a patient's sex may be recorded as. Absent or null means not recorded. */
+export const PATIENT_SEXES = ['FEMALE', 'MALE'] as const;
+
+export type PatientSex = (typeof PATIENT_SEXES)[number];
+
+const sex = z.preprocess(
+  (value) => (value === '' ? null : value),
+  z.enum(PATIENT_SEXES).nullable(),
+);
+
+/**
+ * Optional, trimmed and lower-cased, so one address is one value whoever typed it. 254 is
+ * the longest address SMTP allows, and the database holds the same bound.
+ */
+const email = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
+  z
+    .string()
+    .trim()
+    .toLowerCase()
+    .max(254, 'is too long')
+    .pipe(z.email('is not a valid email address'))
+    .nullable(),
+);
+
 export const patientSchema = z.object({
   fullName,
   phone: phoneSchema,
   dateOfBirth,
+  /**
+   * Both optional on a create, so every caller that predates them, the voice agent's
+   * included, keeps working and records neither.
+   */
+  sex: sex.optional(),
+  email: email.optional(),
   notes: optionalText(2000),
 });
 

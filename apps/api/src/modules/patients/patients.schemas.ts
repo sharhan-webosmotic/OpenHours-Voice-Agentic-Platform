@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { APPOINTMENT_SOURCES, APPOINTMENT_STATUSES, PATIENT_SORTS } from '@clinicai/shared';
+import {
+  APPOINTMENT_SOURCES,
+  APPOINTMENT_STATUSES,
+  PATIENT_SEXES,
+  PATIENT_SORTS,
+} from '@clinicai/shared';
 
 /**
  * Request and response shapes for the patient endpoints.
@@ -65,6 +70,9 @@ export const patientSummarySchema = z.object({
   fullName: z.string().nullable(),
   phone: z.string().nullable(),
   dateOfBirth: z.string().nullable(),
+  /** Null when not recorded, and for a platform role's masked read. */
+  sex: z.enum(PATIENT_SEXES).nullable(),
+  email: z.string().nullable(),
   lastAppointmentAt: z.string().nullable(),
   nextAppointmentAt: z.string().nullable(),
   /** The same visit as `nextAppointmentAt`, with what it is and its state. */

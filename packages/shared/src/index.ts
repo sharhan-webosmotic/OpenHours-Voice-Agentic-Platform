@@ -50,10 +50,12 @@ export {
 export { SUGGESTED_TIME_ZONES, isIanaTimeZone } from './timezone.js';
 
 export {
+  PATIENT_SEXES,
   PATIENT_SORTS,
   patientSchema,
   updatePatientSchema,
   type PatientInput,
+  type PatientSex,
   type PatientSort,
   type UpdatePatientInput,
 } from './patient.js';

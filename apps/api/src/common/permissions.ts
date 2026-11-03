@@ -104,6 +104,8 @@ export const MASKED_PATIENT_FIELDS = [
   'fullName',
   'phone',
   'dateOfBirth',
+  'sex',
+  'email',
   'notes',
   'transcript',
 ] as const;

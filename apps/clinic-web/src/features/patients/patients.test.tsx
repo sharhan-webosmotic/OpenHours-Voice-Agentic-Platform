@@ -43,7 +43,8 @@ describe('the patient list', () => {
     expect(within(row).getByText('Consultation')).toBeInTheDocument();
     expect(within(row).getByText('AI Booking')).toBeInTheDocument();
     // A date of birth is a calendar day, never shifted through a zone.
-    expect(within(row).getByText(/^14 Jun 1988 · \d+ yrs$/)).toBeInTheDocument();
+    expect(within(row).getByText(/^Female · 14 Jun 1988 · \d+ yrs$/)).toBeInTheDocument();
+    expect(within(row).getByText('test.patient.one@example.test')).toBeInTheDocument();
   });
 
   it('says plainly when a patient has nothing before or after today', async () => {
@@ -57,6 +58,8 @@ describe('the patient list', () => {
             items: [
               {
                 ...only!,
+                sex: null,
+                email: null,
                 dateOfBirth: null,
                 lastAppointmentAt: null,
                 nextAppointmentAt: null,
@@ -194,6 +197,46 @@ describe('adding a patient', () => {
     });
   });
 
+  it('sends the sex and email chosen, and a blank email as not recorded', async () => {
+    const stub = signedIn({
+      ...baseRoutes,
+      'POST /api/v1/patients': { status: 201, body: { patientId: PATIENT_ID } },
+    });
+
+    renderWith(<PatientsPage />, stub);
+
+    await userEvent.click(await screen.findByRole('button', { name: /Add Patient/ }));
+    await userEvent.type(screen.getByLabelText('Full name'), 'Test Patient Two');
+    await userEvent.type(screen.getByLabelText('Phone number'), '98765 43210');
+    // "Not recorded" is the starting answer, so an untouched form records nothing.
+    expect(screen.getByRole('radio', { name: 'Not recorded' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+    await userEvent.click(screen.getByRole('radio', { name: 'Male' }));
+    await userEvent.type(screen.getByLabelText('Email'), ' Two@Example.TEST ');
+    await userEvent.click(screen.getByRole('button', { name: 'Save patient' }));
+
+    await waitFor(() => {
+      const sent = stub.calls.requests.find((request) => request.method === 'POST');
+      expect(sent?.body).toMatchObject({ sex: 'MALE', email: 'two@example.test' });
+    });
+  });
+
+  it('refuses an email that is not one before sending anything', async () => {
+    const stub = signedIn();
+    renderWith(<PatientsPage />, stub);
+
+    await userEvent.click(await screen.findByRole('button', { name: /Add Patient/ }));
+    await userEvent.type(screen.getByLabelText('Full name'), 'Test Patient Two');
+    await userEvent.type(screen.getByLabelText('Phone number'), '98765 43210');
+    await userEvent.type(screen.getByLabelText('Email'), 'not-an-address');
+    await userEvent.click(screen.getByRole('button', { name: 'Save patient' }));
+
+    expect(await screen.findByText(/not a valid email address/)).toBeInTheDocument();
+    expect(stub.calls.requests.some((request) => request.method === 'POST')).toBe(false);
+  });
+
   it('shows a field error the server raised against the field it names', async () => {
     renderWith(
       <PatientsPage />,
@@ -246,6 +289,8 @@ describe('the patient profile', () => {
     expect(await screen.findByText('Test Patient One')).toBeInTheDocument();
     expect(screen.getByText('14 Jun 1988')).toBeInTheDocument();
     expect(screen.getByText('Prefers morning appointments.')).toBeInTheDocument();
+    expect(screen.getByText(/^Female · \d+ years old$/)).toBeInTheDocument();
+    expect(screen.getByText('test.patient.one@example.test')).toBeInTheDocument();
     expect(screen.getByText('Mon, 16 Nov 2026 · 09:00')).toBeInTheDocument();
   });
 

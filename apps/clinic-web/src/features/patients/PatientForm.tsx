@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { patientSchema, type PatientInput } from '@clinicai/shared';
+import { Controller, useForm } from 'react-hook-form';
+import { patientSchema, type PatientInput, type PatientSex } from '@clinicai/shared';
 import type { PatientDetail } from '@clinicai/api-client';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Field } from '../../components/ui/Field';
 import { TextAreaField } from '../../components/ui/Input';
 import { Overlay } from '../../components/ui/Overlay';
+import { cn } from '../../components/ui/cn';
 import { zodResolver } from '../../lib/zodResolver';
 import { applyServerErrors } from '../../lib/problem';
 import { useCreatePatientMutation, useUpdatePatientMutation } from './api';
@@ -24,6 +25,12 @@ import { useCreatePatientMutation, useUpdatePatientMutation } from './api';
  * the server.
  */
 
+const SEX_OPTIONS: readonly { readonly value: PatientSex | null; readonly label: string }[] = [
+  { value: null, label: 'Not recorded' },
+  { value: 'FEMALE', label: 'Female' },
+  { value: 'MALE', label: 'Male' },
+];
+
 export const PatientForm = ({
   patient,
   onClose,
@@ -40,6 +47,7 @@ export const PatientForm = ({
 
   const {
     register,
+    control,
     handleSubmit,
     setError,
     formState: { errors, isSubmitting },
@@ -49,6 +57,8 @@ export const PatientForm = ({
       fullName: patient?.fullName ?? '',
       phone: patient?.phone ?? '',
       dateOfBirth: patient?.dateOfBirth ?? '',
+      sex: patient?.sex ?? null,
+      email: patient?.email ?? '',
       notes: patient?.notes ?? '',
     },
   });
@@ -128,6 +138,57 @@ export const PatientForm = ({
           type="date"
           error={errors.dateOfBirth?.message}
           {...register('dateOfBirth')}
+        />
+
+        {/*
+         * A segmented choice rather than a select, so "Not recorded" is visibly one of the
+         * answers. It is optional, and a select defaulting to it reads as a field left blank.
+         */}
+        <Controller
+          control={control}
+          name="sex"
+          render={({ field }) => (
+            <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
+              <legend className="mb-1.5 p-0 font-semibold text-default text-xs">Sex</legend>
+              <div role="radiogroup" aria-label="Sex" className="flex gap-2">
+                {SEX_OPTIONS.map((option) => {
+                  const checked = (field.value ?? null) === option.value;
+
+                  return (
+                    <button
+                      key={option.label}
+                      type="button"
+                      role="radio"
+                      aria-checked={checked}
+                      onClick={() => {
+                        field.onChange(option.value);
+                      }}
+                      className={cn(
+                        'h-9 flex-1 rounded-control border font-semibold text-sm transition-colors',
+                        checked
+                          ? 'border-accent bg-accent-surface text-accent'
+                          : 'border-border bg-surface text-muted hover:text-default',
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <span className="text-muted text-xs">
+                Optional. Recorded by staff only: the AI receptionist never asks.
+              </span>
+            </fieldset>
+          )}
+        />
+
+        <Field
+          label="Email"
+          hint="Optional."
+          type="email"
+          error={errors.email?.message}
+          {...register('email')}
+          autoComplete="off"
         />
 
         <TextAreaField

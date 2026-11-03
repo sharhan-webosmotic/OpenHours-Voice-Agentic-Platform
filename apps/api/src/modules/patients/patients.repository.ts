@@ -1,4 +1,4 @@
-import type { AppointmentSource, AppointmentStatus } from '@clinicai/shared';
+import type { AppointmentSource, AppointmentStatus, PatientSex } from '@clinicai/shared';
 import type { TenantDb } from '../../db/tenant-client.js';
 import { uuidV7 } from '../../common/uuid.js';
 
@@ -24,6 +24,8 @@ export type PatientRow = {
   readonly fullName: string;
   readonly phone: string;
   readonly dateOfBirth: Date | null;
+  readonly sex: PatientSex | null;
+  readonly email: string | null;
   readonly notes: string | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;
@@ -34,6 +36,8 @@ const PATIENT_SELECT = {
   fullName: true,
   phone: true,
   dateOfBirth: true,
+  sex: true,
+  email: true,
   notes: true,
   createdAt: true,
   updatedAt: true,
@@ -158,6 +162,8 @@ export type CreateInput = {
   readonly fullName: string;
   readonly phone: string;
   readonly dateOfBirth: Date | null;
+  readonly sex: PatientSex | null;
+  readonly email: string | null;
   readonly notes: string | null;
 };
 
@@ -181,6 +187,8 @@ export const create = async (
       fullName: input.fullName,
       phone: input.phone,
       dateOfBirth: input.dateOfBirth,
+      sex: input.sex,
+      email: input.email,
       notes: input.notes,
     },
     select: { id: true },
@@ -193,6 +201,8 @@ export type UpdateInput = {
   readonly fullName?: string;
   readonly phone?: string;
   readonly dateOfBirth?: Date | null;
+  readonly sex?: PatientSex | null;
+  readonly email?: string | null;
   readonly notes?: string | null;
 };
 

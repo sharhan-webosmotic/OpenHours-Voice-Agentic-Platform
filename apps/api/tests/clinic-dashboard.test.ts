@@ -1169,3 +1169,68 @@ describe('the patient directory', () => {
     expect(named.status).toBe(200);
   }, 120_000);
 });
+
+describe('a patient sex and email', () => {
+  type Stored = { id: string; sex: string | null; email: string | null };
+
+  const createWith = async (token: string, extra: Record<string, unknown>) =>
+    request(app)
+      .post('/api/v1/patients')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        fullName: 'Synthetic Sex Email',
+        phone: `+9177${String(Date.now()).slice(-8)}`,
+        dateOfBirth: null,
+        notes: null,
+        ...extra,
+      });
+
+  it('stores both as given, and reads them back', async () => {
+    const token = await tokenFor(ownerEmail);
+
+    const created = await createWith(token, { sex: 'FEMALE', email: 'Synthetic@Example.TEST' });
+    expect(created.status).toBe(201);
+    const { patientId } = jsonBody<{ patientId: string }>(created);
+
+    const read = await request(app)
+      .get(`/api/v1/patients/${patientId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(jsonBody<Stored>(read)).toMatchObject({
+      sex: 'FEMALE',
+      email: 'synthetic@example.test',
+    });
+  }, 120_000);
+
+  it('records neither when neither is sent, as the voice agent creates a patient', async () => {
+    const token = await tokenFor(ownerEmail);
+
+    const created = await createWith(token, {});
+    const { patientId } = jsonBody<{ patientId: string }>(created);
+    const read = await request(app)
+      .get(`/api/v1/patients/${patientId}`)
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(jsonBody<Stored>(read)).toMatchObject({ sex: null, email: null });
+  }, 120_000);
+
+  it('refuses a value outside the two the clinic chose, and an address that is not one', async () => {
+    const token = await tokenFor(ownerEmail);
+
+    expect((await createWith(token, { sex: 'OTHER' })).status).toBe(400);
+    expect((await createWith(token, { email: 'not-an-address' })).status).toBe(400);
+  }, 120_000);
+
+  it('nulls both for a platform role, like every other identifying field', async () => {
+    const owner = await tokenFor(ownerEmail);
+    const created = await createWith(owner, { sex: 'MALE', email: 'masked@example.test' });
+    const { patientId } = jsonBody<{ patientId: string }>(created);
+
+    const read = await request(app)
+      .get(`/api/v1/patients/${patientId}?organisationId=${clinic.organisationId}`)
+      .set('Authorization', `Bearer ${await tokenFor(superAdminEmail)}`);
+
+    expect(read.status).toBe(200);
+    expect(jsonBody<Stored>(read)).toMatchObject({ sex: null, email: null });
+  }, 120_000);
+});

@@ -1,4 +1,4 @@
-import type { AppointmentSource, AppointmentStatus } from '@clinicai/shared';
+import type { AppointmentSource, AppointmentStatus, PatientSex } from '@clinicai/shared';
 
 /**
  * The clinic dashboard's read surface: paths and response types, hand-written.
@@ -45,6 +45,9 @@ export type PatientSummary = {
   readonly fullName: string | null;
   readonly phone: string | null;
   readonly dateOfBirth: string | null;
+  /** Null when not recorded, and for a platform role's masked read. */
+  readonly sex: PatientSex | null;
+  readonly email: string | null;
   readonly lastAppointmentAt: string | null;
   readonly nextAppointmentAt: string | null;
   /** The visit `nextAppointmentAt` names, with what it is and its state. */

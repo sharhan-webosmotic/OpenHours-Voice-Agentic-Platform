@@ -13,6 +13,7 @@ import { formatPhone } from '../../lib/phone';
 import { useClinic } from '../clinic/api';
 import { PatientForm } from './PatientForm';
 import { usePatientQuery } from './api';
+import { SEX_LABELS } from './directory';
 import { AppointmentOverlay, NextAppointmentCard, PatientTimeline } from './profile';
 
 /**
@@ -112,13 +113,20 @@ export const PatientProfilePage = () => {
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
         <Card className="flex flex-col gap-5">
           <div className="flex flex-col items-center gap-2 text-center">
-            <Avatar name={patient.fullName} size="xl" />
+            <Avatar name={patient.fullName} sex={patient.sex} size="xl" />
             <strong className="pt-1 font-semibold text-default text-md">
               {patient.fullName ?? 'Name hidden'}
             </strong>
-            {patient.dateOfBirth !== null && (
+            {(patient.sex !== null || patient.dateOfBirth !== null) && (
               <span className="text-muted text-xs">
-                {`${String(ageOn(patient.dateOfBirth, clinicToday(timeZone)))} years old`}
+                {[
+                  patient.sex === null ? undefined : SEX_LABELS[patient.sex],
+                  patient.dateOfBirth === null
+                    ? undefined
+                    : `${String(ageOn(patient.dateOfBirth, clinicToday(timeZone)))} years old`,
+                ]
+                  .filter((part) => part !== undefined)
+                  .join(' · ')}
               </span>
             )}
           </div>
@@ -144,6 +152,12 @@ export const PatientProfilePage = () => {
               <dt className="text-muted text-xs uppercase tracking-[0.4px]">Phone</dt>
               <dd className="m-0 font-semibold text-default text-sm tabular-nums">
                 {patient.phone === null ? 'Hidden' : formatPhone(patient.phone)}
+              </dd>
+            </div>
+            <div className="flex flex-col gap-1">
+              <dt className="text-muted text-xs uppercase tracking-[0.4px]">Email</dt>
+              <dd className="m-0 break-all font-semibold text-default text-sm">
+                {patient.email ?? 'Not recorded'}
               </dd>
             </div>
             <div className="flex flex-col gap-1">

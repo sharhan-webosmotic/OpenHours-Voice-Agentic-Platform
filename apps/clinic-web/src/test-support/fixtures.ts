@@ -144,6 +144,8 @@ export const patientList: PatientListPage = {
       fullName: 'Test Patient One',
       phone: '+919876543210',
       dateOfBirth: '1988-06-14',
+      sex: 'FEMALE',
+      email: 'test.patient.one@example.test',
       lastAppointmentAt: '2026-10-01T03:30:00.000Z',
       nextAppointmentAt: '2026-11-16T03:30:00.000Z',
       nextAppointment: {

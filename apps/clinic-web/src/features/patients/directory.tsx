@@ -1,4 +1,5 @@
 import type { PatientSummary } from '@clinicai/api-client';
+import type { PatientSex } from '@clinicai/shared';
 import { ChevronRight } from 'lucide-react';
 import { Link } from 'react-router';
 import { Avatar } from '../../components/ui/Avatar';
@@ -75,6 +76,20 @@ export const DIRECTORY_COLUMNS = [
   'Profile',
 ] as const;
 
+export const SEX_LABELS: Record<PatientSex, string> = { FEMALE: 'Female', MALE: 'Male' };
+
+/** `Female · 14 Jun 1988 · 38 yrs`, leaving out whatever is not recorded. */
+const identityLine = (patient: PatientSummary, today: string): string => {
+  const parts = [
+    patient.sex === null ? undefined : SEX_LABELS[patient.sex],
+    patient.dateOfBirth === null
+      ? undefined
+      : `${formatDateOfBirth(patient.dateOfBirth)} · ${String(ageOn(patient.dateOfBirth, today))} yrs`,
+  ].filter((part) => part !== undefined);
+
+  return parts.length === 0 ? 'Date of birth not recorded' : parts.join(' · ');
+};
+
 const Quiet = ({ children }: { readonly children: string }) => (
   <span className="text-subtle">{children}</span>
 );
@@ -94,17 +109,13 @@ export const PatientRow = ({
     <Row>
       <Cell>
         <span className="flex items-center gap-3">
-          <Avatar name={patient.fullName} size="md" />
+          <Avatar name={patient.fullName} sex={patient.sex} size="md" />
           <span className="flex min-w-0 flex-col gap-0.5">
             <strong className="font-semibold text-default text-sm">
               {/* Masked for a platform role, which is a state and not an error. */}
               {patient.fullName ?? 'Name hidden'}
             </strong>
-            <span className="text-muted text-xs">
-              {patient.dateOfBirth === null
-                ? 'Date of birth not recorded'
-                : `${formatDateOfBirth(patient.dateOfBirth)} · ${String(ageOn(patient.dateOfBirth, today))} yrs`}
-            </span>
+            <span className="text-muted text-xs">{identityLine(patient, today)}</span>
           </span>
         </span>
       </Cell>
@@ -113,8 +124,13 @@ export const PatientRow = ({
         {patient.phone === null ? (
           <Quiet>Hidden</Quiet>
         ) : (
-          <span className="whitespace-nowrap font-medium text-default tabular-nums">
-            {formatPhone(patient.phone)}
+          <span className="flex flex-col gap-0.5">
+            <span className="whitespace-nowrap font-medium text-default tabular-nums">
+              {formatPhone(patient.phone)}
+            </span>
+            {patient.email !== null && (
+              <span className="max-w-[220px] truncate text-muted text-xs">{patient.email}</span>
+            )}
           </span>
         )}
       </Cell>
