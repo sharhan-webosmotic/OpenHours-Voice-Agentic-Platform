@@ -334,10 +334,10 @@ describe('the booking sheet', () => {
   };
 
   const choosePatient = async (): Promise<void> => {
-    await userEvent.selectOptions(
-      await screen.findByLabelText('Select patient'),
-      await screen.findByRole('option', { name: /Test Patient One/ }),
-    );
+    await userEvent.type(await screen.findByRole('combobox', { name: 'Select patient' }), '98765');
+    await userEvent.click(await screen.findByRole('option', { name: /Test Patient One/ }));
+    // Chosen, the search gives way to the patient it found.
+    await screen.findByRole('button', { name: /Change/ });
   };
 
   it('lays out patient, doctor, service, date and times on one sheet', async () => {
@@ -348,12 +348,45 @@ describe('the booking sheet', () => {
      * them. The doctor and service are chosen already because the fixture clinic has one of
      * each, which is the pilot's shape; with several, the receptionist chooses.
      */
-    expect(await screen.findByLabelText('Select patient')).toBeInTheDocument();
+    expect(await screen.findByRole('combobox', { name: 'Select patient' })).toBeInTheDocument();
     expect(screen.getByLabelText('Doctor')).toBeInTheDocument();
     expect(screen.getByLabelText('Select service')).toBeInTheDocument();
     expect(screen.getByLabelText('Appointment date')).toBeInTheDocument();
     expect(await screen.findByRole('button', { name: '09:00' })).toBeInTheDocument();
     expect(screen.getByText(/Calculated from .* hours for this weekday/)).toBeInTheDocument();
+  });
+
+  it('searches patients on the server by name or number, and chooses by keyboard', async () => {
+    const stub = await openSheet();
+
+    const box = await screen.findByRole('combobox', { name: 'Select patient' });
+    await userEvent.type(box, '+91 98765');
+
+    // The server does the matching: a page of patients is not the clinic's patients.
+    await waitFor(() => {
+      const asked = stub.calls.requests.filter((request) =>
+        request.path.startsWith('/api/v1/patients?'),
+      );
+      const last = asked.at(-1)?.path ?? '';
+      expect(new URLSearchParams(last.split('?')[1]).get('q')).toBe('+91 98765');
+    });
+
+    await screen.findByRole('option', { name: /Test Patient One/ });
+    await userEvent.keyboard('{Enter}');
+
+    expect(await screen.findByText('+91 98765 43210')).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Select patient' })).not.toBeInTheDocument();
+  });
+
+  it('says so when no patient matches the search', async () => {
+    await openSheet({
+      ...baseRoutes,
+      'GET /api/v1/patients': { body: { items: [], nextCursor: null } },
+    });
+
+    await userEvent.type(await screen.findByRole('combobox', { name: 'Select patient' }), 'Nobody');
+
+    expect(await screen.findByText('No patient matches “Nobody”.')).toBeInTheDocument();
   });
 
   it('sends the note with the booking, and sends nothing for an empty box', async () => {

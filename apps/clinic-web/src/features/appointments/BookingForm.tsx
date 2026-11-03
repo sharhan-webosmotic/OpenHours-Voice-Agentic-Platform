@@ -10,7 +10,8 @@ import { cn } from '../../components/ui/cn';
 import { errorMessage } from '../../lib/problem';
 import { clinicToday, formatDate, formatDuration, formatMoney } from '../../lib/clinicTime';
 import { useClinic } from '../clinic/api';
-import { usePatientsQuery } from '../patients/api';
+import { usePatientQuery } from '../patients/api';
+import { PatientPicker } from '../patients/PatientPicker';
 import { PatientForm } from '../patients/PatientForm';
 import { useAvailabilityQuery, useBookMutation } from './api';
 
@@ -104,7 +105,11 @@ export const BookingForm = ({
    */
   const [idempotencyKey] = useState(() => crypto.randomUUID());
 
-  const { data: patients } = usePatientsQuery({ limit: 100 });
+  /**
+   * The chosen patient, read by id, which serves a patient handed in from a profile, one
+   * found by searching and one just created alike.
+   */
+  const { data: patient } = usePatientQuery(patientId, { skip: patientId === '' });
 
   const doctors = useMemo(
     () => (clinic?.doctors ?? []).filter((doctor) => doctor.active),
@@ -155,7 +160,6 @@ export const BookingForm = ({
 
   const doctor = doctors.find((candidate) => candidate.id === doctorId);
   const service = services.find((candidate) => candidate.id === serviceId);
-  const patient = patients?.items.find((candidate) => candidate.id === patientId);
   const slot = availability.data?.slots.find((candidate) => candidate.startAt === startAt);
 
   /** Any change upstream of the time invalidates the time: it was free for the old choice. */
@@ -259,19 +263,9 @@ export const BookingForm = ({
         {!clinicLoading && !reviewing && (
           <div className="flex flex-col gap-5">
             <div className="flex flex-col gap-2">
-              <SelectField
-                label="Select patient"
-                value={patientId}
-                placeholder="Choose a patient"
-                onChange={(event) => {
-                  setPatientId(event.target.value);
-                }}
-                options={(patients?.items ?? []).map((candidate) => ({
-                  value: candidate.id,
-                  label: `${candidate.fullName ?? 'Name hidden'}${
-                    candidate.phone === null ? '' : ` · ${candidate.phone}`
-                  }`,
-                }))}
+              <PatientPicker
+                selected={patientId === '' || patient === undefined ? undefined : patient}
+                onChange={setPatientId}
               />
               <button
                 type="button"
