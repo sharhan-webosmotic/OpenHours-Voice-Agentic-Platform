@@ -13,6 +13,7 @@ import {
   SERVICE_ID,
   appointmentList,
 } from '../../test-support/fixtures';
+import { AppointmentDetail } from './AppointmentDetail';
 import { AppointmentsPage } from './AppointmentsPage';
 
 /**
@@ -152,9 +153,10 @@ describe('the appointment detail drawer', () => {
 
     const dialog = await screen.findByRole('dialog', { name: 'Test Patient One' });
 
-    // SCHEDULED may be confirmed, completed, marked a no-show or cancelled.
+    // SCHEDULED may be confirmed, rescheduled or cancelled. Its outcome waits for the visit,
+    // which the drawer judges against the clock, so it is asserted below with a fixed `now`.
     expect(within(dialog).getByRole('button', { name: 'Confirm appointment' })).toBeInTheDocument();
-    expect(within(dialog).getByRole('button', { name: 'Mark as completed' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Edit or reschedule' })).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'Cancel appointment' })).toBeInTheDocument();
   });
 
@@ -245,6 +247,80 @@ describe('the appointment detail drawer', () => {
     // Without the return, a keyboard user lands at the top of the document and has to tab
     // back through the whole sidebar.
     expect(screen.getByRole('button', { name: 'View details' })).toHaveFocus();
+  });
+});
+
+describe('the visit outcome in the drawer', () => {
+  /**
+   * RENDERED DIRECTLY WITH A FIXED `now`, because whether the outcome is offered depends on
+   * whether the visit has started, and a test reading the real clock would flip on the day
+   * the fixture's date passes.
+   */
+  const drawerAt = (now: string, status: 'SCHEDULED' | 'CONFIRMED' = 'SCHEDULED') => {
+    renderWith(
+      <AppointmentDetail
+        appointment={{ ...appointment, status }}
+        timeZone="Asia/Kolkata"
+        onClose={() => undefined}
+        onReschedule={() => undefined}
+        now={new Date(now)}
+      />,
+      signedIn(),
+    );
+  };
+
+  it('is not offered before the visit, because nobody has attended it yet', async () => {
+    drawerAt('2026-11-01T00:00:00.000Z');
+
+    const dialog = await screen.findByRole('dialog');
+
+    expect(within(dialog).queryByText('Visit outcome')).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole('button', { name: 'Mark as completed' }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole('button', { name: 'Mark as no show' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('is offered once the visit has started, and records the choice', async () => {
+    const stub = signedIn({
+      ...baseRoutes,
+      [`POST /api/v1/appointments/${APPOINTMENT_ID}/status`]: { body: appointment },
+    });
+    renderWith(
+      <AppointmentDetail
+        appointment={{ ...appointment, status: 'CONFIRMED' }}
+        timeZone="Asia/Kolkata"
+        onClose={() => undefined}
+        onReschedule={() => undefined}
+        now={new Date('2026-11-16T04:00:00.000Z')}
+      />,
+      stub,
+    );
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('Visit outcome')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Mark as no show' })).toBeInTheDocument();
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Mark as completed' }));
+
+    await waitFor(() => {
+      const sent = stub.calls.requests.find((request) => request.path.endsWith('/status'));
+      expect(sent?.body).toEqual({ status: 'COMPLETED' });
+    });
+  });
+
+  it('asks a confirmed booking for nothing more than its outcome', async () => {
+    drawerAt('2026-11-16T04:00:00.000Z', 'CONFIRMED');
+
+    const dialog = await screen.findByRole('dialog');
+
+    // Already confirmed, so the callout asking for confirmation has nothing to ask.
+    expect(within(dialog).queryByText('Awaiting confirmation')).not.toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole('button', { name: 'Confirm appointment' }),
+    ).not.toBeInTheDocument();
   });
 });
 
