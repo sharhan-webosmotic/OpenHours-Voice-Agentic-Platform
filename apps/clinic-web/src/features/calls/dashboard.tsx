@@ -157,7 +157,7 @@ export const VoiceMetrics = ({ overview }: { readonly overview: OverviewResult |
   const rate = overview === undefined ? undefined : bookingRate(overview);
 
   return (
-    <div className="mb-4 grid grid-cols-2 gap-4 xl:grid-cols-4">
+    <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
       <Metric
         label="Calls answered"
         icon={<PhoneIncoming size={17} />}

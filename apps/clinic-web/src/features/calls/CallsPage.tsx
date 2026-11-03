@@ -12,7 +12,6 @@ import { formatDate, formatTime } from '../../lib/clinicTime';
 import { useCan } from '../../lib/useCan';
 import { useClinic } from '../clinic/api';
 import { useOverviewQuery } from '../overview/api';
-import { ActivityCard, OutcomesCard } from '../overview/cards';
 import { AgentCard, VoiceMetrics } from './dashboard';
 import { useCallsQuery } from './api';
 import { CallDetail } from './CallDetail';
@@ -130,15 +129,7 @@ export const CallsPage = () => {
         />
       )}
 
-      {canAnalyse && (
-        <div className="@container">
-          <VoiceMetrics overview={overview.data} />
-          <div className="mb-6 grid gap-4 @4xl:grid-cols-[minmax(0,1fr)_420px]">
-            <ActivityCard overview={overview.data} />
-            <OutcomesCard overview={overview.data} />
-          </div>
-        </div>
-      )}
+      {canAnalyse && <VoiceMetrics overview={overview.data} />}
 
       <div className="mb-3 flex flex-col gap-0.5">
         <h2 className="m-0 font-bold text-default text-lg">Call log</h2>
