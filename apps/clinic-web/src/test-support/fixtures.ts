@@ -146,6 +146,12 @@ export const patientList: PatientListPage = {
       dateOfBirth: '1988-06-14',
       lastAppointmentAt: '2026-10-01T03:30:00.000Z',
       nextAppointmentAt: '2026-11-16T03:30:00.000Z',
+      nextAppointment: {
+        startAt: '2026-11-16T03:30:00.000Z',
+        status: 'SCHEDULED',
+        source: 'VOICE_AGENT',
+        serviceName: 'Consultation',
+      },
       createdAt: '2026-01-05T00:00:00.000Z',
     },
   ],
@@ -277,6 +283,7 @@ export const callDetail: CallDetail = {
 export const baseRoutes: StubRoutes = {
   [`GET /api/v1/organisations/${ORGANISATION_ID}`]: { body: clinic },
   'GET /api/v1/patients': { body: patientList },
+  'GET /api/v1/patients/summary': { body: { registered: 1, upcomingVisits: 1 } },
   [`GET /api/v1/patients/${PATIENT_ID}`]: { body: patientDetail },
   'GET /api/v1/appointments': { body: appointmentList },
   'GET /api/v1/appointments/agenda': { body: agenda() },

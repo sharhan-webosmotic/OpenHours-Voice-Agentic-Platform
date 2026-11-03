@@ -1091,3 +1091,81 @@ describe('appointment notes', () => {
     expect(JSON.stringify(row?.metadata)).not.toContain('first slot');
   });
 });
+
+describe('the patient directory', () => {
+  type Directory = {
+    items: readonly {
+      id: string;
+      nextAppointmentAt: string | null;
+      nextAppointment: {
+        startAt: string;
+        status: string;
+        source: string;
+        serviceName: string | null;
+      } | null;
+    }[];
+  };
+  type Summary = { registered: number; upcomingVisits: number };
+
+  const get = async (token: string, path: string) =>
+    request(app).get(path).set('Authorization', `Bearer ${token}`);
+
+  it('describes each patient next visit, the same visit the date names', async () => {
+    const token = await tokenFor(ownerEmail);
+    await book(token, { startAt: nextBookableStart() });
+
+    const response = await get(token, '/api/v1/patients?limit=100');
+
+    expect(response.status).toBe(200);
+    const row = jsonBody<Directory>(response).items.find((item) => item.id === clinic.ids.patients);
+
+    expect(row?.nextAppointment).not.toBeNull();
+    expect(row?.nextAppointment?.startAt).toBe(row?.nextAppointmentAt);
+    expect(['SCHEDULED', 'CONFIRMED']).toContain(row?.nextAppointment?.status);
+    expect(typeof row?.nextAppointment?.serviceName).toBe('string');
+  }, 120_000);
+
+  it('counts what the clinic can see, and not the clinic next door', async () => {
+    const token = await tokenFor(ownerEmail);
+    const otherToken = await tokenFor(otherOwnerEmail);
+
+    const [summary, list, otherSummary, otherList] = await Promise.all([
+      get(token, '/api/v1/patients/summary'),
+      get(token, '/api/v1/patients?limit=100'),
+      get(otherToken, '/api/v1/patients/summary'),
+      get(otherToken, '/api/v1/patients?limit=100'),
+    ]);
+
+    // 200 also proves `summary` is routed before `/:patientId`, which would refuse it.
+    expect(summary.status).toBe(200);
+    expect(jsonBody<Summary>(summary).registered).toBe(jsonBody<Directory>(list).items.length);
+    expect(jsonBody<Summary>(summary).upcomingVisits).toBeGreaterThan(0);
+    expect(jsonBody<Summary>(otherSummary).registered).toBe(
+      jsonBody<Directory>(otherList).items.length,
+    );
+  }, 120_000);
+
+  it('narrows a doctor counts to the patients they have seen', async () => {
+    const [owner, doctor] = await Promise.all([
+      tokenFor(ownerEmail).then((token) => get(token, '/api/v1/patients/summary')),
+      tokenFor(doctorEmail).then((token) => get(token, '/api/v1/patients/summary')),
+    ]);
+
+    expect(doctor.status).toBe(200);
+    // The stranger patient is the clinic's and never the doctor's.
+    expect(jsonBody<Summary>(doctor).registered).toBeLessThan(jsonBody<Summary>(owner).registered);
+  }, 120_000);
+
+  it('makes a platform role name the clinic it is counting', async () => {
+    const token = await tokenFor(superAdminEmail);
+
+    const unnamed = await get(token, '/api/v1/patients/summary');
+    const named = await get(
+      token,
+      `/api/v1/patients/summary?organisationId=${clinic.organisationId}`,
+    );
+
+    expect(unnamed.status).toBe(400);
+    expect(named.status).toBe(200);
+  }, 120_000);
+});

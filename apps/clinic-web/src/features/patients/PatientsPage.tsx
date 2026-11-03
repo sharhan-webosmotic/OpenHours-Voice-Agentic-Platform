@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { ArrowRight } from 'lucide-react';
 import { Link } from 'react-router';
 import { Alert } from '../../components/ui/Alert';
 import { Avatar } from '../../components/ui/Avatar';
@@ -10,20 +11,25 @@ import { Cell, Row, Table } from '../../components/ui/Table';
 import { Pager, SearchInput, Toolbar } from '../../components/ui/Toolbar';
 import { useCan } from '../../lib/useCan';
 import { errorMessage } from '../../lib/problem';
-import { formatDate } from '../../lib/clinicTime';
+import { formatDate, formatDateOfBirth } from '../../lib/clinicTime';
 import { useClinicTimeZone } from '../clinic/api';
 import { PatientForm } from './PatientForm';
 import { usePatientsQuery } from './api';
+import { DirectoryHeader, NextVisit } from './directory';
 
 /**
  * The patient list, built from `docs/prototype/laptop-08-patients-list.png`.
  *
- * ─── TWO DEVIATIONS FROM THE CAPTURE, BOTH RECORDED IN THE FEATURE DOC ──────────
+ * ─── DEVIATIONS FROM THE CAPTURE, RECORDED IN THE FEATURE DOC ──────────────────
  *
- * 1. THE CONTACT COLUMN SHOWS A PHONE NUMBER AND NO EMAIL. The prototype shows both.
- *    `patients` has no email column, and inventing one in the interface would mean either a
- *    blank line under every number or a field that silently goes nowhere. Adding the column
- *    is an additive migration awaiting sign-off.
+ * 1. THE CONTACT COLUMN SHOWS A PHONE NUMBER AND NO EMAIL, and the patient cell shows
+ *    initials where the reference shows a sex symbol. The prototype shows both. `patients`
+ *    has neither an email nor a sex column, and inventing either in the interface would mean
+ *    a blank under every row or a field that silently goes nowhere. Adding them is an
+ *    additive migration awaiting sign-off.
+ * 3. THE COLUMN READS "LAST APPOINTMENT", not the reference's "Last visit". The value counts
+ *    a cancelled or missed booking too, and calling that a visit would tell a receptionist a
+ *    patient attended when they did not.
  * 2. DATES READ `19 May 2025`, where the capture shows `2025-05-19`. The prototype is
  *    inconsistent with itself here: its calendar and overview both use the human form. The
  *    human form is also the one a receptionist reads out loud.
@@ -74,6 +80,8 @@ export const PatientsPage = () => {
 
   return (
     <>
+      <DirectoryHeader />
+
       <Card padded={false} className="mb-4 p-4">
         <Toolbar
           action={
@@ -152,36 +160,44 @@ export const PatientsPage = () => {
         <>
           <Table
             caption="Patients at this clinic"
-            head={['Patient', 'Contact', 'Last appointment', 'Next appointment', 'Actions']}
+            head={['Patient', 'Contact details', 'Last appointment', 'Next appointment', 'Profile']}
           >
             {data.items.map((patient) => (
               <Row key={patient.id}>
                 <Cell>
                   <span className="flex items-center gap-3">
                     <Avatar name={patient.fullName} />
-                    <strong className="font-semibold text-default">
-                      {/* Masked for a platform role, which is a state and not an error. */}
-                      {patient.fullName ?? 'Name hidden'}
-                    </strong>
+                    <span className="flex flex-col gap-0.5">
+                      <strong className="font-semibold text-default text-sm">
+                        {/* Masked for a platform role, which is a state and not an error. */}
+                        {patient.fullName ?? 'Name hidden'}
+                      </strong>
+                      <span className="text-muted text-xs">
+                        {patient.dateOfBirth === null
+                          ? 'Date of birth not recorded'
+                          : `DOB ${formatDateOfBirth(patient.dateOfBirth)}`}
+                      </span>
+                    </span>
                   </span>
                 </Cell>
-                <Cell muted={patient.phone === null}>{patient.phone ?? 'Hidden'}</Cell>
+                <Cell muted={patient.phone === null}>
+                  <span className="font-semibold">{patient.phone ?? 'Hidden'}</span>
+                </Cell>
                 <Cell muted={patient.lastAppointmentAt === null}>
                   {patient.lastAppointmentAt === null
-                    ? '—'
+                    ? 'No previous appointments'
                     : formatDate(patient.lastAppointmentAt, timeZone)}
                 </Cell>
-                <Cell muted={patient.nextAppointmentAt === null}>
-                  {patient.nextAppointmentAt === null
-                    ? '—'
-                    : formatDate(patient.nextAppointmentAt, timeZone)}
+                <Cell>
+                  <NextVisit next={patient.nextAppointment} timeZone={timeZone} />
                 </Cell>
                 <Cell>
                   <Link
                     to={`/patients/${patient.id}`}
-                    className="font-semibold text-accent text-xs hover:underline"
+                    className="inline-flex items-center gap-1 font-semibold text-accent text-sm hover:underline"
                   >
                     View profile
+                    <ArrowRight size={14} aria-hidden="true" />
                   </Link>
                 </Cell>
               </Row>

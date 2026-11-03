@@ -61,6 +61,16 @@ registerRoute({
 });
 
 registerRoute({
+  method: 'get',
+  path: `${BASE}/summary`,
+  summary: 'How many patients the clinic holds and how many visits are upcoming',
+  query: schemas.patientScopeQuerySchema,
+  response: schemas.patientSummaryResponseSchema,
+  permission: 'patients:read',
+  phiSensitive: false,
+});
+
+registerRoute({
   method: 'post',
   path: BASE,
   summary: 'Create a patient record',
@@ -107,6 +117,19 @@ export const patientsRouter = (): Router => {
       const page = await service.list(principal, query.organisationId, query);
 
       res.status(200).json(page);
+    },
+  );
+
+  // Before `/:patientId`, which would otherwise take `summary` as an id and refuse it.
+  router.get(
+    '/summary',
+    ...AUTHENTICATED,
+    validate({ query: schemas.patientScopeQuerySchema }),
+    async (req: Request, res: Response) => {
+      const { query } = validatedData<unknown, schemas.PatientScopeQuery>(req);
+      const principal = currentPrincipal();
+
+      res.status(200).json(await service.summary(principal, query.organisationId));
     },
   );
 

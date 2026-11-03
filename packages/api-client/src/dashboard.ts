@@ -23,6 +23,7 @@ import type { AppointmentSource, AppointmentStatus } from '@clinicai/shared';
 
 export const DASHBOARD_PATHS = {
   patients: '/api/v1/patients',
+  patientSummary: '/api/v1/patients/summary',
   patient: (patientId: string) => `/api/v1/patients/${patientId}`,
   appointments: '/api/v1/appointments',
   appointment: (appointmentId: string) => `/api/v1/appointments/${appointmentId}`,
@@ -46,7 +47,20 @@ export type PatientSummary = {
   readonly dateOfBirth: string | null;
   readonly lastAppointmentAt: string | null;
   readonly nextAppointmentAt: string | null;
+  /** The visit `nextAppointmentAt` names, with what it is and its state. */
+  readonly nextAppointment: {
+    readonly startAt: string;
+    readonly status: AppointmentStatus;
+    readonly source: AppointmentSource;
+    readonly serviceName: string | null;
+  } | null;
   readonly createdAt: string;
+};
+
+/** The patient directory's header counts. Names nobody. */
+export type PatientDirectorySummary = {
+  readonly registered: number;
+  readonly upcomingVisits: number;
 };
 
 export type PatientListPage = {

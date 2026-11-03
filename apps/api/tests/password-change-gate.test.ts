@@ -253,6 +253,7 @@ function patientAndAppointmentRecipes(): readonly [string, (token: string) => Pr
     readonly path: () => string;
   }[] = [
     { method: 'get', registered: patients, path: () => patients },
+    { method: 'get', registered: `${patients}/summary`, path: () => `${patients}/summary` },
     { method: 'post', registered: patients, path: () => patients },
     {
       method: 'get',

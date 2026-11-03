@@ -67,6 +67,15 @@ export const patientSummarySchema = z.object({
   dateOfBirth: z.string().nullable(),
   lastAppointmentAt: z.string().nullable(),
   nextAppointmentAt: z.string().nullable(),
+  /** The same visit as `nextAppointmentAt`, with what it is and its state. */
+  nextAppointment: z
+    .object({
+      startAt: z.string(),
+      status: z.enum(APPOINTMENT_STATUSES),
+      source: z.enum(APPOINTMENT_SOURCES),
+      serviceName: z.string().nullable(),
+    })
+    .nullable(),
   createdAt: z.string(),
 });
 
@@ -90,6 +99,12 @@ export const patientDetailResponseSchema = patientSummarySchema.extend({
   /** Newest first, bounded. A patient's whole history is not a page a screen can hold. */
   appointments: z.array(appointmentHistoryItemSchema),
   updatedAt: z.string(),
+});
+
+/** Counts only: no field of any patient, so it is not PHI and is not audited. */
+export const patientSummaryResponseSchema = z.object({
+  registered: z.number().int().nonnegative(),
+  upcomingVisits: z.number().int().nonnegative(),
 });
 
 export const createdPatientResponseSchema = z.object({

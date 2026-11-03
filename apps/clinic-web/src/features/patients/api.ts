@@ -2,6 +2,7 @@ import {
   DASHBOARD_PATHS,
   toQueryString,
   type PatientDetail,
+  type PatientDirectorySummary,
   type PatientListPage,
   type PatientListQuery,
 } from '@clinicai/api-client';
@@ -29,6 +30,18 @@ export const patientsApi = api.injectEndpoints({
       providesTags: (result) => [
         { type: 'Patient' as const, id: 'LIST' },
         ...(result?.items ?? []).map((item) => ({ type: 'Patient' as const, id: item.id })),
+      ],
+    }),
+
+    /**
+     * The directory header's counts. Tagged by both lists, because a new patient changes the
+     * first count and any booking or cancellation changes the second.
+     */
+    patientSummary: build.query<PatientDirectorySummary, void>({
+      query: () => ({ path: DASHBOARD_PATHS.patientSummary }),
+      providesTags: [
+        { type: 'Patient' as const, id: 'LIST' },
+        { type: 'Appointment' as const, id: 'LIST' },
       ],
     }),
 
@@ -70,6 +83,7 @@ export const patientsApi = api.injectEndpoints({
 
 export const {
   usePatientsQuery,
+  usePatientSummaryQuery,
   usePatientQuery,
   useCreatePatientMutation,
   useUpdatePatientMutation,

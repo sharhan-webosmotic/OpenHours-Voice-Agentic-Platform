@@ -255,10 +255,19 @@ export const appointmentHistory = async (
     take,
   });
 
+export type NextAppointment = {
+  readonly startAt: Date;
+  readonly status: AppointmentStatus;
+  readonly source: AppointmentSource;
+  readonly serviceName: string | null;
+};
+
 export type AppointmentBounds = {
   readonly patientId: string;
   readonly lastAppointmentAt: Date | null;
   readonly nextAppointmentAt: Date | null;
+  /** The upcoming visit itself, so a list row can say what and in which state. */
+  readonly next: NextAppointment | null;
 };
 
 /**
@@ -288,29 +297,94 @@ export const appointmentBounds = async (
       where: { organisationId, patientId: { in: [...patientIds] }, startAt: { lt: now } },
       _max: { startAt: true },
     }),
-    db.appointment.groupBy({
-      by: ['patientId'],
+    /**
+     * The next visit as a row rather than a `_min`, because the list shows its service and
+     * status too. `distinct` on the patient after ordering by start keeps the earliest per
+     * patient, still one query for the page.
+     */
+    db.appointment.findMany({
       where: {
         organisationId,
         patientId: { in: [...patientIds] },
         startAt: { gte: now },
         status: { in: ['SCHEDULED', 'CONFIRMED'] },
       },
-      _min: { startAt: true },
+      select: {
+        patientId: true,
+        startAt: true,
+        status: true,
+        source: true,
+        service: { select: { name: true } },
+      },
+      orderBy: [{ patientId: 'asc' }, { startAt: 'asc' }, { id: 'asc' }],
+      distinct: ['patientId'],
     }),
   ]);
 
   const lastByPatient = new Map(past.map((row) => [row.patientId, row._max.startAt]));
-  const nextByPatient = new Map(upcoming.map((row) => [row.patientId, row._min.startAt]));
+  const nextByPatient = new Map(
+    upcoming.map((row) => [
+      row.patientId,
+      {
+        startAt: row.startAt,
+        status: row.status,
+        source: row.source,
+        serviceName: row.service?.name ?? null,
+      },
+    ]),
+  );
 
-  return patientIds.map((patientId) => ({
-    patientId,
-    lastAppointmentAt: lastByPatient.get(patientId) ?? null,
-    nextAppointmentAt: nextByPatient.get(patientId) ?? null,
-  }));
+  return patientIds.map((patientId) => {
+    const next = nextByPatient.get(patientId) ?? null;
+
+    return {
+      patientId,
+      lastAppointmentAt: lastByPatient.get(patientId) ?? null,
+      nextAppointmentAt: next?.startAt ?? null,
+      next,
+    };
+  });
 };
 
 /** Whether this doctor has ever seen this patient. The `own` scope's gate for a DOCTOR. */
+/**
+ * How many patients the clinic holds and how many visits are still to come, for the
+ * directory's header.
+ *
+ * Two counts, both on `organisation_id`-led indexes, and the doctor scope narrows both the
+ * same way the list does: a doctor counts the patients they have seen and their own visits,
+ * never the clinic's.
+ */
+export const directorySummary = async (
+  db: TenantDb,
+  organisationId: string,
+  now: Date,
+  onlyForDoctorId: string | undefined,
+): Promise<{ readonly registered: number; readonly upcomingVisits: number }> => {
+  const [registered, upcomingVisits] = await Promise.all([
+    db.patient.count({
+      where: {
+        organisationId,
+        deletedAt: null,
+        ...(onlyForDoctorId === undefined
+          ? {}
+          : { appointments: { some: { doctorId: onlyForDoctorId } } }),
+      },
+    }),
+    db.appointment.count({
+      where: {
+        organisationId,
+        startAt: { gte: now },
+        status: { in: ['SCHEDULED', 'CONFIRMED'] },
+        patient: { deletedAt: null },
+        ...(onlyForDoctorId === undefined ? {} : { doctorId: onlyForDoctorId }),
+      },
+    }),
+  ]);
+
+  return { registered, upcomingVisits };
+};
+
 export const doctorHasSeenPatient = async (
   db: TenantDb,
   organisationId: string,

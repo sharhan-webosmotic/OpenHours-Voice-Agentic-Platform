@@ -340,6 +340,15 @@ const RECIPES = new Map<string, (token: string) => Promise<number>>([
     },
   ],
   [
+    'GET /api/v1/patients/summary',
+    async (token) => {
+      const response = await request(app)
+        .get(`/api/v1/patients/summary?organisationId=${org.organisationId}`)
+        .set('Authorization', `Bearer ${token}`);
+      return response.status;
+    },
+  ],
+  [
     'POST /api/v1/patients',
     async (token) => {
       const response = await request(app)

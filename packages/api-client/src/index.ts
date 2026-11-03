@@ -75,6 +75,7 @@ export {
   type PatientAppointment,
   type PatientDetail,
   type PatientListPage,
+  type PatientDirectorySummary,
   type PatientListQuery,
   type PatientSummary,
 } from './dashboard.js';

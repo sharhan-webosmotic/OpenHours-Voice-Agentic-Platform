@@ -31,6 +31,65 @@ describe('the patient list', () => {
     expect(within(row).getByText('16 Nov 2026')).toBeInTheDocument();
   });
 
+  it('describes the next visit: when, what, and where it stands', async () => {
+    renderWith(<PatientsPage />, signedIn());
+
+    const row = await screen.findByRole('row', { name: /Test Patient One/ });
+
+    // 03:30Z is 09:00 in Kolkata, and a voice booking awaiting confirmation is an AI booking.
+    // Waited for: until the clinic loads, the zone is not yet known.
+    expect(await within(row).findByText('09:00 · Consultation')).toBeInTheDocument();
+    expect(within(row).getByText('AI Booking')).toBeInTheDocument();
+    // A date of birth is a calendar day, never shifted through a zone.
+    expect(within(row).getByText('DOB 14 Jun 1988')).toBeInTheDocument();
+  });
+
+  it('says plainly when a patient has nothing before or after today', async () => {
+    const [only] = patientList.items;
+    renderWith(
+      <PatientsPage />,
+      signedIn({
+        ...baseRoutes,
+        'GET /api/v1/patients': {
+          body: {
+            items: [
+              {
+                ...only!,
+                dateOfBirth: null,
+                lastAppointmentAt: null,
+                nextAppointmentAt: null,
+                nextAppointment: null,
+              },
+            ],
+            nextCursor: null,
+          },
+        },
+      }),
+    );
+
+    const row = await screen.findByRole('row', { name: /Test Patient One/ });
+
+    expect(within(row).getByText('No previous appointments')).toBeInTheDocument();
+    expect(within(row).getByText('Nothing booked')).toBeInTheDocument();
+    expect(within(row).getByText('Date of birth not recorded')).toBeInTheDocument();
+  });
+
+  it('heads the directory with the clinic counts, not the length of the page', async () => {
+    renderWith(
+      <PatientsPage />,
+      signedIn({
+        ...baseRoutes,
+        'GET /api/v1/patients/summary': { body: { registered: 142, upcomingVisits: 6 } },
+      }),
+    );
+
+    expect(
+      await screen.findByRole('heading', { name: '142 registered patients' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('upcoming visits')).toBeInTheDocument();
+    expect(screen.getByText('6')).toBeInTheDocument();
+  });
+
   it('sends the search to the server rather than filtering what is loaded', async () => {
     const stub = signedIn();
     renderWith(<PatientsPage />, stub);

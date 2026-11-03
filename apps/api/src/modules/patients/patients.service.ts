@@ -72,6 +72,12 @@ export type PatientView = {
   readonly notes: string | null;
   readonly lastAppointmentAt: string | null;
   readonly nextAppointmentAt: string | null;
+  readonly nextAppointment: {
+    readonly startAt: string;
+    readonly status: string;
+    readonly source: string;
+    readonly serviceName: string | null;
+  } | null;
   readonly createdAt: string;
   readonly updatedAt: string;
 };
@@ -103,6 +109,16 @@ export type PatientDetail = PatientView & {
  * UTC, which is the classic version of this bug.
  */
 const toDay = (value: Date | null): string | null => value?.toISOString().slice(0, 10) ?? null;
+
+const nextView = (next: repository.NextAppointment | null): PatientView['nextAppointment'] =>
+  next === null
+    ? null
+    : {
+        startAt: next.startAt.toISOString(),
+        status: next.status,
+        source: next.source,
+        serviceName: next.serviceName,
+      };
 
 const resolveDoctorScope = async (
   db: TenantDb,
@@ -195,6 +211,7 @@ export const list = async (
           dateOfBirth: toDay(row.dateOfBirth),
           lastAppointmentAt: boundsByPatient.get(row.id)?.lastAppointmentAt?.toISOString() ?? null,
           nextAppointmentAt: boundsByPatient.get(row.id)?.nextAppointmentAt?.toISOString() ?? null,
+          nextAppointment: nextView(boundsByPatient.get(row.id)?.next ?? null),
           createdAt: row.createdAt.toISOString(),
         };
 
@@ -270,6 +287,7 @@ export const get = async (
       notes: patient.notes,
       lastAppointmentAt: bounds[0]?.lastAppointmentAt?.toISOString() ?? null,
       nextAppointmentAt: bounds[0]?.nextAppointmentAt?.toISOString() ?? null,
+      nextAppointment: nextView(bounds[0]?.next ?? null),
       createdAt: patient.createdAt.toISOString(),
       updatedAt: patient.updatedAt.toISOString(),
       appointments: history.map((row) => ({
@@ -284,6 +302,27 @@ export const get = async (
     };
 
     return masked ? maskPatientFields(view) : view;
+  });
+};
+
+/**
+ * The directory header's two counts, under the same permission and doctor scope as the list.
+ *
+ * A masked platform read gets the counts too: they name nobody, which is the point of the
+ * masked scope.
+ */
+export const summary = async (
+  principal: Principal,
+  requestedOrganisationId: string | undefined,
+  now: Date = new Date(),
+): Promise<{ readonly registered: number; readonly upcomingVisits: number }> => {
+  const scope = requirePermission('patients', 'read', principal);
+  const organisationId = organisationInScope(principal, requestedOrganisationId);
+
+  return withOrganisationScope(principal, organisationId, 'patients.summary', async (db) => {
+    const onlyForDoctorId = await resolveDoctorScope(db, organisationId, principal, scope);
+
+    return repository.directorySummary(db, organisationId, now, onlyForDoctorId);
   });
 };
 

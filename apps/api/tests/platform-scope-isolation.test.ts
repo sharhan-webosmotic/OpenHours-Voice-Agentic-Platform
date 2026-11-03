@@ -122,6 +122,27 @@ const CASES: readonly {
     },
   },
   {
+    name: 'patients.directorySummary',
+    /**
+     * Counts carry no ids, so the default check could never see a leak. Asked for the OTHER
+     * clinic's counts while scoped to `own`, the extension refuses to run the query at all,
+     * which is stronger than answering zero: no number about that clinic is computed.
+     */
+    run: async (db) => {
+      try {
+        return await patients.directorySummary(db, other.organisationId, new Date(0), undefined);
+      } catch (error) {
+        if (error instanceof CrossTenantWriteError) {
+          return 'refused';
+        }
+        throw error;
+      }
+    },
+    expect: (result) => {
+      expect(result).toBe('refused');
+    },
+  },
+  {
     name: 'patients.doctorHasSeenPatient',
     run: (db, organisationId) =>
       patients.doctorHasSeenPatient(
