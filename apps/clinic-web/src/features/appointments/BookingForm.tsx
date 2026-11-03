@@ -67,10 +67,16 @@ const possessive = (name: string): string => `${name}’s`;
 
 export const BookingForm = ({
   initialPatientId,
+  initialDate,
   onClose,
   onBooked,
 }: {
   readonly initialPatientId?: string | undefined;
+  /**
+   * The clinic day to open on, from "+ Add" on a week column or "+ Book" on the month's
+   * selected day. Without it the sheet opens on today.
+   */
+  readonly initialDate?: string | undefined;
   readonly onClose: () => void;
   readonly onBooked?: ((appointmentId: string) => void) | undefined;
 }) => {
@@ -83,7 +89,7 @@ export const BookingForm = ({
   const [patientId, setPatientId] = useState(initialPatientId ?? '');
   const [doctorId, setDoctorId] = useState('');
   const [serviceId, setServiceId] = useState('');
-  const [date, setDate] = useState('');
+  const [date, setDate] = useState(initialDate ?? '');
   const [startAt, setStartAt] = useState('');
   const [notes, setNotes] = useState('');
   const [problem, setProblem] = useState<string | undefined>(undefined);

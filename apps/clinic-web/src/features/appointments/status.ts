@@ -42,13 +42,21 @@ export const statusLabel = (status: AppointmentStatus, source: AppointmentSource
   }
 };
 
-export const statusBadge = (status: AppointmentStatus): BadgeKind => {
+/**
+ * The badge colour, from the status AND the source, because the label is.
+ *
+ * An AI booking awaiting confirmation is blue in the reference and a dashboard booking
+ * awaiting confirmation is orange, though both are `SCHEDULED`. Reading only the status made
+ * every AI booking orange, the colour of the pending one beside it, so the one thing the
+ * badge exists to distinguish was not distinguished.
+ */
+export const statusBadge = (status: AppointmentStatus, source?: AppointmentSource): BadgeKind => {
   switch (status) {
     case 'CONFIRMED':
     case 'COMPLETED':
       return 'success';
     case 'SCHEDULED':
-      return 'warning';
+      return source === 'VOICE_AGENT' ? 'info' : 'warning';
     case 'CANCELLED':
     case 'NO_SHOW':
       return 'danger';

@@ -216,7 +216,7 @@ export const SettingsPage = () => {
 
   return (
     <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
-      <Card className="hidden flex-col gap-1 p-3 lg:flex">
+      <Card padded={false} className="hidden flex-col gap-1 p-3 lg:flex">
         <span className="px-3 py-2 font-semibold text-default text-xs">Settings</span>
         {SECTIONS.map((section) => (
           <a

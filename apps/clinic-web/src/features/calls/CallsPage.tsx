@@ -107,7 +107,7 @@ export const CallsPage = () => {
 
   return (
     <>
-      <Card className="mb-4 p-4">
+      <Card padded={false} className="mb-4 p-4">
         <Toolbar>
           <SearchInput
             label="Search calls"

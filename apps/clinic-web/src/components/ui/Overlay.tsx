@@ -135,7 +135,11 @@ export const Overlay = ({
           'flex max-h-full flex-col overflow-hidden bg-surface shadow-card outline-none',
           variant === 'modal'
             ? cn('w-full rounded-[22px]', size === 'wide' ? 'max-w-[760px]' : 'max-w-xl')
-            : 'h-full w-full max-w-md border-border border-l',
+            : cn(
+                'h-full w-full border-border-chrome border-l',
+                // The appointment drawer's 500px is the reference's; the others keep 448.
+                size === 'wide' ? 'max-w-[500px]' : 'max-w-md',
+              ),
         )}
         // A click inside the panel must not reach the backdrop's dismiss handler.
         onClick={(event) => {

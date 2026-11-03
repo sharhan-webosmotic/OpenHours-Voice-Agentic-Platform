@@ -8,7 +8,7 @@ import { Badge } from '../../components/ui/Table';
 import { TextAreaField } from '../../components/ui/Input';
 import { useCan } from '../../lib/useCan';
 import { errorMessage } from '../../lib/problem';
-import { formatDate, formatDuration, formatTime } from '../../lib/clinicTime';
+import { formatIsoDay, formatTime24 } from '../../lib/clinicTime';
 import { useCancelMutation, useChangeStatusMutation } from './api';
 import { sourceLabel, statusBadge, statusLabel } from './status';
 
@@ -73,41 +73,51 @@ export const AppointmentDetail = ({
     }
   };
 
-  const [day, month] = formatDate(appointment.startAt, timeZone).split(' ');
+  const isoDay = formatIsoDay(appointment.startAt, timeZone);
+  const dayOfMonth = Number(isoDay.slice(-2));
+  const month = new Intl.DateTimeFormat('en-GB', { month: 'short', timeZone }).format(
+    new Date(appointment.startAt),
+  );
 
   return (
     <Overlay
       variant="drawer"
+      size="wide"
       eyebrow="APPOINTMENT DETAILS"
       title={appointment.patient.fullName ?? 'Name hidden'}
       onClose={onClose}
     >
-      <div className="flex items-center gap-4 rounded-xl bg-accent-surface p-4">
+      {/*
+       * The reference's highlighted card: a 56px date tile in the accent, the service, the
+       * clinic's date and 24-hour time, and the status, on the accent's own pale tint.
+       */}
+      <div className="flex items-start gap-4 rounded-2xl bg-accent-surface p-[18px]">
         <span
-          className="flex size-14 shrink-0 flex-col items-center justify-center rounded-lg bg-accent font-semibold text-inverse"
+          className="flex size-14 shrink-0 flex-col items-center justify-center rounded-xl bg-accent text-inverse shadow-accent"
           aria-hidden="true"
         >
-          <span className="text-md leading-none">{day}</span>
-          <span className="text-[0.625rem] uppercase">{month}</span>
+          <span className="font-bold text-[1.375rem] leading-none">{dayOfMonth}</span>
+          <span className="mt-1 font-semibold text-[0.6875rem] uppercase leading-none">
+            {month}
+          </span>
         </span>
 
-        <span className="flex flex-col gap-1">
-          <strong className="font-semibold text-default text-md">
+        <span className="flex flex-col gap-1.5">
+          <strong className="font-medium text-default text-md">
             {appointment.service?.name ?? 'No service recorded'}
           </strong>
           <small className="text-muted text-xs">
-            {formatDate(appointment.startAt, timeZone)} ·{' '}
-            {formatTime(appointment.startAt, timeZone)}
+            {isoDay} · {formatTime24(appointment.startAt, timeZone)}
           </small>
           <span>
-            <Badge kind={statusBadge(appointment.status)}>
+            <Badge kind={statusBadge(appointment.status, appointment.source)}>
               {statusLabel(appointment.status, appointment.source)}
             </Badge>
           </span>
         </span>
       </div>
 
-      <dl className="m-0 mt-5 flex flex-col">
+      <dl className="m-0 mt-3 flex flex-col">
         {[
           ['Patient contact', appointment.patient.phone ?? 'Hidden'],
           ['Assigned doctor', appointment.doctor.fullName],
@@ -115,7 +125,7 @@ export const AppointmentDetail = ({
             'Duration',
             appointment.service === null
               ? '—'
-              : formatDuration(appointment.service.durationMinutes),
+              : `${String(appointment.service.durationMinutes)} minutes`,
           ],
           ['Booking source', sourceLabel(appointment.source)],
           ...(appointment.cancellationReason === null
@@ -123,12 +133,16 @@ export const AppointmentDetail = ({
             : [['Cancellation reason', appointment.cancellationReason] as const]),
           ...(appointment.notes === null ? [] : [['Notes', appointment.notes] as const]),
         ].map(([label, value]) => (
+          /*
+           * A fixed label column with the value beside it, left-aligned, as the reference
+           * lays the rows out: a long note then wraps under itself rather than across.
+           */
           <div
             key={label}
-            className="flex items-baseline justify-between gap-6 border-border border-b py-3 last:border-b-0"
+            className="grid grid-cols-[135px_minmax(0,1fr)] gap-4 border-border-chrome border-b py-4"
           >
-            <dt className="font-semibold text-[0.6875rem] text-muted uppercase">{label}</dt>
-            <dd className="m-0 whitespace-pre-line break-words text-right font-semibold text-default text-xs">
+            <dt className="text-muted text-xs uppercase tracking-[0.4px]">{label}</dt>
+            <dd className="m-0 whitespace-pre-line break-words font-semibold text-default text-[0.8125rem]">
               {value}
             </dd>
           </div>
@@ -142,7 +156,7 @@ export const AppointmentDetail = ({
       )}
 
       {canWrite && (
-        <div className="mt-6 flex flex-col gap-2">
+        <div className="mt-6 flex flex-col gap-2.5">
           {canTransition(appointment.status, 'CONFIRMED') && (
             <Button
               loading={changing.isLoading}
@@ -185,9 +199,14 @@ export const AppointmentDetail = ({
           )}
 
           {canTransition(appointment.status, 'CANCELLED') && (
-            <Button kind="secondary" disabled={busy} onClick={onReschedule}>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={onReschedule}
+              className="h-10 w-full rounded-control border border-border-chrome bg-surface font-semibold text-default text-sm hover:bg-background disabled:opacity-60"
+            >
               Edit or reschedule
-            </Button>
+            </button>
           )}
 
           {canTransition(appointment.status, 'CANCELLED') &&
@@ -244,15 +263,16 @@ export const AppointmentDetail = ({
                 </div>
               </div>
             ) : (
-              <Button
-                kind="danger"
+              <button
+                type="button"
                 disabled={busy}
                 onClick={() => {
                   setConfirming(true);
                 }}
+                className="h-10 w-full rounded-control border border-danger/20 bg-danger-surface font-semibold text-danger text-sm hover:border-danger/40 disabled:opacity-60"
               >
                 Cancel appointment
-              </Button>
+              </button>
             ))}
         </div>
       )}

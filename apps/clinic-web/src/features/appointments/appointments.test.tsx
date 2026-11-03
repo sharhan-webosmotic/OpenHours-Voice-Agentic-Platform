@@ -37,7 +37,9 @@ describe('the appointment list', () => {
 
     const row = await screen.findByRole('row', { name: /Test Patient One/ });
 
-    expect(within(row).getByText('9:00 am')).toBeInTheDocument();
+    // 03:30Z is 09:00 in Kolkata, written on the 24-hour clock as the reference writes it.
+    expect(within(row).getByText('09:00')).toBeInTheDocument();
+    expect(within(row).getByText('2026-11-16')).toBeInTheDocument();
     expect(within(row).getByText('Consultation')).toBeInTheDocument();
   });
 
@@ -58,7 +60,7 @@ describe('the appointment list', () => {
       }),
     );
 
-    expect(await screen.findByText('No appointments yet')).toBeInTheDocument();
+    expect(await screen.findByText('No appointments this month')).toBeInTheDocument();
     /**
      * TWO of them, and that is the design: the toolbar keeps its action and the empty state
      * names the next step, which is the house rule for an empty state. The assertion counts
@@ -74,7 +76,7 @@ describe('the appointment list', () => {
     });
 
     renderWith(<AppointmentsPage />, stub);
-    await screen.findByText('No appointments yet');
+    await screen.findByText('No appointments this month');
 
     await userEvent.type(screen.getByLabelText('Date'), '2026-11-17');
 
@@ -531,5 +533,160 @@ describe('the agenda data the overview reads', () => {
     // fixture rather than inside a screen test that is about something else.
     expect(agenda('week').counts.CONFIRMED).toBe(2);
     expect(appointmentList.items).toHaveLength(1);
+  });
+});
+
+/**
+ * The calendar views, from the clinic's reference: Month, Week and Day beside the List.
+ *
+ * Each is driven by its address, `?view=week&date=…`, which is also what keeps a reload or a
+ * shared link on the same view of the same day.
+ */
+describe('the calendar views', () => {
+  const at = (query: string, routes = baseRoutes) => {
+    const stub = signedIn(routes);
+    renderWith(<AppointmentsPage />, stub, [`/appointments?${query}`]);
+    return stub;
+  };
+
+  it('offers four views and starts on the list', async () => {
+    at('');
+
+    const tabs = await screen.findByRole('tablist', { name: 'Calendar view' });
+
+    expect(
+      within(tabs)
+        .getAllByRole('tab')
+        .map((tab) => tab.textContent),
+    ).toEqual(['month', 'week', 'day', 'list']);
+    expect(within(tabs).getByRole('tab', { name: 'list' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+  });
+
+  it('draws the month Sunday first, with the chosen day beside it', async () => {
+    at('view=month&date=2026-11-16');
+
+    const grid = await screen.findByRole('table', { name: 'Appointments by day' });
+    expect(
+      within(grid)
+        .getAllByRole('columnheader')
+        .map((cell) => cell.textContent),
+    ).toEqual(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
+
+    expect(screen.getByText('Selected day')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Monday, November 16' })).toBeInTheDocument();
+    // The day panel's appointment, from the day's own query.
+    expect(await screen.findByText('Test Patient One')).toBeInTheDocument();
+  });
+
+  it('says a free day is free, when the clinic opens, and offers a booking into it', async () => {
+    const emptyDay = {
+      ...baseRoutes,
+      'GET /api/v1/appointments/agenda': { body: { ...agenda('day'), appointments: [] } },
+    };
+    // A Tuesday comfortably in the future, which the fixture clinic opens 09:00 to 17:00.
+    at('view=month&date=2030-11-19', emptyDay);
+
+    expect(await screen.findByText('No appointments yet')).toBeInTheDocument();
+    expect(screen.getByText('Open 09:00–17:00')).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Book an appointment' }));
+
+    // The sheet opens on the day that was being looked at, not on today.
+    expect(await screen.findByLabelText('Appointment date')).toHaveValue('2030-11-19');
+  });
+
+  it('does not offer a booking into a day that has passed', async () => {
+    at('view=month&date=2020-11-17', {
+      ...baseRoutes,
+      'GET /api/v1/appointments/agenda': { body: { ...agenda('day'), appointments: [] } },
+    });
+
+    // The server would refuse it, and a button that leads to a refusal is worse than none.
+    expect(await screen.findByText('Nothing was booked')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Book an appointment' })).not.toBeInTheDocument();
+  });
+
+  it('says the clinic is closed on a day with no opening hours', async () => {
+    // 2030-11-23 is a Saturday, which the fixture clinic does not open.
+    at('view=month&date=2030-11-23', {
+      ...baseRoutes,
+      'GET /api/v1/appointments/agenda': { body: { ...agenda('day'), appointments: [] } },
+    });
+
+    expect(await screen.findByText('The clinic is closed on this day')).toBeInTheDocument();
+  });
+
+  it('titles the week Sunday to Saturday and lays out seven columns', async () => {
+    at('view=week&date=2026-11-16');
+
+    // 16 Nov 2026 is a Monday, so its week is Sunday the 15th to Saturday the 21st.
+    expect(await screen.findByText('Nov 15 – Nov 21, 2026')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', { name: /09:00, Test Patient One, AI Booking/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('asks for the week as Sunday to Sunday in the clinic’s zone', async () => {
+    const stub = at('view=week&date=2026-11-16');
+    await screen.findByText('Nov 15 – Nov 21, 2026');
+
+    await waitFor(() => {
+      const asked = stub.calls.requests.find((request) => request.path.includes('from='));
+      // Kolkata midnight on Sunday the 15th is 18:30Z on the 14th, and the week ends at the
+      // same hour seven days later. A Monday-first week would be the agenda's, not this one.
+      expect(asked?.path).toContain(encodeURIComponent('2026-11-14T18:30:00.000Z'));
+      expect(asked?.path).toContain(encodeURIComponent('2026-11-21T18:30:00.000Z'));
+    });
+  });
+
+  it('opens the booking sheet on the day of an empty column', async () => {
+    at('view=week&date=2026-11-16');
+    await screen.findByText('Nov 15 – Nov 21, 2026');
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: 'Add an appointment on 2026-11-17' }),
+    );
+
+    expect(await screen.findByLabelText('Appointment date')).toHaveValue('2026-11-17');
+  });
+
+  it('lays the day out hour by hour, with the appointment in its hour', async () => {
+    at('view=day&date=2026-11-16');
+
+    expect(
+      await screen.findByRole('heading', { name: 'Monday, November 16, 2026' }),
+    ).toBeInTheDocument();
+
+    const hours = await screen.findByRole('list', { name: 'Appointments by hour' });
+    // The rows are the clinic's hours and draw at once; the day's appointments arrive after.
+    const block = await within(hours).findByText(/Test Patient One/);
+
+    // In the 09:00 row, which is the hour 03:30Z falls in on the clinic's clock.
+    expect(block.closest('li')?.textContent?.startsWith('09:00')).toBe(true);
+  });
+
+  it('moves a week at a time in the week view', async () => {
+    at('view=week&date=2026-11-16');
+    await screen.findByText('Nov 15 – Nov 21, 2026');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Next' }));
+
+    expect(await screen.findByText('Nov 22 – Nov 28, 2026')).toBeInTheDocument();
+  });
+
+  it('opens the appointment drawer from a week card', async () => {
+    at('view=week&date=2026-11-16');
+
+    await userEvent.click(
+      await screen.findByRole('button', { name: /09:00, Test Patient One, AI Booking/ }),
+    );
+
+    const drawer = await screen.findByRole('dialog', { name: 'Test Patient One' });
+    // The reference's date tile and the clinic's date with a 24-hour time.
+    expect(within(drawer).getByText('2026-11-16 · 09:00')).toBeInTheDocument();
+    expect(within(drawer).getByText('30 minutes')).toBeInTheDocument();
   });
 });

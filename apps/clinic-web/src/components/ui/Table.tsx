@@ -26,8 +26,8 @@ export const Table = ({
   readonly head: readonly string[];
   readonly children: ReactNode;
 }) => (
-  <div className="overflow-x-auto rounded-xl border border-border bg-surface">
-    <table className="w-full border-collapse text-xs">
+  <div className="overflow-x-auto rounded-card border border-[rgba(233,237,245,0.9)] bg-surface shadow-card">
+    <table className="w-full border-collapse text-[0.8125rem]">
       <caption className="sr-only">{caption}</caption>
       <thead>
         <tr>
@@ -35,7 +35,8 @@ export const Table = ({
             <th
               key={heading}
               scope="col"
-              className="border-border border-b px-4 py-3 text-left font-semibold text-muted"
+              // The reference's header: uppercase, lightly tracked, on a sunken band.
+              className="border-border-chrome border-b bg-surface-sunken px-5 py-4 text-left font-semibold text-muted text-xs uppercase tracking-[0.4px]"
             >
               {heading}
             </th>
@@ -48,7 +49,7 @@ export const Table = ({
 );
 
 export const Row = ({ children }: { readonly children: ReactNode }) => (
-  <tr className="border-border border-b last:border-b-0 hover:bg-background">{children}</tr>
+  <tr className="border-border-chrome border-b last:border-b-0 hover:bg-background">{children}</tr>
 );
 
 export const Cell = ({
@@ -57,12 +58,14 @@ export const Cell = ({
 }: {
   readonly children: ReactNode;
   readonly muted?: boolean | undefined;
-}) => <td className={cn('px-4 py-3', muted ? 'text-muted' : 'text-default')}>{children}</td>;
+}) => <td className={cn('px-5 py-4', muted ? 'text-muted' : 'text-default')}>{children}</td>;
 
-export type BadgeKind = 'neutral' | 'success' | 'warning' | 'danger';
+export type BadgeKind = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
 const BADGES: Record<BadgeKind, string> = {
   neutral: 'bg-background text-muted',
+  // The reference's AI Booking pill: the accent on its own pale tint.
+  info: 'bg-accent-surface text-accent',
   success: 'bg-success-surface text-success',
   warning: 'bg-warning-surface text-warning',
   danger: 'bg-danger-surface text-danger',
@@ -84,7 +87,7 @@ export const Badge = ({
 }) => (
   <span
     className={cn(
-      'inline-flex items-center rounded-full px-2 py-0.5 font-semibold text-xs',
+      'inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 font-semibold text-xs',
       BADGES[kind],
     )}
   >

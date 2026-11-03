@@ -216,7 +216,7 @@ const UpcomingAppointments = ({
                 </td>
                 <td className="py-2.5 text-muted">{appointment.service?.name ?? '—'}</td>
                 <td className="py-2.5">
-                  <Badge kind={statusBadge(appointment.status)}>
+                  <Badge kind={statusBadge(appointment.status, appointment.source)}>
                     {statusLabel(appointment.status, appointment.source)}
                   </Badge>
                 </td>

@@ -152,7 +152,7 @@ export const PatientProfilePage = () => {
         </Card>
 
         <div className="flex flex-col gap-4">
-          <Card className="p-0">
+          <Card padded={false} className="p-0">
             <div className="flex flex-col gap-0.5 px-6 py-4">
               <h2 className="m-0 font-semibold text-default text-md">Appointment history</h2>
               <p className="m-0 text-muted text-xs">
@@ -180,7 +180,7 @@ export const PatientProfilePage = () => {
                         {appointment.serviceName === null ? '' : ` · ${appointment.serviceName}`}
                       </small>
                     </span>
-                    <Badge kind={statusBadge(appointment.status)}>
+                    <Badge kind={statusBadge(appointment.status, appointment.source)}>
                       {statusLabel(appointment.status, appointment.source)}
                     </Badge>
                   </li>
@@ -189,7 +189,7 @@ export const PatientProfilePage = () => {
             )}
           </Card>
 
-          <Card className="p-0">
+          <Card padded={false} className="p-0">
             <div className="flex flex-col gap-0.5 px-6 py-4">
               <h2 className="m-0 font-semibold text-default text-md">Follow-ups</h2>
               <p className="m-0 text-muted text-xs">Tasks linked to this patient.</p>

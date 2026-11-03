@@ -1,4 +1,4 @@
-import { clinicDayOf, formatMinuteOfDay, type ClinicDay } from '@clinicai/shared';
+import { clinicDayOf, formatMinuteOfDay, zonedParts, type ClinicDay } from '@clinicai/shared';
 
 /**
  * Every date and time on every screen, rendered in the CLINIC's time zone.
@@ -112,3 +112,17 @@ export const formatDuration = (minutes: number): string => {
 
   return rest === 0 ? `${String(hours)} hr` : `${String(hours)} hr ${String(rest)} min`;
 };
+
+/**
+ * `09:00`, on the clinic's 24-hour clock.
+ *
+ * The appointments reference writes times this way in its list, its week and its day views,
+ * where `formatTime` writes `9:00 am` for the dashboard's sentences. Both read the clinic's
+ * own zone; only the clock differs.
+ */
+export const formatTime24 = (instant: string, timeZone: string): string =>
+  formatMinuteOfDay(zonedParts(new Date(instant), timeZone).minuteOfDay);
+
+/** `2025-05-19`, the clinic's calendar day, as the reference's list and drawer write a date. */
+export const formatIsoDay = (instant: string, timeZone: string): string =>
+  clinicDayOf(new Date(instant), timeZone);

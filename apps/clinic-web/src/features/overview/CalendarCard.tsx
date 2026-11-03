@@ -324,7 +324,7 @@ export const CalendarCard = ({
                 </span>
               </span>
               <span className="flex shrink-0 items-center gap-2">
-                <Badge kind={statusBadge(appointment.status)}>
+                <Badge kind={statusBadge(appointment.status, appointment.source)}>
                   {statusLabel(appointment.status, appointment.source)}
                 </Badge>
                 <Link

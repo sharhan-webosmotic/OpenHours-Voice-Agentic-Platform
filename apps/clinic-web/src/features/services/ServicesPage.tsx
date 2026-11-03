@@ -84,7 +84,7 @@ export const ServicesPage = () => {
 
   return (
     <>
-      <Card className="mb-4 flex flex-wrap items-center justify-between gap-4 p-4">
+      <Card padded={false} className="mb-4 flex flex-wrap items-center justify-between gap-4 p-4">
         <div className="flex flex-col gap-0.5">
           <strong className="font-semibold text-default text-md">Clinic services</strong>
           <p className="m-0 text-muted text-xs">
