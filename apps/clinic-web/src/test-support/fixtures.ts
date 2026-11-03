@@ -133,6 +133,7 @@ export const appointment: AppointmentView = {
   cancelledAt: null,
   cancellationReason: null,
   rescheduledFromId: null,
+  notes: 'Prefers the first slot of the morning.',
   createdAt: '2026-11-01T00:00:00.000Z',
 };
 

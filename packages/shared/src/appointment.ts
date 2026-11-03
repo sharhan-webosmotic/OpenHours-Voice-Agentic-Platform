@@ -109,11 +109,30 @@ const instant = z.string().datetime({
  * booking succeed, and never see the note again. Adding the column is an additive migration
  * awaiting sign-off, recorded in `docs/features/clinic-dashboard.md`.
  */
+/**
+ * Free text the receptionist adds when booking. Patient data, by intention or not.
+ *
+ * Blank becomes null, as everywhere on the platform (D-013): an HTML textarea has no null,
+ * and "" stored as a note would be a note that says nothing. Bounded at 2,000, which the
+ * database enforces too.
+ */
+export const APPOINTMENT_NOTES_MAX = 2000;
+
+const appointmentNotes = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
+  z.string().trim().max(APPOINTMENT_NOTES_MAX).nullable(),
+);
+
 export const createAppointmentSchema = z.object({
   patientId: z.uuid(),
   doctorId: z.uuid(),
   serviceId: z.uuid(),
   startAt: instant,
+  /**
+   * OPTIONAL in the request, so the callers that never had a notes field (the voice agent's
+   * booking, older clients) keep working unchanged and book with no note.
+   */
+  notes: appointmentNotes.optional(),
 });
 
 export type CreateAppointmentInput = z.infer<typeof createAppointmentSchema>;

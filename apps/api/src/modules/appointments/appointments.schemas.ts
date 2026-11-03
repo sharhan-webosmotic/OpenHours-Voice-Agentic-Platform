@@ -76,6 +76,8 @@ export const appointmentSchema = z.object({
   cancelledAt: z.string().nullable(),
   cancellationReason: z.string().nullable(),
   rescheduledFromId: z.uuid().nullable(),
+  /** PHI. Null for a platform role's masked read. */
+  notes: z.string().nullable(),
   createdAt: z.string(),
 });
 
@@ -87,8 +89,9 @@ export const appointmentListResponseSchema = z.object({
 /**
  * The detail response is the list shape, with nothing added.
  *
- * It exists as its own name because the two WILL diverge: the notes field the prototype
- * shows needs a column that does not exist yet, and the detail screen is where it lands.
+ * Kept as its own name so the two can diverge without a rename. They have not yet: the
+ * notes the detail drawer shows are on the list rows too, because a note is a few hundred
+ * characters at most and a second request per row would cost more than it saves.
  */
 export const appointmentDetailResponseSchema = appointmentSchema;
 

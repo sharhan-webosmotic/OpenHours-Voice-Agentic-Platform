@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AvailabilityReason } from '@clinicai/api-client';
+import { APPOINTMENT_NOTES_MAX } from '@clinicai/shared';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Overlay } from '../../components/ui/Overlay';
-import { SelectField } from '../../components/ui/Input';
+import { SelectField, TextAreaField } from '../../components/ui/Input';
 import { Spinner } from '../../components/ui/Spinner';
 import { cn } from '../../components/ui/cn';
 import { errorMessage } from '../../lib/problem';
@@ -43,11 +44,12 @@ import { useAvailabilityQuery, useBookMutation } from './api';
  * NOT regenerated between attempts: that would make the retry a new booking, which is the
  * bug the header exists to prevent.
  *
- * ─── NO NOTES FIELD, YET ────────────────────────────────────────────────────────
+ * ─── THE NOTE IS PATIENT DATA ───────────────────────────────────────────────────
  *
- * The reference ends with "Notes (optional)". `appointments` has no notes column, and a
- * field that accepted text and dropped it would tell a receptionist their note was saved.
- * Adding the column is a schema change, which needs approval, so the field waits for it.
+ * Optional, bounded at the length the database enforces, and sent with the booking. The API
+ * never logs it or audits its text, nulls it for a platform role's masked read, and carries
+ * it across a reschedule. Blank is sent as nothing at all, so an empty box is not stored as
+ * a note that says nothing.
  */
 
 const NO_SLOTS: Record<AvailabilityReason, string> = {
@@ -83,6 +85,7 @@ export const BookingForm = ({
   const [serviceId, setServiceId] = useState('');
   const [date, setDate] = useState('');
   const [startAt, setStartAt] = useState('');
+  const [notes, setNotes] = useState('');
   const [problem, setProblem] = useState<string | undefined>(undefined);
   const [addingPatient, setAddingPatient] = useState(false);
 
@@ -181,7 +184,13 @@ export const BookingForm = ({
 
     try {
       const result = await book({
-        input: { patientId, doctorId, serviceId, startAt },
+        input: {
+          patientId,
+          doctorId,
+          serviceId,
+          startAt,
+          ...(notes.trim() === '' ? {} : { notes: notes.trim() }),
+        },
         idempotencyKey,
       }).unwrap();
 
@@ -379,6 +388,17 @@ export const BookingForm = ({
                 </p>
               )}
             </fieldset>
+
+            <TextAreaField
+              label="Notes (optional)"
+              placeholder="Add helpful appointment notes"
+              rows={4}
+              maxLength={APPOINTMENT_NOTES_MAX}
+              value={notes}
+              onChange={(event) => {
+                setNotes(event.target.value);
+              }}
+            />
           </div>
         )}
 
@@ -392,6 +412,7 @@ export const BookingForm = ({
               ['Time', slot?.label ?? '—'],
               ['Duration', service === undefined ? '—' : formatDuration(service.durationMinutes)],
               ['Price', service === undefined ? '—' : formatMoney(service.priceMinor)],
+              ['Notes', notes.trim() === '' ? 'None' : notes.trim()],
             ].map(([label, value]) => (
               <div key={label} className="flex items-baseline justify-between gap-4">
                 <dt className="font-semibold text-muted text-xs uppercase tracking-wide">

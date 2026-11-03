@@ -652,6 +652,9 @@ model Appointment {
   rescheduledFromId  String?           @unique @map("rescheduled_from_id") @db.Uuid
   cancelledAt        DateTime?         @map("cancelled_at") @db.Timestamptz(6)
   cancellationReason String?           @map("cancellation_reason")
+  /// PHI: what the receptionist wrote when booking. Never logged, never in an audit
+  /// payload, nulled for a platform role's masked read, and carried across a reschedule.
+  notes              String?
   createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 

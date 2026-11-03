@@ -19,12 +19,13 @@ import { sourceLabel, statusBadge, statusLabel } from './status';
  * the date chip, service and status, then the detail rows, then the actions stacked at full
  * width with the destructive one last.
  *
- * ─── DEVIATIONS, BOTH FROM THINGS THE SCHEMA DOES NOT HAVE ──────────────────────
+ * ─── A DEVIATION, FROM SOMETHING THE SCHEMA DOES NOT HAVE ───────────────────────
  *
- * 1. NO EMAIL under "Patient contact". There is no email column on `patients`.
- * 2. NO NOTES ROW. There is no notes column on `appointments`, and a row saying "no notes"
- *    for every appointment ever booked would be worse than the row not being there. Both
- *    wait on the same additive migration.
+ * NO EMAIL under "Patient contact". There is no email column on `patients`.
+ *
+ * The notes row the capture shows is here: the column was added with the clinic's approval
+ * on 2026-11-03. It appears only when a note was written, so an appointment booked without
+ * one does not carry a row saying "no notes".
  *
  * ─── WHICH ACTIONS APPEAR, AND WHY IT IS THE SHARED TABLE THAT DECIDES ──────────
  *
@@ -120,13 +121,16 @@ export const AppointmentDetail = ({
           ...(appointment.cancellationReason === null
             ? []
             : [['Cancellation reason', appointment.cancellationReason] as const]),
+          ...(appointment.notes === null ? [] : [['Notes', appointment.notes] as const]),
         ].map(([label, value]) => (
           <div
             key={label}
             className="flex items-baseline justify-between gap-6 border-border border-b py-3 last:border-b-0"
           >
             <dt className="font-semibold text-[0.6875rem] text-muted uppercase">{label}</dt>
-            <dd className="m-0 text-right font-semibold text-default text-xs">{value}</dd>
+            <dd className="m-0 whitespace-pre-line break-words text-right font-semibold text-default text-xs">
+              {value}
+            </dd>
           </div>
         ))}
       </dl>

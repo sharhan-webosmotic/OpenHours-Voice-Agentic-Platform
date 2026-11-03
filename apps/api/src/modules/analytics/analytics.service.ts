@@ -6,23 +6,17 @@ import {
   startOfClinicDay,
   type ClinicDay,
 } from '@clinicai/shared';
-import { requirePermission, scopeFilter, type Principal } from '../../common/permissions.js';
+import {
+  MATCHES_NO_DOCTOR,
+  requirePermission,
+  scopeFilter,
+  type Principal,
+} from '../../common/permissions.js';
 import { organisationInScope } from '../../common/organisation-scope.js';
 import { withOrganisationScope } from '../../db/principal-scope.js';
 import { organisationTimeZone } from '../appointments/appointments.repository.js';
 import * as repository from './analytics.repository.js';
 import type { OverviewRange } from './analytics.schemas.js';
-
-/**
- * A doctor id that matches no row, for an account with `own` scope and no doctor behind it.
- *
- * THE NIL UUID, NOT A WORD. The first version of this sentinel was the string
- * `'no-such-doctor'`, which PostgreSQL refuses as input to a uuid column, so a doctor whose
- * account was never linked to a doctor row got a 500 instead of an empty screen. The nil uuid
- * is a valid value that no row can hold, since every id here is a v7 uuid generated in the
- * application, so the filter narrows to nothing as intended.
- */
-const MATCHES_NO_DOCTOR = '00000000-0000-0000-0000-000000000000';
 
 /**
  * The overview's figures, every one of them derived from rows the platform holds.

@@ -981,3 +981,113 @@ describe('searching the appointment list', () => {
     expect(names).toEqual([]);
   }, 120_000);
 });
+
+/**
+ * Notes on an appointment, added with the clinic's approval on 2026-11-03.
+ *
+ * A note is free text a receptionist types about a patient, so it is patient data whatever
+ * it says. What is worth asserting is everywhere it must NOT go, as much as where it must.
+ */
+describe('appointment notes', () => {
+  const NOTE = 'Synthetic note: prefers the first slot of the morning.';
+
+  const bookWithNotes = async (token: string, notes: unknown) =>
+    request(app).post('/api/v1/appointments').set('Authorization', `Bearer ${token}`).send({
+      patientId: clinic.ids.patients,
+      doctorId: clinic.ids.doctors,
+      serviceId: clinic.ids.services,
+      startAt: nextBookableStart(),
+      notes,
+    });
+
+  const read = async (token: string, appointmentId: string, query = '') =>
+    request(app)
+      .get(`/api/v1/appointments/${appointmentId}${query}`)
+      .set('Authorization', `Bearer ${token}`);
+
+  it('stores the note and returns it to the clinic', async () => {
+    const token = await tokenFor(ownerEmail);
+    const booked = await bookWithNotes(token, NOTE);
+
+    expect(booked.status).toBe(201);
+    const detail = await read(token, jsonBody<Booking>(booked).appointmentId);
+
+    expect(jsonBody<{ notes: string | null }>(detail).notes).toBe(NOTE);
+  });
+
+  it('stores a blank note as no note at all', async () => {
+    const token = await tokenFor(ownerEmail);
+    const booked = await bookWithNotes(token, '   ');
+    const detail = await read(token, jsonBody<Booking>(booked).appointmentId);
+
+    // An HTML textarea has no null, so an untouched box arrives as whitespace. Stored as
+    // a note, it would be a note that says nothing (D-013).
+    expect(jsonBody<{ notes: string | null }>(detail).notes).toBeNull();
+  });
+
+  it('books without a note when the field is not sent at all', async () => {
+    const token = await tokenFor(ownerEmail);
+    // `book` sends no notes key: the voice agent's bookings and older clients look like this.
+    const booked = await book(token);
+
+    expect(booked.status).toBe(201);
+  });
+
+  it('refuses a note longer than the database allows', async () => {
+    const token = await tokenFor(ownerEmail);
+    const booked = await bookWithNotes(token, 'x'.repeat(2001));
+
+    expect(booked.status).toBe(400);
+  });
+
+  it('carries the note to the new row when the appointment is moved', async () => {
+    const token = await tokenFor(ownerEmail);
+    const booked = await bookWithNotes(token, NOTE);
+    const moved = await request(app)
+      .post(`/api/v1/appointments/${jsonBody<Booking>(booked).appointmentId}/reschedule`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ startAt: nextBookableStart(), reason: null });
+
+    expect(moved.status).toBe(201);
+    const detail = await read(token, jsonBody<Booking>(moved).appointmentId);
+
+    /**
+     * A reschedule makes a NEW row. A note left on the cancelled one would vanish from every
+     * screen that shows the appointment, lost without anybody deleting it.
+     */
+    expect(jsonBody<{ notes: string | null }>(detail).notes).toBe(NOTE);
+  });
+
+  it('hides the note from a platform role, as it hides the patient’s name', async () => {
+    const owner = await tokenFor(ownerEmail);
+    const booked = await bookWithNotes(owner, NOTE);
+    const platform = await tokenFor(superAdminEmail);
+
+    const detail = await read(
+      platform,
+      jsonBody<Booking>(booked).appointmentId,
+      `?organisationId=${clinic.organisationId}`,
+    );
+
+    expect(detail.status).toBe(200);
+    // Free text about a patient is as identifying as their name, and often more so.
+    expect(jsonBody<{ notes: string | null }>(detail).notes).toBeNull();
+  });
+
+  it('records that a note was written, and never what it says', async () => {
+    const token = await tokenFor(ownerEmail);
+    const booked = await bookWithNotes(token, NOTE);
+    const appointmentId = jsonBody<Booking>(booked).appointmentId;
+
+    const row = await asPlatform(ownerClient(), (tx) =>
+      tx.auditLog.findFirst({
+        where: { action: 'appointment.created', entityId: appointmentId },
+        select: { metadata: true },
+      }),
+    );
+
+    expect(row?.metadata).toMatchObject({ hasNotes: true });
+    // Rule 5: audit rows never contain patient field values.
+    expect(JSON.stringify(row?.metadata)).not.toContain('first slot');
+  });
+});

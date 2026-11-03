@@ -69,6 +69,7 @@ export {
   canTransition,
   cancelAppointmentSchema,
   changeAppointmentStatusSchema,
+  APPOINTMENT_NOTES_MAX,
   createAppointmentSchema,
   holdsSlot,
   rescheduleAppointmentSchema,

@@ -126,6 +126,15 @@ describe('the appointment detail drawer', () => {
     return stub;
   };
 
+  it('shows the note written when it was booked', async () => {
+    renderWith(<AppointmentsPage />, signedIn());
+
+    await userEvent.click(await screen.findByRole('button', { name: 'View details' }));
+    const dialog = await screen.findByRole('dialog');
+
+    expect(within(dialog).getByText('Prefers the first slot of the morning.')).toBeInTheDocument();
+  });
+
   it('opens as a labelled dialog with the appointment in it', async () => {
     await open();
 
@@ -269,13 +278,57 @@ describe('the booking sheet', () => {
     expect(screen.getByText(/Calculated from .* hours for this weekday/)).toBeInTheDocument();
   });
 
-  it('has no notes field, because nothing would keep what was typed', async () => {
-    await openSheet();
-    await screen.findByLabelText('Select patient');
+  it('sends the note with the booking, and sends nothing for an empty box', async () => {
+    const routes = {
+      ...baseRoutes,
+      'POST /api/v1/appointments': {
+        status: 201,
+        body: {
+          appointmentId: APPOINTMENT_ID,
+          startAt: '2026-11-16T03:30:00.000Z',
+          endAt: '2026-11-16T04:00:00.000Z',
+          replayed: false,
+        },
+      },
+    };
+    const stub = await openSheet(routes);
 
-    // `appointments` has no notes column. A box that accepted a note and dropped it would
-    // tell a receptionist it had been saved.
-    expect(screen.queryByLabelText(/Notes/)).not.toBeInTheDocument();
+    await choosePatient();
+    await userEvent.click(await screen.findByRole('button', { name: '09:00' }));
+    await userEvent.type(screen.getByLabelText('Notes (optional)'), 'Prefers the morning.');
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Confirm appointment' }));
+
+    await waitFor(() => {
+      const booked = stub.calls.requests.find((request) => request.method === 'POST');
+      expect(booked?.body).toMatchObject({ notes: 'Prefers the morning.' });
+    });
+  });
+
+  it('leaves the note out of the request when nothing was typed', async () => {
+    const stub = await openSheet({
+      ...baseRoutes,
+      'POST /api/v1/appointments': {
+        status: 201,
+        body: {
+          appointmentId: APPOINTMENT_ID,
+          startAt: '2026-11-16T03:30:00.000Z',
+          endAt: '2026-11-16T04:00:00.000Z',
+          replayed: false,
+        },
+      },
+    });
+
+    await choosePatient();
+    await userEvent.click(await screen.findByRole('button', { name: '09:00' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Confirm appointment' }));
+
+    await waitFor(() => {
+      const booked = stub.calls.requests.find((request) => request.method === 'POST');
+      // Absent rather than an empty string, so an untouched box is not stored as a note.
+      expect(booked?.body).not.toHaveProperty('notes');
+    });
   });
 
   it('refuses to continue without a patient, and says what is missing', async () => {

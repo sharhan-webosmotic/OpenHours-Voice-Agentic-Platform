@@ -28,6 +28,8 @@ export type AppointmentRow = {
   readonly cancelledAt: Date | null;
   readonly cancellationReason: string | null;
   readonly rescheduledFromId: string | null;
+  /** PHI. See the column's note in the schema. */
+  readonly notes: string | null;
   readonly createdAt: Date;
 };
 
@@ -43,6 +45,7 @@ const APPOINTMENT_SELECT = {
   cancelledAt: true,
   cancellationReason: true,
   rescheduledFromId: true,
+  notes: true,
   createdAt: true,
 } as const;
 
@@ -208,6 +211,7 @@ export type CreateInput = {
   readonly source: AppointmentSource;
   readonly idempotencyKey?: string;
   readonly rescheduledFromId?: string;
+  readonly notes?: string | null;
 };
 
 export const create = async (
@@ -230,6 +234,7 @@ export const create = async (
       ...(input.rescheduledFromId === undefined
         ? {}
         : { rescheduledFromId: input.rescheduledFromId }),
+      ...(input.notes === undefined ? {} : { notes: input.notes }),
     },
     select: { id: true },
   });

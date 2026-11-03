@@ -15,6 +15,7 @@ import {
 import { ConflictError, NotFoundError, ValidationError } from '../../common/errors.js';
 import { organisationInScope } from '../../common/organisation-scope.js';
 import {
+  MATCHES_NO_DOCTOR,
   maskPatientFields,
   requirePermission,
   scopeFilter,
@@ -85,6 +86,8 @@ export type AppointmentView = {
   readonly cancelledAt: string | null;
   readonly cancellationReason: string | null;
   readonly rescheduledFromId: string | null;
+  /** PHI. Null for a platform role's masked read, as the patient's name is. */
+  readonly notes: string | null;
   readonly createdAt: string;
 };
 
@@ -100,6 +103,7 @@ const toView = (row: repository.AppointmentListRow): AppointmentView => ({
   cancelledAt: row.cancelledAt?.toISOString() ?? null,
   cancellationReason: row.cancellationReason,
   rescheduledFromId: row.rescheduledFromId,
+  notes: row.notes,
   createdAt: row.createdAt.toISOString(),
 });
 
@@ -113,6 +117,12 @@ const toView = (row: repository.AppointmentListRow): AppointmentView => ({
 const maskView = (view: AppointmentView): AppointmentView => ({
   ...view,
   patient: maskPatientFields(view.patient),
+  /**
+   * The note too. It is free text a receptionist typed about a patient, which is as
+   * identifying as their name and often more so, and the masked read exists so that support
+   * can see the shape of a clinic's day without seeing who is in it.
+   */
+  notes: null,
 });
 
 const doctorScope = async (
@@ -130,9 +140,7 @@ const doctorScope = async (
   // Fail closed: a DOCTOR login with no linked doctor row sees nothing. An impossible id
   // is used rather than dropping the filter, because dropping it would widen the narrowest
   // scope in the matrix to the whole clinic.
-  return (
-    (await findDoctorIdForUser(db, organisationId, filter.doctorUserId)) ?? 'no-doctor-profile'
-  );
+  return (await findDoctorIdForUser(db, organisationId, filter.doctorUserId)) ?? MATCHES_NO_DOCTOR;
 };
 
 /**
@@ -398,13 +406,19 @@ const bookWithin = async (
       status: 'SCHEDULED',
       source: options.source,
       ...(options.idempotencyKey === undefined ? {} : { idempotencyKey: options.idempotencyKey }),
+      notes: input.notes ?? null,
     });
 
     await record(db, {
       action: 'appointment.created',
       entityType: 'appointment',
       entityId: appointmentId,
-      metadata: { source: options.source, doctorId: input.doctorId },
+      // WHETHER a note was written, never the note: it is patient data (rule 5).
+      metadata: {
+        source: options.source,
+        doctorId: input.doctorId,
+        hasNotes: (input.notes ?? null) !== null,
+      },
     });
 
     return {
@@ -523,6 +537,12 @@ const rescheduleWithin = async (
         status: existing.status,
         source: existing.source,
         rescheduledFromId: appointmentId,
+        /**
+         * The note travels with the appointment. A reschedule makes a NEW row, and a note
+         * that stayed on the cancelled one would vanish from every screen that shows the
+         * appointment, lost without anybody deleting it.
+         */
+        notes: existing.notes,
       });
     });
 

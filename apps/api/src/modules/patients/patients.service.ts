@@ -1,6 +1,7 @@
 import type { PatientInput, UpdatePatientInput } from '@clinicai/shared';
 import { NotFoundError } from '../../common/errors.js';
 import {
+  MATCHES_NO_DOCTOR,
   maskPatientFields,
   requirePermission,
   scopeFilter,
@@ -125,7 +126,7 @@ const resolveDoctorScope = async (
      * before anyone links it to a doctor row. Returning `undefined` here would drop the
      * filter and turn the narrowest scope in the matrix into the widest.
      */
-    return 'no-doctor-profile';
+    return MATCHES_NO_DOCTOR;
   }
 
   return doctorId;

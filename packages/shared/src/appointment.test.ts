@@ -90,11 +90,25 @@ describe('createAppointmentSchema', () => {
     expect(createAppointmentSchema.parse(valid).startAt).toBe('2026-11-02T03:30:00.000Z');
   });
 
-  it('has no notes field, because the column it would write to does not exist', () => {
-    // Accepting it and dropping it would lose a receptionist's note silently, which is
-    // worse than not offering the field.
-    expect(createAppointmentSchema.parse({ ...valid, notes: 'something' })).not.toHaveProperty(
-      'notes',
+  it('keeps a note, now that there is a column to keep it in', () => {
+    // This test used to assert the opposite: with no column, accepting a note and dropping
+    // it would have lost it silently. The column was added on 2026-11-03.
+    expect(createAppointmentSchema.parse({ ...valid, notes: ' Prefers mornings. ' })).toMatchObject(
+      { notes: 'Prefers mornings.' },
+    );
+  });
+
+  it('turns a blank note into no note', () => {
+    expect(createAppointmentSchema.parse({ ...valid, notes: '   ' }).notes).toBeNull();
+  });
+
+  it('books without a note when none is sent', () => {
+    expect(createAppointmentSchema.parse(valid)).not.toHaveProperty('notes');
+  });
+
+  it('refuses a note longer than the database allows', () => {
+    expect(createAppointmentSchema.safeParse({ ...valid, notes: 'x'.repeat(2001) }).success).toBe(
+      false,
     );
   });
 

@@ -99,6 +99,8 @@ export type AppointmentView = {
   readonly cancelledAt: string | null;
   readonly cancellationReason: string | null;
   readonly rescheduledFromId: string | null;
+  /** PHI: the receptionist's note. Null for a platform role's masked read. */
+  readonly notes: string | null;
   readonly createdAt: string;
 };
 
