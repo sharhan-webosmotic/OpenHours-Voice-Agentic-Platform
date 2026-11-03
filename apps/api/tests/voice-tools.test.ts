@@ -461,3 +461,34 @@ describe('the audit trail names the agent, since the actor column cannot', () =>
     expect(row?.metadata).toMatchObject({ actorSource: 'VOICE_AGENT' });
   });
 });
+
+/**
+ * A clinic that saved "two per slot" before the cap existed (review I5).
+ *
+ * The database allows one live appointment per doctor at a time, so the agent offered the
+ * second patient a time and then said it had just been taken. The stored value is written
+ * straight to the table here, because the settings form can no longer save it.
+ */
+describe('a clinic with more than one per slot stored', () => {
+  it('is never offered a time the database will refuse', async () => {
+    await asPlatform(ownerClient(), (tx) =>
+      tx.clinicBookingPolicy.update({
+        where: { organisationId: other.organisationId },
+        data: { maxPerSlot: 2 },
+      }),
+    );
+
+    const when = nextBookableLocal();
+    const booked = envelopeOf(
+      await tool('book', otherSecret).send({ phone: other.patientPhone, ...when }),
+    );
+    expect(booked.ok).toBe(true);
+
+    const offered = envelopeOf(
+      await tool('check-availability', otherSecret).send({ date: when.date }),
+    );
+    const slots = (offered.data?.['slots'] ?? []) as readonly { readonly label: string }[];
+
+    expect(slots.map((slot) => slot.label)).not.toContain(when.time);
+  });
+});

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router';
 import { Bot, Building2, CalendarClock, Clock, Stethoscope } from 'lucide-react';
 import {
   AGENT_TONES,
+  MAX_PER_SLOT_SUPPORTED,
   agentProfileSchema,
   bookingPolicySchema,
   clinicHoursSchema,
@@ -575,10 +576,10 @@ export const SettingsPage = () => {
               />
               <Field
                 label="Patients per slot"
-                hint="More than one only for a clinic that deliberately overbooks."
+                hint="One per slot. Overbooking is not available yet."
                 type="number"
                 min={1}
-                max={10}
+                max={MAX_PER_SLOT_SUPPORTED}
                 value={policy.maxPerSlot ?? ''}
                 disabled={!canWrite}
                 onChange={(event) => {

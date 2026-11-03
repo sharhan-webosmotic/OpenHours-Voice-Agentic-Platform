@@ -1,4 +1,5 @@
 import {
+  MAX_PER_SLOT_SUPPORTED,
   formatMinuteOfDay,
   weekdayOf,
   zonedParts,
@@ -34,7 +35,9 @@ import {
  *  6. Candidate starts step across each window on the granularity grid, and a slot must fit
  *     entirely inside its window: a 30-minute service cannot start 20 minutes before close.
  *  7. An existing appointment blocks a candidate, with the buffer counted on both sides.
- *  8. A clinic that deliberately overbooks allows `maxPerSlot` appointments at one start.
+ *  8. A clinic that deliberately overbooks allows `maxPerSlot` appointments at one start,
+ *     capped at MAX_PER_SLOT_SUPPORTED: the database's no-overlap constraint allows one, and
+ *     offering a time it will refuse is the failure a patient remembers (review I5).
  *
  * ─── WHAT A NULL POLICY FIELD MEANS ─────────────────────────────────────────────
  *
@@ -46,7 +49,8 @@ import {
  *   minimumNoticeMinutes    0, meaning a slot is bookable up to its start
  *   maximumAdvanceDays      the hard ceiling below, never unbounded
  *   defaultBufferMinutes    0
- *   maxPerSlot              1, which is the only safe reading of "not configured"
+ *   maxPerSlot              1, which is the only safe reading of "not configured", and
+ *                           never more than MAX_PER_SLOT_SUPPORTED whatever is stored
  */
 
 /** The furthest ahead anything may be booked, whatever the policy says. */
@@ -235,7 +239,10 @@ export const bookableSlots = (input: SlotEngineInput): AvailabilityResult => {
     MAXIMUM_ADVANCE_DAYS_CEILING,
   );
   const buffer = doctorBufferMinutes > 0 ? doctorBufferMinutes : (policy.defaultBufferMinutes ?? 0);
-  const maxPerSlot = policy.maxPerSlot !== null && policy.maxPerSlot > 0 ? policy.maxPerSlot : 1;
+  const maxPerSlot = Math.min(
+    policy.maxPerSlot !== null && policy.maxPerSlot > 0 ? policy.maxPerSlot : 1,
+    MAX_PER_SLOT_SUPPORTED,
+  );
 
   if (granularity <= 0 || serviceDurationMinutes <= 0) {
     return { slots: [], reason: 'FULLY_BOOKED' };

@@ -327,6 +327,12 @@ describe('bookingPolicySchema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  it('accepts one appointment per slot and refuses overbooking until it exists', () => {
+    // The database allows one live appointment per doctor at a time (review I5).
+    expect(bookingPolicySchema.safeParse({ ...base, maxPerSlot: 1 }).success).toBe(true);
+    expect(bookingPolicySchema.safeParse({ ...base, maxPerSlot: 2 }).success).toBe(false);
+  });
 });
 
 describe('agentProfileSchema', () => {

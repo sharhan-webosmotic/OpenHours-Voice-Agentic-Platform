@@ -56,6 +56,18 @@ export type OrganisationStatus = (typeof ORGANISATION_STATUSES)[number];
 /** Minutes from clinic-local midnight. 1440 is midnight at the end of the day. */
 export const MINUTES_IN_DAY = 1440;
 
+/**
+ * The most appointments one doctor may hold at one start time, whatever a clinic asks for.
+ *
+ * ONE, because the database allows one. `appointments_no_overlap` refuses any two live
+ * appointments for a doctor whose times overlap, so a clinic that set "two per slot" was
+ * offered a second patient at a time the database then refused: the patient heard a time and
+ * then "that time was just taken" (Feature 3 review, I5). Overbooking needs that constraint
+ * redesigned and is not built. Until it is, the settings forms, this schema and the slot
+ * engine all stop at this value, and a larger value already stored is read as this one.
+ */
+export const MAX_PER_SLOT_SUPPORTED = 1;
+
 const minuteOfDay = z
   .number()
   .int('must be a whole number of minutes')
@@ -308,8 +320,8 @@ export const bookingPolicySchema = z
     acceptsNewPatients: z.boolean().nullable(),
     /** Gap enforced after every appointment, unless a doctor overrides it. */
     defaultBufferMinutes: z.number().int().min(0).max(120).nullable(),
-    /** More than one only for clinics that deliberately overbook. */
-    maxPerSlot: z.number().int().min(1).max(10).nullable(),
+    /** Capped at MAX_PER_SLOT_SUPPORTED until overbooking exists. */
+    maxPerSlot: z.number().int().min(1).max(MAX_PER_SLOT_SUPPORTED).nullable(),
     /** What the clinic does about a no-show. Read to the caller, so it is text. */
     noShowPolicy: text(1000),
   })

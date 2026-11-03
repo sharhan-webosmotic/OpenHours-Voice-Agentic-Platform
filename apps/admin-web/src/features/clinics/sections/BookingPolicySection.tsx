@@ -1,4 +1,8 @@
-import { bookingPolicySchema, type BookingPolicyInput } from '@clinicai/shared';
+import {
+  MAX_PER_SLOT_SUPPORTED,
+  bookingPolicySchema,
+  type BookingPolicyInput,
+} from '@clinicai/shared';
 import type { ClinicDetailView } from '@clinicai/api-client';
 import { Field } from '../../../components/ui/Field';
 import { SelectField } from '../../../components/ui/Input';
@@ -128,8 +132,8 @@ export const BookingPolicySection = ({
           label="Appointments per slot"
           type="number"
           min={1}
-          max={10}
-          hint="More than one only if the clinic deliberately overbooks."
+          max={MAX_PER_SLOT_SUPPORTED}
+          hint="One per slot. Overbooking is not available yet."
           disabled={!canWrite}
           error={fieldError('maxPerSlot')}
           {...numeric('maxPerSlot')}

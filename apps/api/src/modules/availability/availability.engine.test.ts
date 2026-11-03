@@ -349,20 +349,27 @@ describe('bookableSlots, existing appointments', () => {
     expect(labels(doctorOverride).filter((label) => label < '11:15')).toEqual(['09:00', '11:00']);
   });
 
-  it('allows a second booking at the same start when the clinic overbooks', () => {
+  it('does not offer a taken start even when the stored policy asks for two per slot', () => {
+    /**
+     * The database allows one live appointment per doctor at a time, so a second patient at
+     * 09:00 would be offered the time and then refused it (review I5). A clinic that saved
+     * "two per slot" before the cap existed still has 2 stored, which is why the engine
+     * clamps rather than relying on the settings form alone.
+     */
     const taken = {
       startAt: new Date('2026-11-02T03:30:00.000Z'),
       endAt: new Date('2026-11-02T04:00:00.000Z'),
     };
 
-    const withTwoPerSlot = bookableSlots(
+    const storedTwo = bookableSlots(
       input({ policy: { ...input().policy, maxPerSlot: 2 }, appointments: [taken] }),
     );
-    const withOnePerSlot = bookableSlots(input({ appointments: [taken] }));
+    const storedTen = bookableSlots(
+      input({ policy: { ...input().policy, maxPerSlot: 10 }, appointments: [taken] }),
+    );
 
-    // 09:00 has one of its two places left.
-    expect(labels(withTwoPerSlot)).toContain('09:00');
-    expect(labels(withOnePerSlot)).not.toContain('09:00');
+    expect(labels(storedTwo)).toEqual(FULL_DAY.filter((label) => label !== '09:00'));
+    expect(labels(storedTen)).not.toContain('09:00');
   });
 
   it('does not let an overlapping appointment from elsewhere use up the allowance', () => {
