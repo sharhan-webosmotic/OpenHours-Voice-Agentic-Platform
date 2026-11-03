@@ -65,8 +65,14 @@ export const OverviewPage = () => {
        */}
       <h1 className="sr-only">Overview</h1>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_492px]">
-        <div className="flex min-w-0 flex-col gap-4">
+      {/*
+       * THE LEFT COLUMN IS A CONTAINER, and the cards inside it lay out by its width rather
+       * than by the window's. Beside the calendar on a 1440px laptop it is about 720px wide,
+       * far narrower than the window breakpoint implied, and viewport rules squeezed the
+       * activity card into one word per line.
+       */}
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_440px] 2xl:grid-cols-[minmax(0,1fr)_492px]">
+        <div className="@container flex min-w-0 flex-col gap-4">
           <div className="flex flex-wrap gap-4">
             <HeroCard
               personName={firstName(user?.fullName ?? '')}
@@ -97,12 +103,12 @@ export const OverviewPage = () => {
 
           <KpiRow overview={overview.data} range={range} />
 
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
+          <div className="grid gap-4 @4xl:grid-cols-[minmax(0,1fr)_420px]">
             <ActivityCard overview={overview.data} />
             <OutcomesCard overview={overview.data} />
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 @3xl:grid-cols-2">
             <RecentCalls timeZone={timeZone} />
             <UpcomingAppointments timeZone={timeZone} now={now} />
           </div>

@@ -77,4 +77,5 @@
   --shadow-accent-strong: var(--ca-shadow-accent-strong);
   --shadow-popover: var(--ca-shadow-popover);
   --shadow-modal: var(--ca-shadow-modal);
+  --shadow-control: var(--ca-shadow-control);
 }

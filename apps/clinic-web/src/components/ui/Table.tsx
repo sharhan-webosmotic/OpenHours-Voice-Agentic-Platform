@@ -87,7 +87,7 @@ export const Badge = ({
 }) => (
   <span
     className={cn(
-      'inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-1 font-semibold text-xs',
+      'inline-flex items-center whitespace-nowrap rounded-md px-2 py-0.5 font-semibold text-xs',
       BADGES[kind],
     )}
   >

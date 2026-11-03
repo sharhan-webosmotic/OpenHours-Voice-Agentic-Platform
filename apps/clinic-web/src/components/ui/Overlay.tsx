@@ -132,9 +132,9 @@ export const Overlay = ({
         aria-label={title}
         tabIndex={-1}
         className={cn(
-          'flex max-h-full flex-col overflow-hidden bg-surface shadow-card outline-none',
+          'flex max-h-full flex-col overflow-hidden bg-surface shadow-modal outline-none',
           variant === 'modal'
-            ? cn('w-full rounded-[22px]', size === 'wide' ? 'max-w-[760px]' : 'max-w-xl')
+            ? cn('w-full rounded-xl', size === 'wide' ? 'max-w-[760px]' : 'max-w-xl')
             : cn(
                 'h-full w-full border-border-chrome border-l',
                 // The appointment drawer's 500px is the reference's; the others keep 448.
@@ -166,7 +166,7 @@ export const Overlay = ({
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="grid size-[34px] shrink-0 place-items-center rounded-[10px] border border-border-chrome text-muted hover:bg-background"
+            className="grid size-[34px] shrink-0 place-items-center rounded-control border border-border-chrome text-muted hover:bg-background"
           >
             <X size={16} aria-hidden="true" />
           </button>

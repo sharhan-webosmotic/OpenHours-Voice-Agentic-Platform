@@ -180,11 +180,18 @@
   --ca-font-weight-semibold: 600;
   --ca-font-weight-bold: 700;
 
-  /* ---- Radius. Five steps, snapped from the prototype's seventeen. ---- */
-  --ca-radius-sm: 0.5rem; /* 8px */
-  --ca-radius-md: 0.625rem; /* 10px */
-  --ca-radius-lg: 0.75rem; /* 12px */
-  --ca-radius-xl: 1rem; /* 16px */
+  /**
+   * Radius. Five steps, snapped from the prototype's seventeen and then tightened.
+   *
+   * The prototype's 8 to 22px corners read as a consumer app: soft, bubbly and a little
+   * toy-like on a screen staff use all day for clinical records. The scale was cut to 4 to
+   * 10px at the clinic's request, which is where restrained professional tools sit. The
+   * steps keep their names, so every component moved with the token and none was edited.
+   */
+  --ca-radius-sm: 0.25rem; /* 4px */
+  --ca-radius-md: 0.375rem; /* 6px */
+  --ca-radius-lg: 0.5rem; /* 8px */
+  --ca-radius-xl: 0.625rem; /* 10px */
   --ca-radius-full: 999px;
 
   /**
@@ -195,21 +202,27 @@
    * every control and 18px on every card, and a component reading `--ca-radius-card` says
    * why it chose one.
    */
-  --ca-radius-control: 0.6875rem; /* 11px: buttons, icon buttons, the logo tile. */
-  --ca-radius-card: 1.125rem; /* 18px: every panel on the dashboard. */
+  --ca-radius-control: 0.375rem; /* 6px: buttons, icon buttons, the logo tile. */
+  --ca-radius-card: 0.625rem; /* 10px: every panel on the dashboard. */
 
-  /* ---- Elevation. The prototype's card shadow, and two it uses for overlays. ---- */
-  --ca-shadow-card: 0 8px 30px rgba(37, 55, 103, 0.06);
+  /**
+   * Elevation. Tightened with the radius: the prototype's 30px card blur and accent glow
+   * made panels float. A crisp one-pixel edge plus a short soft fall-off reads as a
+   * surface that sits on the page, which is what a card is.
+   */
+  --ca-shadow-card: 0 1px 2px rgba(23, 38, 75, 0.04), 0 2px 8px rgba(23, 38, 75, 0.04);
 
   /**
    * The lift under an accent control, which the design applies to the primary button and the
    * logo tile. It is a COLOURED shadow, tinted with the accent rather than with black, which
    * is what makes the button look lit rather than stuck on.
    */
-  --ca-shadow-accent: 0 7px 9px rgba(53, 106, 230, 0.2);
-  --ca-shadow-accent-strong: 0 8px 9px rgba(53, 106, 230, 0.25);
-  --ca-shadow-popover: 0 2px 8px rgba(30, 49, 90, 0.08);
+  --ca-shadow-accent: 0 1px 2px rgba(36, 87, 207, 0.24);
+  --ca-shadow-accent-strong: 0 1px 3px rgba(36, 87, 207, 0.3);
+  --ca-shadow-popover: 0 4px 16px rgba(23, 38, 75, 0.1), 0 1px 3px rgba(23, 38, 75, 0.06);
   --ca-shadow-modal: 0 24px 70px rgba(20, 34, 68, 0.2);
+  /** The one-pixel lift under a button, so it reads as pressable without glowing. */
+  --ca-shadow-control: 0 1px 2px rgba(23, 38, 75, 0.08);
 
   /* ---- Focus. One ring, every interactive element, no exceptions. ---- */
   --ca-focus-ring-width: 3px;

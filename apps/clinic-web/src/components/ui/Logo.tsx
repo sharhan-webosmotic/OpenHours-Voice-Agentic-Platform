@@ -5,7 +5,7 @@ import { cn } from './cn';
  *
  * ─── THE MEASUREMENTS ARE THE EXPORT'S ─────────────────────────────────────────
  *
- * A 34px tile at an 11px radius, filled with the accent and lifted by a shadow tinted with
+ * A 34px tile at the control radius, filled with the accent and lifted by a shadow tinted with
  * the accent rather than with black, then the wordmark at 19px bold with -0.5px tracking.
  * From `ClinicFlow Interactive Prototype/src/DashboardDesign.tsx`, node `1:6`.
  *

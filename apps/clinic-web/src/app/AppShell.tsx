@@ -143,7 +143,7 @@ export const AppShell = ({
               to={item.path}
               className={({ isActive }) =>
                 cn(
-                  'flex h-[46px] items-center gap-3 rounded-lg px-[13px] text-[0.9375rem] transition-colors',
+                  'flex h-10 items-center gap-3 rounded-md px-3 text-[0.9375rem] transition-colors',
                   isActive
                     ? 'bg-accent-surface font-semibold text-accent'
                     : 'font-medium text-muted hover:bg-background hover:text-default',
@@ -294,7 +294,7 @@ const PersonMenu = ({
             </div>
 
             <div className="flex flex-col items-center gap-1 px-5 pt-5 pb-5 text-center">
-              <span className="mb-2 grid size-[58px] place-items-center rounded-[14px] bg-accent-contrast font-bold text-accent text-lg">
+              <span className="mb-2 grid size-[58px] place-items-center rounded-lg bg-accent-contrast font-bold text-accent text-lg">
                 {initialsOf(personName ?? label)}
               </span>
               <span className="font-medium text-[0.9375rem] text-default">
@@ -387,7 +387,7 @@ const GlobalSearch = () => (
      */}
     <span
       aria-hidden="true"
-      className="-translate-y-1/2 absolute top-1/2 right-2.5 grid h-6 min-w-[27px] place-items-center rounded-[7px] border border-border-chrome px-1 text-subtle text-xs"
+      className="-translate-y-1/2 absolute top-1/2 right-2.5 grid h-6 min-w-[27px] place-items-center rounded-sm border border-border-chrome px-1 text-subtle text-xs"
     >
       ⌘K
     </span>

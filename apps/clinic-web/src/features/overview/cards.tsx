@@ -17,9 +17,9 @@ import { ActivityBars, Donut, RevenueBars, Sparkline, type DonutSegment } from '
  *
  * ─── THE CARD ───────────────────────────────────────────────────────────────────
  *
- * White, an 18px radius, a hairline at 90% of the chrome border, and the long soft shadow
- * the export uses everywhere: `0 8px 30px rgba(37,55,103,0.06)`. One component, so the
- * eight cards on this screen cannot drift apart.
+ * White, the card radius, a hairline at 90% of the chrome border, and the card shadow. Both
+ * were tightened from the export's 18px and long 30px blur (see tokens.css). One component,
+ * so the eight cards on this screen cannot drift apart.
  *
  * ─── EVERY NUMBER IS THE API'S ──────────────────────────────────────────────────
  *
@@ -112,7 +112,7 @@ export const PeriodSelect = ({
       onChange={(event) => {
         onChange(event.target.value as OverviewRange);
       }}
-      className="h-[33px] w-[127px] cursor-pointer appearance-none rounded-[9px] border border-border-chrome bg-surface pr-7 pl-3.5 text-muted text-xs"
+      className="h-[33px] w-[127px] cursor-pointer appearance-none rounded-control border border-border-chrome bg-surface pr-7 pl-3.5 text-muted text-xs"
     >
       {(Object.keys(RANGE_LABELS) as OverviewRange[]).map((range) => (
         <option key={range} value={range}>
@@ -186,7 +186,7 @@ export const HeroCard = ({
 
   return (
     <Panel
-      className="relative flex h-[170px] min-w-0 flex-1 flex-col overflow-hidden px-[25px] py-[23px]"
+      className="relative flex h-[170px] min-w-[300px] flex-1 flex-col overflow-hidden px-[25px] py-[23px]"
       style={{
         backgroundImage:
           'linear-gradient(155deg, rgb(255, 255, 255) 16.8%, rgb(231, 222, 255) 91.5%)',
@@ -243,7 +243,7 @@ export const HeroCard = ({
         alt=""
         width={145}
         height={133}
-        className="pointer-events-none absolute right-[38px] bottom-[-8px] hidden h-[133px] w-[145px] object-contain lg:block"
+        className="pointer-events-none absolute right-[38px] bottom-[-8px] hidden h-[133px] w-[145px] object-contain @4xl:block"
       />
     </Panel>
   );
@@ -264,7 +264,7 @@ export const RevenueCard = ({ overview }: { readonly overview: OverviewResult | 
 
   return (
     <Panel
-      className="relative h-[170px] w-[340px] shrink-0 overflow-hidden px-5 py-[19px]"
+      className="relative h-[170px] w-full shrink-0 overflow-hidden px-5 py-[19px] @2xl:w-[340px]"
       style={{
         backgroundImage:
           'linear-gradient(139deg, rgb(255, 255, 255) 28.9%, rgb(243, 240, 255) 92.3%)',
@@ -296,7 +296,7 @@ export const RevenueCard = ({ overview }: { readonly overview: OverviewResult | 
         <strong className="font-bold text-[2rem] text-default tracking-[-1.2px]">
           {overview === undefined ? '—' : formatMoney(overview.revenue.valueMinor)}
         </strong>
-        <span className="mt-2 rounded-[6px] bg-[#f0ecff] px-1.5 py-0.5 font-bold text-[#8b6ae8] text-xs">
+        <span className="mt-2 rounded-sm bg-[#f0ecff] px-1.5 py-0.5 font-bold text-[#8b6ae8] text-xs">
           ESTIMATE
         </span>
       </div>
@@ -342,7 +342,7 @@ export const KpiCard = ({
   <Panel className="relative h-[126px] overflow-hidden px-[18px] py-[17px]">
     <div className="flex items-start justify-between">
       <h3 className="m-0 font-semibold text-default text-xs">{label}</h3>
-      <span className={cn('grid size-[30px] place-items-center rounded-[10px]', TONES[tone].tile)}>
+      <span className={cn('grid size-[30px] place-items-center rounded-md', TONES[tone].tile)}>
         <Icon size={18} aria-hidden="true" className={TONES[tone].icon} />
       </span>
     </div>
@@ -451,7 +451,7 @@ export const ActivityCard = ({ overview }: { readonly overview: OverviewResult |
 
   return (
     <Panel className="min-w-0 p-5">
-      <div className="flex items-end justify-between gap-2">
+      <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-3">
         <div className="min-w-0">
           <h2 className="m-0 font-bold text-default text-md tracking-[-0.25px]">
             AI Call Activity

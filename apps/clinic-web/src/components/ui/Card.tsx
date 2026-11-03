@@ -31,8 +31,8 @@ export const Card = ({
   <div
     {...(id === undefined ? {} : { id })}
     className={cn(
-      // The dashboard reference's card: 18px, a hairline at 90% of the chrome border, and
-      // the long soft shadow. Every screen's cards share it, so none can drift.
+      // The card radius, a hairline at 90% of the chrome border, and the card shadow.
+      // Every screen's cards share it, so none can drift.
       'rounded-card border border-[rgba(233,237,245,0.9)] bg-surface shadow-card',
       padded && 'p-6',
       className,

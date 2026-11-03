@@ -67,4 +67,5 @@
   --shadow-card: var(--ca-shadow-card);
   --shadow-popover: var(--ca-shadow-popover);
   --shadow-modal: var(--ca-shadow-modal);
+  --shadow-control: var(--ca-shadow-control);
 }

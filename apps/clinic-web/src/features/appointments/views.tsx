@@ -122,7 +122,7 @@ const FreeDay = ({
 
   return (
     <div className="flex flex-col items-center px-6 py-14 text-center">
-      <span className="grid size-14 place-items-center rounded-2xl bg-accent-surface text-accent">
+      <span className="grid size-14 place-items-center rounded-xl bg-accent-surface text-accent">
         <CalendarPlus size={26} aria-hidden="true" />
       </span>
       <strong className="mt-4 font-semibold text-default text-md">

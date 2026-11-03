@@ -338,7 +338,7 @@ export const BookingForm = ({
                   setDate(event.target.value);
                   resetTime();
                 }}
-                className="h-[42px] rounded-[10px] border border-border bg-surface px-3.5 text-default text-sm"
+                className="h-[42px] rounded-control border border-border bg-surface px-3.5 text-default text-sm"
               />
             </label>
 
@@ -375,7 +375,7 @@ export const BookingForm = ({
                         setProblem(undefined);
                       }}
                       className={cn(
-                        'h-10 rounded-[10px] border font-bold text-[0.8125rem] transition-colors',
+                        'h-10 rounded-control border font-bold text-[0.8125rem] transition-colors',
                         startAt === candidate.startAt
                           ? 'border-accent bg-accent text-inverse shadow-accent'
                           : 'border-border bg-[#f6f8fc] text-accent hover:border-accent',

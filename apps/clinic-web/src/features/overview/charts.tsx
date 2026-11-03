@@ -156,14 +156,14 @@ export const ActivityBars = ({ columns }: { readonly columns: readonly ActivityC
           {columns.map((column) => (
             <div key={column.label} className="flex h-full items-end justify-center gap-1">
               <span
-                className="block rounded-t-[8px] rounded-b-[4px] bg-accent shadow-[0px_4px_8px_0px_rgba(53,106,230,0.14)]"
+                className="block rounded-t-[4px] rounded-b-[2px] bg-accent shadow-[0px_4px_8px_0px_rgba(53,106,230,0.14)]"
                 style={{
                   width: dense ? 4 : 9,
                   height: `${String((column.calls / top) * 100)}%`,
                 }}
               />
               <span
-                className="block rounded-t-[8px] rounded-b-[4px] bg-[#8b6ae8] shadow-[0px_4px_8px_0px_rgba(139,106,232,0.12)]"
+                className="block rounded-t-[4px] rounded-b-[2px] bg-[#8b6ae8] shadow-[0px_4px_8px_0px_rgba(139,106,232,0.12)]"
                 style={{
                   width: dense ? 4 : 9,
                   height: `${String((column.bookings / top) * 100)}%`,

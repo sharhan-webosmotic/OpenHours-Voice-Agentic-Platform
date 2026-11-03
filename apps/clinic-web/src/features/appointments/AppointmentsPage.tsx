@@ -253,7 +253,7 @@ export const AppointmentsPage = () => {
         <div
           role="tablist"
           aria-label="Calendar view"
-          className="flex rounded-[12px] bg-background p-1"
+          className="flex rounded-lg bg-background p-1"
         >
           {VIEWS.map((option) => (
             <button
@@ -265,7 +265,7 @@ export const AppointmentsPage = () => {
                 navigate({ view: option });
               }}
               className={cn(
-                'h-8 rounded-[9px] px-3.5 text-sm capitalize',
+                'h-8 rounded-md px-3.5 text-sm capitalize',
                 view === option
                   ? 'bg-surface font-medium text-accent shadow-popover'
                   : 'text-muted hover:text-default',

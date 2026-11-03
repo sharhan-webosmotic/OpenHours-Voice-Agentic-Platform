@@ -164,7 +164,7 @@ export const AppointmentDetail = ({
        * The reference's highlighted card: a 56px date tile in the accent, the service, the
        * clinic's date and 24-hour time, and the status, on the accent's own pale tint.
        */}
-      <div className="flex items-start gap-4 rounded-2xl bg-accent-surface p-[18px]">
+      <div className="flex items-start gap-4 rounded-card bg-accent-surface p-[18px]">
         <span
           className="flex size-14 shrink-0 flex-col items-center justify-center rounded-xl bg-accent text-inverse shadow-accent"
           aria-hidden="true"
@@ -228,7 +228,7 @@ export const AppointmentDetail = ({
         canTransition('SCHEDULED', 'CONFIRMED') && (
           <div
             className={cn(
-              'mt-5 flex items-center justify-between gap-4 rounded-xl border px-4 py-3.5',
+              'mt-5 flex items-center justify-between gap-4 rounded-lg border px-4 py-3.5',
               appointment.source === 'VOICE_AGENT'
                 ? 'border-accent/20 bg-accent-surface'
                 : 'border-warning/25 bg-warning-surface',
@@ -307,7 +307,7 @@ export const AppointmentDetail = ({
          * overlays deep and a keyboard user has to escape twice. Its two buttons are in the
          * footer, where the action that opened it was.
          */
-        <div className="mt-6 flex flex-col gap-3 rounded-xl border border-danger/30 bg-danger-surface p-4">
+        <div className="mt-6 flex flex-col gap-3 rounded-lg border border-danger/30 bg-danger-surface p-4">
           <strong className="font-semibold text-danger text-sm">Cancel this appointment?</strong>
           <p className="m-0 text-muted text-xs">
             The record stays in the patient&apos;s history and the slot becomes available again.
