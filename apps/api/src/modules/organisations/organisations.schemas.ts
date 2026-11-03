@@ -55,15 +55,17 @@ export const listQuerySchema = z.object({
 });
 
 /**
- * Saving the Sarvam mapping, with the one flag that is an action rather than a field.
+ * Saving the Sarvam mapping, with the two flags that are actions rather than fields.
  *
- * `regenerateToolSecret` is not part of the mapping, it is a decision about it, which is
- * why it lives on the request body and not in the shared mapping schema. It defaults to
- * false: re-saving an app id must never silently take a live agent off the air.
+ * Each regenerate flag is a decision about the mapping, not part of it, which is why they live
+ * on the request body and not in the shared mapping schema. Both default to false: re-saving an
+ * app id must never silently take a live agent off the air. They are separate because they
+ * break different things (see `saveSarvamMapping`).
  */
 export const sarvamMappingBodySchema = z.object({
   mapping: sarvamMappingSchema,
   regenerateToolSecret: z.boolean().default(false),
+  regenerateWebhookSecret: z.boolean().default(false),
 });
 
 const isoDate = z.string();

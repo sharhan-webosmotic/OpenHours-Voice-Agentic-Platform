@@ -601,6 +601,64 @@ const parsePermission = (
   return { resource: resource as Resource, action: action as Action };
 };
 
+/**
+ * The matrix cell each route MUST be governed by, stated by hand.
+ *
+ * NOT READ FROM THE ROUTE. This guard used to take the expected cell from each route's own
+ * `permission` field, which meant it checked the code against itself: moving services from
+ * `doctors_services_hours` to `clinic_settings` in both the route declaration and the service
+ * would have let an internal admin add services, with every case here still green. The cells
+ * below come from the specs instead: the section table in `docs/features/pilot-clinic.md` for
+ * the clinic configuration routes, and the resource each feature document names for the rest.
+ *
+ * A NEW ROUTE MUST BE ADDED HERE, by someone deciding which cell governs it. Copying the value
+ * from the route declaration defeats the point.
+ */
+const EXPECTED_CELLS: Readonly<Record<string, `${Resource}:${Action}`>> = {
+  'GET /api/v1/analytics/overview': 'analytics:read',
+  'GET /api/v1/appointments': 'appointments:read',
+  'POST /api/v1/appointments': 'appointments:write',
+  'GET /api/v1/appointments/:appointmentId': 'appointments:read',
+  'POST /api/v1/appointments/:appointmentId/cancel': 'appointments:write',
+  'POST /api/v1/appointments/:appointmentId/reschedule': 'appointments:write',
+  'POST /api/v1/appointments/:appointmentId/status': 'appointments:write',
+  'GET /api/v1/appointments/agenda': 'appointments:read',
+  'GET /api/v1/appointments/availability': 'appointments:read',
+  'GET /api/v1/audit-logs': 'audit_log:read',
+  'GET /api/v1/calls': 'call_history:read',
+  'GET /api/v1/calls/:callId': 'call_history:read',
+  'GET /api/v1/calls/:callId/recording-url': 'recordings:read',
+  'GET /api/v1/patients': 'patients:read',
+  'POST /api/v1/patients': 'patients:write',
+  'GET /api/v1/patients/:patientId': 'patients:read',
+  'PATCH /api/v1/patients/:patientId': 'patients:write',
+  'GET /api/v1/patients/summary': 'patients:read',
+  // Clinic name, time zone and status: the `organisations` row of pilot-clinic.md.
+  'GET /api/v1/organisations': 'organisations:read',
+  'POST /api/v1/organisations': 'organisations:write',
+  'GET /api/v1/organisations/:organisationId': 'organisations:read',
+  'PATCH /api/v1/organisations/:organisationId': 'organisations:write',
+  // Address, hours, policy, agent behaviour, answers, consent: `clinic_settings`.
+  'PUT /api/v1/organisations/:organisationId/profile': 'clinic_settings:write',
+  'PUT /api/v1/organisations/:organisationId/hours': 'clinic_settings:write',
+  'PUT /api/v1/organisations/:organisationId/booking-policy': 'clinic_settings:write',
+  'PUT /api/v1/organisations/:organisationId/agent-profile': 'clinic_settings:write',
+  'PUT /api/v1/organisations/:organisationId/telephony': 'clinic_settings:write',
+  'PUT /api/v1/organisations/:organisationId/faqs': 'clinic_settings:write',
+  // Services and doctors, and a doctor's working week: `doctors_services_hours`, which an
+  // internal admin may read and may not write.
+  'POST /api/v1/organisations/:organisationId/services': 'doctors_services_hours:write',
+  'PATCH /api/v1/organisations/:organisationId/services/:serviceId': 'doctors_services_hours:write',
+  'POST /api/v1/organisations/:organisationId/doctors': 'doctors_services_hours:write',
+  'PATCH /api/v1/organisations/:organisationId/doctors/:doctorId': 'doctors_services_hours:write',
+  'GET /api/v1/organisations/:organisationId/doctors/:doctorId/hours':
+    'doctors_services_hours:read',
+  'PUT /api/v1/organisations/:organisationId/doctors/:doctorId/hours':
+    'doctors_services_hours:write',
+  // The Sarvam mapping: `phone_voice_mapping`.
+  'PUT /api/v1/organisations/:organisationId/sarvam-mapping': 'phone_voice_mapping:write',
+};
+
 describe('every declared route permission is a real matrix cell and is enforced', () => {
   const declaring = getRegisteredRoutes().filter((route) => route.permission !== undefined);
 
@@ -615,6 +673,17 @@ describe('every declared route permission is a real matrix cell and is enforced'
 
     // `self:update` and `device:create` failed exactly here: neither resource exists.
     expect(invalid).toEqual([]);
+  });
+
+  it('declares exactly the cell the spec assigns each route', () => {
+    const declared = Object.fromEntries(
+      declaring.map((route) => [keyOf(route), String(route.permission)]),
+    );
+
+    // If a route is missing on the right, add it to EXPECTED_CELLS from its spec. If the two
+    // disagree, the route or the spec is wrong, and changing EXPECTED_CELLS to match the code
+    // is the one fix that is never right without a decision behind it.
+    expect(declared).toEqual(EXPECTED_CELLS);
   });
 
   it('has a recipe for every route declaring a permission', () => {
@@ -636,9 +705,13 @@ describe('every declared route permission is a real matrix cell and is enforced'
   )) {
     const key = keyOf(route);
 
-    it(`${key} enforces ${String(route.permission)} for all ${USER_ROLES.length} user roles`, async () => {
+    const expected = EXPECTED_CELLS[key] ?? 'no expected cell stated';
+
+    it(`${key} enforces ${expected} for all ${USER_ROLES.length} user roles`, async () => {
       const drive = RECIPES.get(key);
-      const cell = parsePermission(route.permission ?? '');
+      // The expected answer per role comes from the hand-stated cell and the matrix, never from
+      // the route's own declaration.
+      const cell = parsePermission(expected);
 
       expect(drive).toBeDefined();
       expect(cell).toBeDefined();
@@ -661,10 +734,11 @@ describe('every declared route permission is a real matrix cell and is enforced'
           continue;
         }
 
-        // Granted. The status may legitimately be anything that is not a refusal, so
-        // this asserts only that the permission check did not reject it.
-        if (status === 403) {
-          wrong.push(`${role} is granted "${scope}" by the matrix but got 403`);
+        // Granted. The status may legitimately be a 404 or a 409 for the data the recipe
+        // used, so this asserts that the permission check did not reject it AND that the
+        // route did not crash: a 500 says nothing about whether the role got through.
+        if (status === 403 || status >= 500) {
+          wrong.push(`${role} is granted "${scope}" by the matrix but got ${status}`);
         }
       }
 

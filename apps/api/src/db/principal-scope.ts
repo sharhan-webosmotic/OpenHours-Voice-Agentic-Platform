@@ -1,5 +1,5 @@
 import { isPlatformRole, type Role } from '@clinicai/shared';
-import { UnauthorizedError } from '../common/errors.js';
+import { NotFoundError, UnauthorizedError } from '../common/errors.js';
 import { asOrganisationSystem, asSystem, withTenant, type TenantDb } from './tenant-client.js';
 
 /**
@@ -85,4 +85,30 @@ export const withPrincipalScope = async <T>(
   }
 
   return withTenant({ organisationId: principal.organisationId }, fn);
+};
+
+/**
+ * One clinic named by the request path: the platform-organisation scope for a platform role
+ * (D-017), the caller's own tenant scope for a clinic role.
+ *
+ * It differs from `withOrganisationScope` only in what a clinic principal naming ANOTHER
+ * clinic gets. There the organisation comes from something the server derived, so a mismatch
+ * is a defect and is refused as one. Here it comes from the URL, which the caller controls, so
+ * a mismatch is an ordinary request for something they cannot see and answers 404, the same
+ * as an id that does not exist (root CLAUDE.md rule 7).
+ */
+export const withClinicScope = async <T>(
+  principal: ScopedPrincipal,
+  organisationId: string,
+  reason: string,
+  fn: (db: TenantDb) => Promise<T>,
+): Promise<T> => {
+  if (!isPlatformRole(principal.role) && principal.organisationId !== organisationId) {
+    throw new NotFoundError(
+      `organisation ${organisationId} is not reachable by this principal`,
+      'That clinic was not found.',
+    );
+  }
+
+  return withOrganisationScope(principal, organisationId, reason, fn);
 };

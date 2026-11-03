@@ -22,11 +22,11 @@ import { ConflictError, NotFoundError } from '../../common/errors.js';
 import { uuidV7 } from '../../common/uuid.js';
 import { generateOpaqueToken, hashToken } from '../../common/tokens.js';
 import { requirePermission, type Principal } from '../../common/permissions.js';
-import { withPrincipalScope } from '../../db/principal-scope.js';
+import { withClinicScope, withPrincipalScope } from '../../db/principal-scope.js';
 import type { TenantDb } from '../../db/tenant-client.js';
 import { logger } from '../../common/logger.js';
 import { record } from '../audit/audit.service.js';
-import { DEFAULT_PROMPT_VERSION, findPromptVersion } from '../../voice/prompts/registry.js';
+import { findPromptVersion } from '../../voice/prompts/registry.js';
 import * as repository from './organisations.repository.js';
 
 /**
@@ -116,6 +116,33 @@ const reachableOrganisation = async (
   return organisation;
 };
 
+/** A clinic name is unique platform-wide, case-insensitively (prisma/sql 003). */
+const duplicateClinicName = (target: string): ConflictError =>
+  new ConflictError(
+    `organisation name violated a unique constraint: ${target}`,
+    'A clinic with that name already exists. Search for it in the clinic list, or choose a different name.',
+  );
+
+const duplicateServiceName = (): ConflictError =>
+  new ConflictError(
+    'service name already exists in this organisation',
+    'A service with that name already exists at this clinic.',
+  );
+
+/**
+ * The agent number and the clinic's own line must be two different numbers.
+ *
+ * Patients dial the agent number to reach the AI receptionist, and the clinic line is the
+ * number the agent gives a caller who needs a person. One number cannot be both, and storing it
+ * as both used to re-label the existing row, which silently deleted whichever number was saved
+ * first.
+ */
+const sameNumberForAgentAndClinic = (): ConflictError =>
+  new ConflictError(
+    'agent number equals the clinic line',
+    "The agent number and the clinic's own phone number must be different. Patients dial the agent number to reach the AI receptionist, and the clinic number is the one the agent gives callers who need a person.",
+  );
+
 export const readinessFor = (configuration: repository.ClinicConfiguration): ClinicReadiness =>
   clinicReadiness({
     name: configuration.organisation.name,
@@ -186,7 +213,7 @@ export const getClinic = async (
 ): Promise<ClinicDetail> => {
   requirePermission('organisations', 'read', principal);
 
-  return withPrincipalScope(principal, 'organisations.read', async (db) => {
+  return withClinicScope(principal, organisationId, 'organisations.read', async (db) => {
     const configuration = await repository.findClinicConfiguration(db, organisationId);
 
     if (configuration === null) {
@@ -214,10 +241,15 @@ export type CreatedOrganisation = {
  *
  * NO `Idempotency-Key`. Root CLAUDE.md rule 8 requires one on every create the voice agent
  * can reach, and this is not one: it is an internal console action taken by a named human.
- * What protects it against a double submit is the unique index on the clinic's phone number
- * (prisma/sql 003), which turns the second request into a 409 naming the collision rather
- * than a second half-configured clinic. The console disabling its button while the request
- * is in flight is a courtesy on top of that, not the control.
+ * What protects it against a double submit is the unique index on the clinic's name,
+ * case-insensitively (prisma/sql 003), which turns the second request into a 409 rather than
+ * a second half-configured clinic. The console disabling its button while the request is in
+ * flight is a courtesy on top of that, not the control.
+ *
+ * NO PROMPT VERSION IS RECORDED HERE. The stored version is the record of what an operator
+ * pasted into Sarvam (D-014), and at create nothing has been pasted. Stamping the default
+ * made the readiness item "which master prompt version is loaded in Sarvam" true before
+ * anybody had opened Sarvam. The renderer still renders the default for a clinic with none.
  */
 export const createOrganisation = async (
   principal: Principal,
@@ -234,21 +266,13 @@ export const createOrganisation = async (
         name: input.name,
         timezone: input.timezone,
         clinicPhone: input.clinicPhone,
-        promptVersion: DEFAULT_PROMPT_VERSION,
       });
     } catch (error) {
       const target = repository.uniqueViolationTarget(error);
 
       if (target !== undefined) {
-        /**
-         * Almost always the clinic phone number, which is the double-submit guard doing
-         * its job. Reported as a conflict naming the field rather than the index, because
-         * the person reading it is configuring a clinic, not debugging a schema.
-         */
-        throw new ConflictError(
-          `organisation create violated a unique constraint: ${target}`,
-          'A clinic with that phone number already exists. Search for it in the list before creating another.',
-        );
+        // The clinic name, which is the double-submit guard doing its job.
+        throw duplicateClinicName(target);
       }
 
       throw error;
@@ -261,10 +285,7 @@ export const createOrganisation = async (
       entityId: organisationId,
       // Field names and the prompt version, never the clinic's phone number: an audit row
       // carries ids and the names of what changed.
-      metadata: {
-        fields: ['name', 'timezone', 'clinicPhone'],
-        promptVersion: DEFAULT_PROMPT_VERSION,
-      },
+      metadata: { fields: ['name', 'timezone', 'clinicPhone'] },
     });
 
     logger.info({ organisationId }, 'clinic created');
@@ -280,14 +301,22 @@ export const updateOrganisation = async (
 ): Promise<void> => {
   requirePermission('organisations', 'write', principal);
 
-  await withPrincipalScope(principal, 'organisations.update', async (db) => {
+  await withClinicScope(principal, organisationId, 'organisations.update', async (db) => {
     await reachableOrganisation(db, organisationId);
 
-    await repository.updateOrganisation(db, organisationId, {
-      ...(input.name === undefined ? {} : { name: input.name }),
-      ...(input.timezone === undefined ? {} : { timezone: input.timezone }),
-      ...(input.status === undefined ? {} : { status: input.status }),
-    });
+    try {
+      await repository.updateOrganisation(db, organisationId, {
+        ...(input.name === undefined ? {} : { name: input.name }),
+        ...(input.timezone === undefined ? {} : { timezone: input.timezone }),
+        ...(input.status === undefined ? {} : { status: input.status }),
+      });
+    } catch (error) {
+      const target = repository.uniqueViolationTarget(error);
+      if (target !== undefined) {
+        throw duplicateClinicName(target);
+      }
+      throw error;
+    }
 
     await record(db, {
       organisationId,
@@ -319,7 +348,7 @@ const writeSection = async <T>(
 ): Promise<T> => {
   requirePermission(section.resource, 'write', principal);
 
-  return withPrincipalScope(principal, section.auditAction, async (db) => {
+  return withClinicScope(principal, organisationId, section.auditAction, async (db) => {
     await reachableOrganisation(db, organisationId);
 
     const result = await section.apply(db);
@@ -356,6 +385,10 @@ export const updateClinicProfile = async (
        * nobody notices until a call is forwarded to the wrong place.
        */
       if (input.contactPhone !== null) {
+        const agentPhone = await repository.findAgentNumber(db, organisationId);
+        if (agentPhone === input.contactPhone) {
+          throw sameNumberForAgentAndClinic();
+        }
         await repository.setClinicLine(db, organisationId, input.contactPhone);
       }
     },
@@ -470,10 +503,7 @@ export const createService = async (
         return await repository.createService(db, organisationId, input);
       } catch (error) {
         if (repository.uniqueViolationTarget(error) !== undefined) {
-          throw new ConflictError(
-            'service name already exists in this organisation',
-            'A service with that name already exists at this clinic.',
-          );
+          throw duplicateServiceName();
         }
         throw error;
       }
@@ -494,7 +524,15 @@ export const updateService = async (
     auditAction: 'service.updated',
     changedFields: Object.keys(input),
     apply: async (db) => {
-      const updated = await repository.updateService(db, organisationId, serviceId, input);
+      let updated: boolean;
+      try {
+        updated = await repository.updateService(db, organisationId, serviceId, input);
+      } catch (error) {
+        if (repository.uniqueViolationTarget(error) !== undefined) {
+          throw duplicateServiceName();
+        }
+        throw error;
+      }
 
       if (!updated) {
         // Unknown id and another clinic's id are the same answer, by rule 7.
@@ -584,7 +622,7 @@ export const getDoctorHours = async (
 ): Promise<WeekView> => {
   requirePermission('doctors_services_hours', 'read', principal);
 
-  return withPrincipalScope(principal, 'doctors_services_hours.read', async (db) => {
+  return withClinicScope(principal, organisationId, 'doctors_services_hours.read', async (db) => {
     await reachableOrganisation(db, organisationId);
     const rows = await repository.findDoctorHours(db, organisationId, doctorId);
 
@@ -637,24 +675,35 @@ export type SarvamMappingSaved = {
 };
 
 /**
- * Saves the hand-entered Sarvam mapping, minting the per-clinic tool secret the first time.
+ * Saves the hand-entered Sarvam mapping, minting each per-clinic secret the first time.
  *
- * THE SECRET IS OURS TO GENERATE, not the operator's to supply. A secret typed in by a
- * person arrives by whatever channel they chose and is as strong as they felt like making
- * it, and this secret is the entire authentication for the tool endpoints the agent calls
- * (D-004). So it is generated from the CSPRNG, shown once, stored as a hash, and never
+ * THE SECRETS ARE OURS TO GENERATE, not the operator's to supply. A secret typed in by a
+ * person arrives by whatever channel they chose and is as strong as they felt like making it,
+ * and these are the entire authentication for the tool endpoints and the webhook (D-004,
+ * D-006). So each is generated from the CSPRNG, shown once, stored as a hash, and never
  * returned again by any endpoint.
  *
- * REGENERATION IS EXPLICIT. Passing `regenerateToolSecret` mints a new one and invalidates
- * the old, which breaks the live agent until the new value is pasted into Sarvam. That is
- * why it is a separate flag rather than something an ordinary save does: re-saving the app
- * id must not silently take a clinic's agent off the air.
+ * TWO SECRETS, EACH ON ITS OWN CONDITION. They travel differently: the tool secret is a bearer
+ * header on the tool endpoints, and the webhook secret is a path segment in the webhook URL,
+ * where proxies and access logs can see it. They also break different things when replaced. A
+ * new tool secret stops the agent's tool calls (checking availability, booking). A new webhook
+ * secret stops call events arriving, so calls vanish from the history. Each is minted when it
+ * does not exist yet or when its own regenerate flag is set, and never because the other one
+ * was. Minting them together used to mean that regenerating the tool secret silently replaced
+ * the webhook secret as well, and that a clinic mapped before the webhook secret existed could
+ * only get one by taking its live agent off the air.
+ *
+ * REGENERATION IS EXPLICIT. An ordinary save, such as re-saving the app id, never replaces a
+ * secret that exists.
  */
 export const saveSarvamMapping = async (
   principal: Principal,
   organisationId: string,
   input: SarvamMappingInput,
-  options: { readonly regenerateToolSecret?: boolean } = {},
+  options: {
+    readonly regenerateToolSecret?: boolean;
+    readonly regenerateWebhookSecret?: boolean;
+  } = {},
 ): Promise<SarvamMappingSaved> => {
   requirePermission('phone_voice_mapping', 'write', principal);
 
@@ -665,28 +714,25 @@ export const saveSarvamMapping = async (
     );
   }
 
-  return withPrincipalScope(principal, 'phone_voice_mapping.update', async (db) => {
+  return withClinicScope(principal, organisationId, 'phone_voice_mapping.update', async (db) => {
     await reachableOrganisation(db, organisationId);
 
-    const existing = await repository.findClinicConfiguration(db, organisationId);
-    const alreadyHasSecret = existing?.sarvamMapping?.toolSecretSet === true;
-    const mintSecret = options.regenerateToolSecret === true || !alreadyHasSecret;
+    const existing = await repository.findSecretState(db, organisationId);
+    const toolSecret =
+      options.regenerateToolSecret === true || !existing.toolSecretSet
+        ? generateOpaqueToken()
+        : undefined;
+    const webhookSecret =
+      options.regenerateWebhookSecret === true || !existing.webhookSecretSet
+        ? generateOpaqueToken()
+        : undefined;
 
-    const toolSecret = mintSecret ? generateOpaqueToken() : undefined;
-
-    /**
-     * The WEBHOOK secret is minted on the same rules and shown in the same breath.
-     *
-     * Two secrets rather than one, because they travel differently: this one is a path
-     * segment in the URL pasted into Sarvam's `webhook_config` (D-006), where proxies and
-     * access logs can see it, and the other is a bearer header. One value for both would
-     * mean a leaked access log handed somebody the credential for the tool endpoints too.
-     *
-     * They are minted TOGETHER because the clinic is configured in one sitting: a webhook
-     * URL that had to be requested separately is a step somebody forgets, and the symptom
-     * is a clinic whose calls are never recorded while its agent answers normally.
-     */
-    const webhookSecret = mintSecret ? generateOpaqueToken() : undefined;
+    // The numbers as they will be after this save, whichever of them it changes.
+    const agentNumber = input.agentPhone ?? (await repository.findAgentNumber(db, organisationId));
+    const clinicLine = input.clinicPhone ?? (await repository.findClinicLine(db, organisationId));
+    if (agentNumber !== null && agentNumber === clinicLine) {
+      throw sameNumberForAgentAndClinic();
+    }
 
     try {
       await repository.updateSarvamMapping(db, organisationId, {
@@ -744,12 +790,19 @@ export const saveSarvamMapping = async (
           .filter((key) => input[key as keyof SarvamMappingInput] !== null)
           .sort(),
         toolSecretIssued: toolSecret !== undefined,
-        toolSecretRegenerated: options.regenerateToolSecret === true && alreadyHasSecret,
+        toolSecretRegenerated: options.regenerateToolSecret === true && existing.toolSecretSet,
+        webhookSecretIssued: webhookSecret !== undefined,
+        webhookSecretRegenerated:
+          options.regenerateWebhookSecret === true && existing.webhookSecretSet,
       },
     });
 
     logger.info(
-      { organisationId, toolSecretIssued: toolSecret !== undefined },
+      {
+        organisationId,
+        toolSecretIssued: toolSecret !== undefined,
+        webhookSecretIssued: webhookSecret !== undefined,
+      },
       'sarvam mapping saved',
     );
 

@@ -58,7 +58,7 @@ export const CONFIRMATION_PHRASE = 'i-am-bootstrapping-the-first-super-admin';
  * A 64-bit key for `pg_advisory_xact_lock`, derived from the purpose rather than random,
  * so two concurrent runs pick the same one.
  */
-const BOOTSTRAP_LOCK_KEY = 4_815_162_342n;
+export const BOOTSTRAP_LOCK_KEY = 4_815_162_342n;
 
 export class BootstrapRefused extends Error {
   constructor(message: string) {
@@ -196,25 +196,42 @@ export const bootstrapSuperAdmin = async (
   return { userId, email, fullName, password };
 };
 
-const main = async (): Promise<void> => {
-  const connectionString = process.env.DATABASE_URL;
+export type CommandOutput = {
+  /** Where the result goes, including the password, which is shown here exactly once. */
+  readonly out: (line: string) => void;
+  /** Where refusals go, so stdout carries nothing but the result. */
+  readonly err: (line: string) => void;
+};
+
+/**
+ * The command, as a function of its arguments and environment, returning the exit code.
+ *
+ * Separated from the process so a test can drive the real argument handling and the real
+ * printing, which is the part an operator actually sees, rather than only the function
+ * underneath. It never calls `process.exit` and never reads `process.env` itself.
+ */
+export const runBootstrapCommand = async (
+  args: readonly string[],
+  env: Readonly<Record<string, string | undefined>>,
+  output: CommandOutput,
+): Promise<number> => {
+  const connectionString = env.DATABASE_URL;
 
   if (connectionString === undefined || connectionString === '') {
-    throw new Error('DATABASE_URL must be set to bootstrap a super admin');
+    output.err('DATABASE_URL must be set to bootstrap a super admin');
+    return 1;
   }
 
-  const email = process.argv[2];
-  const fullName = process.argv[3];
+  const [email, fullName] = args;
 
   if (email === undefined || fullName === undefined) {
-    out('Usage: pnpm bootstrap:super-admin <email> "<full name>"');
-    out('');
-    out(`Requires BOOTSTRAP_SUPER_ADMIN_CONFIRM=${CONFIRMATION_PHRASE}`);
-    out('');
-    out('This writes a real administrator to the database DATABASE_URL points at,');
-    out('including production. See docs/features/pilot-clinic.md before running it.');
-    process.exit(1);
-    return;
+    output.err('Usage: pnpm bootstrap:super-admin <email> "<full name>"');
+    output.err('');
+    output.err(`Requires BOOTSTRAP_SUPER_ADMIN_CONFIRM=${CONFIRMATION_PHRASE}`);
+    output.err('');
+    output.err('This writes a real administrator to the database DATABASE_URL points at,');
+    output.err('including production. See docs/features/pilot-clinic.md before running it.');
+    return 1;
   }
 
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
@@ -224,29 +241,36 @@ const main = async (): Promise<void> => {
     created = await bootstrapSuperAdmin(prisma, {
       email,
       fullName,
-      confirmation: process.env.BOOTSTRAP_SUPER_ADMIN_CONFIRM,
+      confirmation: env.BOOTSTRAP_SUPER_ADMIN_CONFIRM,
     });
+  } catch (error) {
+    if (error instanceof BootstrapRefused) {
+      output.err(`Refused: ${error.message}`);
+      return 1;
+    }
+    throw error;
   } finally {
     await prisma.$disconnect();
   }
 
-  out('');
-  out('Bootstrapped the first SUPER_ADMIN.');
-  out('');
-  out(`  User id:  ${created.userId}`);
-  out(`  Email:    ${created.email}`);
-  out(`  Name:     ${created.fullName}`);
-  out(`  Password: ${created.password}`);
-  out('');
-  out('THE PASSWORD IS SHOWN ONCE. It is stored only as an argon2 hash, so a lost one');
-  out('cannot be recovered: the account would have to be removed in SQL and this command');
-  out('run again. It must be changed at first sign-in before the account can reach any');
-  out('other endpoint.');
-  out('');
-  out('Sign in at the admin console. Do not paste this password into a chat, a ticket or');
-  out('a password manager shared with anyone else: hand it over out of band and let the');
-  out('first sign-in replace it.');
-  out('');
+  output.out('');
+  output.out('Bootstrapped the first SUPER_ADMIN.');
+  output.out('');
+  output.out(`  User id:  ${created.userId}`);
+  output.out(`  Email:    ${created.email}`);
+  output.out(`  Name:     ${created.fullName}`);
+  output.out(`  Password: ${created.password}`);
+  output.out('');
+  output.out('THE PASSWORD IS SHOWN ONCE. It is stored only as an argon2 hash, so a lost one');
+  output.out('cannot be recovered: the account would have to be removed in SQL and this command');
+  output.out('run again. It must be changed at first sign-in before the account can reach any');
+  output.out('other endpoint.');
+  output.out('');
+  output.out('Sign in at the admin console. Do not paste this password into a chat, a ticket or');
+  output.out('a password manager shared with anyone else: hand it over out of band and let the');
+  output.out('first sign-in replace it.');
+  output.out('');
+  return 0;
 };
 
 /**
@@ -254,5 +278,10 @@ const main = async (): Promise<void> => {
  * this script connecting to a database and printing credentials as an import side effect.
  */
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  await main();
+  process.exitCode = await runBootstrapCommand(process.argv.slice(2), process.env, {
+    out,
+    err: (line) => {
+      process.stderr.write(`${line}\n`);
+    },
+  });
 }

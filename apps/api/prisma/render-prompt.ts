@@ -47,6 +47,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type Resolved = { readonly organisationId: string; readonly note?: string };
 
+/** An argument that names no clinic, or more than one: the operator's to correct. */
+class CannotResolve extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CannotResolve';
+  }
+}
+
 /**
  * Resolves the argument to exactly one organisation, or explains why it cannot.
  *
@@ -69,7 +77,7 @@ const resolveOrganisation = async (argument: string): Promise<Resolved> => {
   );
 
   if (matches.length > 1) {
-    throw new Error(
+    throw new CannotResolve(
       `"${argument}" matches ${String(matches.length)} clinics. Pass the organisation id instead:\n` +
         matches.map((match) => `  ${match.id}  ${match.name}`).join('\n'),
     );
@@ -78,7 +86,7 @@ const resolveOrganisation = async (argument: string): Promise<Resolved> => {
   const only = matches[0];
 
   if (only === undefined) {
-    throw new Error(`no clinic matches "${argument}"`);
+    throw new CannotResolve(`no clinic matches "${argument}"`);
   }
 
   return {
@@ -87,8 +95,25 @@ const resolveOrganisation = async (argument: string): Promise<Resolved> => {
   };
 };
 
-const main = async (): Promise<void> => {
-  const argument = process.argv[2];
+export type CommandOutput = {
+  /** The prompt, and nothing else, so it can be redirected into a file. */
+  readonly out: (line: string) => void;
+  /** Every warning and refusal. */
+  readonly err: (line: string) => void;
+};
+
+/**
+ * The command, as a function of its argument, returning the exit code.
+ *
+ * Separated from the process so a test can drive the real resolution, the warnings and the
+ * stdout and stderr split. It neither exits the process nor closes the database connection:
+ * the wrapper at the bottom does both, and a test shares the connection with everything else.
+ */
+export const runRenderPromptCommand = async (
+  argument: string | undefined,
+  output: CommandOutput,
+): Promise<number> => {
+  const { out, err: warn } = output;
 
   if (argument === undefined) {
     warn('Usage: pnpm prompt:render <organisation-id | part of the clinic name>');
@@ -96,56 +121,66 @@ const main = async (): Promise<void> => {
     warn('Writes the rendered master prompt to stdout. Redirect it to a file or paste it');
     warn('into the Sarvam console. See docs/features/pilot-clinic.md for the order of the');
     warn('manual Sarvam steps.');
-    process.exit(1);
-    return;
+    return 1;
   }
 
+  let resolved: Resolved;
   try {
-    const resolved = await resolveOrganisation(argument);
-
-    if (resolved.note !== undefined) {
-      warn(resolved.note);
+    resolved = await resolveOrganisation(argument);
+  } catch (error) {
+    if (error instanceof CannotResolve) {
+      warn(error.message);
+      return 1;
     }
-
-    const configuration = await asSystem('prompt.render', (db) =>
-      findClinicConfiguration(db, resolved.organisationId),
-    );
-
-    if (configuration === null) {
-      throw new Error(`no clinic with id ${resolved.organisationId}`);
-    }
-
-    const readiness = readinessFor(configuration);
-    const rendered = renderClinicPrompt(configuration, readiness, DEFAULT_PROMPT_VERSION);
-
-    if (!rendered.approved) {
-      warn('');
-      warn(`WARNING: master prompt version ${rendered.version} is a PLACEHOLDER.`);
-      warn('Its wording has not been approved for use with real callers. What is being');
-      warn('exercised here is the template, the substitutions and this command, not the words.');
-    }
-
-    if (!readiness.ready) {
-      warn('');
-      warn(
-        `WARNING: this clinic is not ready to go live. ${String(readiness.satisfiedCount)} of ` +
-          `${String(readiness.totalCount)} requirements are met. Still missing:`,
-      );
-      for (const requirement of readiness.missing) {
-        warn(`  - [${requirement.section}] ${requirement.label}`);
-      }
-      warn('');
-      warn('The prompt below is rendered anyway, because a partly configured clinic is worth');
-      warn('inspecting. Do not put it in front of real callers in this state.');
-    }
-
-    warn('');
-    out(rendered.text);
-  } finally {
-    await disconnectDatabase();
+    throw error;
   }
+
+  if (resolved.note !== undefined) {
+    warn(resolved.note);
+  }
+
+  const configuration = await asSystem('prompt.render', (db) =>
+    findClinicConfiguration(db, resolved.organisationId),
+  );
+
+  if (configuration === null) {
+    warn(`no clinic with id ${resolved.organisationId}`);
+    return 1;
+  }
+
+  const readiness = readinessFor(configuration);
+  const rendered = renderClinicPrompt(configuration, readiness, DEFAULT_PROMPT_VERSION);
+
+  if (!rendered.approved) {
+    warn('');
+    warn(`WARNING: master prompt version ${rendered.version} is a PLACEHOLDER.`);
+    warn('Its wording has not been approved for use with real callers. What is being');
+    warn('exercised here is the template, the substitutions and this command, not the words.');
+  }
+
+  if (!readiness.ready) {
+    warn('');
+    warn(
+      `WARNING: this clinic is not ready to go live. ${String(readiness.satisfiedCount)} of ` +
+        `${String(readiness.totalCount)} requirements are met. Still missing:`,
+    );
+    for (const requirement of readiness.missing) {
+      warn(`  - [${requirement.section}] ${requirement.label}`);
+    }
+    warn('');
+    warn('The prompt below is rendered anyway, because a partly configured clinic is worth');
+    warn('inspecting. Do not put it in front of real callers in this state.');
+  }
+
+  warn('');
+  out(rendered.text);
+  return 0;
 };
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  await main();
+  try {
+    process.exitCode = await runRenderPromptCommand(process.argv[2], { out, err: warn });
+  } finally {
+    await disconnectDatabase();
+  }
 }

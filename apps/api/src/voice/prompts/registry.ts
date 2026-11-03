@@ -87,14 +87,27 @@ export class UnknownPromptVersion extends Error {
   }
 }
 
+const PLACEHOLDER = /\{\{(\w+)\}\}/g;
+
+/** A template line holding nothing but one placeholder, with its line break. */
+const PLACEHOLDER_LINE = /^\{\{(\w+)\}\}\n/gm;
+
+const isPlaceholder = (name: string): name is PromptPlaceholder =>
+  (PROMPT_PLACEHOLDERS as readonly string[]).includes(name);
+
 /**
  * Substitutes the values into the template.
  *
- * REFUSES ON AN UNFILLED PLACEHOLDER rather than rendering `{{greeting}}` into text
- * somebody is about to paste into a provider console. A prompt with a visible placeholder
- * is a prompt an agent will read out, and the failure is silent at exactly the moment it
- * matters. The check runs after substitution so it catches both a value the renderer forgot
- * and a placeholder the template invented.
+ * CLINIC TEXT IS INERT. The values are typed by people at a clinic and the output becomes the
+ * agent's instructions, so a value that could change the template would be prompt injection
+ * through a settings form. The template is scanned ONCE and each placeholder is replaced by a
+ * function, which means a value is never scanned again (`{{doctors}}` in a greeting stays as
+ * those characters) and `$'`, `$&` and `` $` `` have no special meaning (a string replacement
+ * expands them into the surrounding template). Nothing after substitution looks at the output:
+ * every rule below is checked against the template and the values separately.
+ *
+ * REFUSES ON A PLACEHOLDER THE TEMPLATE INVENTED rather than rendering `{{greeting}}` into
+ * text somebody is about to paste into a provider console, where the agent would read it out.
  */
 export const renderPromptTemplate = (version: string, values: PromptValues): string => {
   const entry = findPromptVersion(version);
@@ -103,14 +116,23 @@ export const renderPromptTemplate = (version: string, values: PromptValues): str
     throw new UnknownPromptVersion(version);
   }
 
+  const unknown = [...entry.template.matchAll(PLACEHOLDER)]
+    .map((match) => match[1] ?? '')
+    .filter((name) => !isPlaceholder(name));
+
+  if (unknown.length > 0) {
+    throw new Error(
+      `master prompt ${version} uses placeholders that are not in PROMPT_PLACEHOLDERS: ` +
+        `${[...new Set(unknown)].join(', ')}.`,
+    );
+  }
+
   /**
    * Every value is checked to be a string BEFORE substitution.
    *
-   * Without this, a missing value substitutes as the literal text "undefined", because
-   * `replaceAll` stringifies its replacement. That is worse than a visible `{{greeting}}`:
-   * a placeholder looks like a bug to whoever is pasting the prompt, and "undefined" looks
-   * like a deliberate instruction. The leftover check below cannot catch it either, since
-   * the placeholder is gone.
+   * Without this, a missing value substitutes as the literal text "undefined". That is worse
+   * than a visible `{{greeting}}`: a placeholder looks like a bug to whoever is pasting the
+   * prompt, and "undefined" looks like a deliberate instruction.
    */
   const missing = PROMPT_PLACEHOLDERS.filter(
     (placeholder) => typeof values[placeholder] !== 'string',
@@ -123,29 +145,19 @@ export const renderPromptTemplate = (version: string, values: PromptValues): str
     );
   }
 
-  const substituted = PROMPT_PLACEHOLDERS.reduce(
-    (text, placeholder) => text.replaceAll(`{{${placeholder}}}`, values[placeholder]),
-    entry.template,
+  /**
+   * A placeholder that sits alone on its line and renders empty, such as the map link when a
+   * clinic has none, takes its line with it rather than leaving a blank one.
+   *
+   * Done on the TEMPLATE, before substitution, so it can never touch what a clinic wrote. The
+   * earlier version collapsed runs of newlines across the whole output, which also rewrote any
+   * clinic text that happened to contain blank lines.
+   */
+  const template = entry.template.replace(PLACEHOLDER_LINE, (line, name: string) =>
+    isPlaceholder(name) && values[name] === '' ? '' : line,
   );
 
-  const leftover = [...substituted.matchAll(/\{\{(\w+)\}\}/g)].map((match) => match[1]);
-
-  if (leftover.length > 0) {
-    throw new Error(
-      `master prompt ${version} still contains unfilled placeholders after rendering: ` +
-        `${[...new Set(leftover)].join(', ')}. Either the template uses a placeholder that ` +
-        'is not in PROMPT_PLACEHOLDERS, or the renderer did not supply a value for one.',
-    );
-  }
-
-  /**
-   * Collapse the blank lines a deliberately empty value leaves behind.
-   *
-   * A placeholder that renders as an empty string, such as the map link when a clinic has
-   * none, leaves its whole line blank and the template's own blank line beside it, so the
-   * output grows a run of three or more newlines. This is cosmetic rather than dangerous,
-   * which is exactly why it would never get fixed later: somebody pastes the prompt into a
-   * provider console and nobody wants to tidy a text file by hand.
-   */
-  return substituted.replace(/\n{3,}/g, '\n\n');
+  return template.replace(PLACEHOLDER, (_match, name: string) =>
+    isPlaceholder(name) ? values[name] : '',
+  );
 };

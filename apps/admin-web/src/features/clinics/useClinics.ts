@@ -4,6 +4,7 @@ import type {
   ClinicDetailView,
   ClinicListFilters,
   OrganisationPage,
+  SarvamSecretRegeneration,
   SavedSarvamMapping,
 } from '@clinicai/api-client';
 import type { CreateOrganisationInput } from '@clinicai/shared';
@@ -179,7 +180,7 @@ export const useSaveSarvamMapping = (organisationId: string) => {
   const inner = useSaveSection<
     {
       readonly mapping: Parameters<typeof clinicsApi.saveSarvamMapping>[1];
-      readonly regenerate: boolean;
+      readonly regenerate: SarvamSecretRegeneration;
     },
     SavedSarvamMapping
   >(organisationId, (id, { mapping, regenerate }) =>

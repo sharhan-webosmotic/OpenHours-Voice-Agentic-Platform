@@ -4,6 +4,7 @@ import { ForbiddenError, UnauthorizedError } from './errors.js';
 import { runWithContext } from './request-context.js';
 import {
   MASKED_PATIENT_FIELDS,
+  currentOrganisationId,
   currentPrincipal,
   maskPatientFields,
   requirePermission,
@@ -52,6 +53,46 @@ describe('currentPrincipal', () => {
         expect((error as UnauthorizedError).detail).toBe('Authentication is required.');
       }
     });
+  });
+});
+
+describe('a request with nobody authenticated', () => {
+  /**
+   * A route that forgot `requireAuth` reaches these with no user in the context. Both must
+   * refuse as 401 rather than return an empty principal or organisation that a later query
+   * would treat as "no filter".
+   */
+  it('refuses to produce a principal when no user is in the context', () => {
+    runWithContext({ requestId: 'req-1' }, () => {
+      expect(() => currentPrincipal()).toThrow(UnauthorizedError);
+    });
+  });
+
+  it('refuses to produce a principal when there is no request context at all', () => {
+    expect(() => currentPrincipal()).toThrow(UnauthorizedError);
+  });
+});
+
+describe('currentOrganisationId', () => {
+  it('reads the organisation from the verified context', () => {
+    runWithContext(
+      { requestId: 'req-1', userId: 'usr-1', role: 'STAFF', organisationId: 'org-7' },
+      () => {
+        expect(currentOrganisationId()).toBe('org-7');
+      },
+    );
+  });
+
+  it('refuses a principal without an organisation instead of returning nothing', () => {
+    // A platform role has no organisation. A tenant route that reached this for one would
+    // otherwise create a row naming no clinic.
+    runWithContext({ requestId: 'req-1', userId: 'usr-1', role: 'SUPER_ADMIN' }, () => {
+      expect(() => currentOrganisationId()).toThrow(UnauthorizedError);
+    });
+  });
+
+  it('refuses outside any request', () => {
+    expect(() => currentOrganisationId()).toThrow(UnauthorizedError);
   });
 });
 

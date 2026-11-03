@@ -169,7 +169,7 @@ registerRoute({
 registerRoute({
   method: 'put',
   path: `${BASE}/:organisationId/sarvam-mapping`,
-  summary: 'Save the hand-entered Sarvam mapping, minting the per-clinic tool secret once',
+  summary: 'Save the hand-entered Sarvam mapping, minting each per-clinic secret once',
   params: schemas.organisationParamsSchema,
   body: schemas.sarvamMappingBodySchema,
   response: schemas.savedSarvamMappingResponseSchema,
@@ -399,17 +399,24 @@ export const organisationsRouter = (): Router => {
       const { body } = validatedData<
         OrganisationParams,
         unknown,
-        { mapping: SarvamMappingInput; regenerateToolSecret: boolean }
+        {
+          mapping: SarvamMappingInput;
+          regenerateToolSecret: boolean;
+          regenerateWebhookSecret: boolean;
+        }
       >(req);
 
       const saved = await service.saveSarvamMapping(
         currentPrincipal(),
         organisationId(req),
         body.mapping,
-        { regenerateToolSecret: body.regenerateToolSecret },
+        {
+          regenerateToolSecret: body.regenerateToolSecret,
+          regenerateWebhookSecret: body.regenerateWebhookSecret,
+        },
       );
 
-      // 200 rather than 204 because the first save returns the tool secret, once.
+      // 200 rather than 204 because a save that mints a secret returns it, once.
       res.status(200).json(saved);
     },
   );

@@ -36,6 +36,7 @@ export type {
   ReadinessView,
   SarvamMappingView,
   SavedSarvamMapping,
+  SarvamSecretRegeneration,
   ServiceView,
   TelephonyView,
 } from './clinics.js';

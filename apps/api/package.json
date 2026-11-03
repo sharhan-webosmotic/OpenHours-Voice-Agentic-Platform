@@ -12,7 +12,7 @@
     "build": "tsc --build tsconfig.build.json",
     "start": "node dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "test": "vitest run --coverage",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "db:migrate": "prisma migrate deploy",
