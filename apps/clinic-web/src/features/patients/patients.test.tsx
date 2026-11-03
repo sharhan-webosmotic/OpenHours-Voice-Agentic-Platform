@@ -26,9 +26,10 @@ describe('the patient list', () => {
 
     const row = await screen.findByRole('row', { name: /Test Patient One/ });
 
-    expect(within(row).getByText('+919876543210')).toBeInTheDocument();
+    // Grouped the way a receptionist reads it out.
+    expect(within(row).getByText('+91 98765 43210')).toBeInTheDocument();
     expect(within(row).getByText('1 Oct 2026')).toBeInTheDocument();
-    expect(within(row).getByText('16 Nov 2026')).toBeInTheDocument();
+    expect(within(row).getByText(/16 Nov 2026/)).toBeInTheDocument();
   });
 
   it('describes the next visit: when, what, and where it stands', async () => {
@@ -38,10 +39,11 @@ describe('the patient list', () => {
 
     // 03:30Z is 09:00 in Kolkata, and a voice booking awaiting confirmation is an AI booking.
     // Waited for: until the clinic loads, the zone is not yet known.
-    expect(await within(row).findByText('09:00 · Consultation')).toBeInTheDocument();
+    expect(await within(row).findByText('16 Nov 2026 · 09:00')).toBeInTheDocument();
+    expect(within(row).getByText('Consultation')).toBeInTheDocument();
     expect(within(row).getByText('AI Booking')).toBeInTheDocument();
     // A date of birth is a calendar day, never shifted through a zone.
-    expect(within(row).getByText('DOB 14 Jun 1988')).toBeInTheDocument();
+    expect(within(row).getByText(/^14 Jun 1988 · \d+ yrs$/)).toBeInTheDocument();
   });
 
   it('says plainly when a patient has nothing before or after today', async () => {
@@ -69,8 +71,8 @@ describe('the patient list', () => {
 
     const row = await screen.findByRole('row', { name: /Test Patient One/ });
 
-    expect(within(row).getByText('No previous appointments')).toBeInTheDocument();
-    expect(within(row).getByText('Nothing booked')).toBeInTheDocument();
+    expect(within(row).getByText('None yet')).toBeInTheDocument();
+    expect(within(row).getByText('Not booked')).toBeInTheDocument();
     expect(within(row).getByText('Date of birth not recorded')).toBeInTheDocument();
   });
 

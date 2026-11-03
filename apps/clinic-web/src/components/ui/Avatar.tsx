@@ -1,7 +1,7 @@
 import { cn } from './cn';
 
 /**
- * Initials in a soft square, as the prototype draws a person.
+ * Initials in a circle.
  *
  * NO IMAGE, because the product stores no patient photographs and will not: an avatar that
  * could hold one is an invitation to add the field.
@@ -10,13 +10,26 @@ import { cn } from './cn';
  * that is already on screen, so announcing "L M Laura Miller" to a screen reader is noise.
  * When a name is masked the initials are blank rather than invented, because `?` beside an
  * empty cell reads as missing data where a letter would read as a name nobody can see.
+ *
+ * SIZE IS A PROP, NOT A CLASS NAME. `cn` joins classes without resolving conflicts, so a
+ * caller's `size-16` beside the default `size-9` was decided by stylesheet order, and the
+ * profile and staff avatars were quietly rendering at the wrong size and shape.
  */
+export type AvatarSize = 'sm' | 'md' | 'lg' | 'xl';
+
+const SIZES: Record<AvatarSize, string> = {
+  sm: 'size-9 text-[0.6875rem]',
+  md: 'size-10 text-xs',
+  lg: 'size-12 text-xs',
+  xl: 'size-16 text-md',
+};
+
 export const Avatar = ({
   name,
-  className,
+  size = 'sm',
 }: {
   readonly name: string | null;
-  readonly className?: string | undefined;
+  readonly size?: AvatarSize | undefined;
 }) => {
   const initials =
     name === null
@@ -32,8 +45,8 @@ export const Avatar = ({
     <span
       aria-hidden="true"
       className={cn(
-        'inline-flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-surface font-semibold text-[0.6875rem] text-accent',
-        className,
+        'inline-flex shrink-0 items-center justify-center rounded-full bg-accent-surface font-semibold text-accent',
+        SIZES[size],
       )}
     >
       {initials}

@@ -113,7 +113,7 @@ export const PatientProfilePage = () => {
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
         <Card className="flex flex-col gap-5">
           <div className="flex flex-col items-center gap-3 text-center">
-            <Avatar name={patient.fullName} className="size-16 rounded-xl text-md" />
+            <Avatar name={patient.fullName} size="xl" />
             <strong className="font-semibold text-default text-md">
               {patient.fullName ?? 'Name hidden'}
             </strong>

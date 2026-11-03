@@ -190,7 +190,7 @@ export const StaffPage = () => {
         ) : (
           <>
             <div className="flex items-center gap-3">
-              <Avatar name={doctor.fullName} className="size-12 rounded-xl text-xs" />
+              <Avatar name={doctor.fullName} size="lg" />
               <div className="flex flex-col gap-0.5">
                 <span className="font-semibold text-[0.6875rem] text-accent uppercase tracking-wide">
                   Clinic doctor

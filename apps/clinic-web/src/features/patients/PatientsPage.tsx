@@ -1,21 +1,18 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight } from 'lucide-react';
-import { Link } from 'react-router';
 import { Alert } from '../../components/ui/Alert';
-import { Avatar } from '../../components/ui/Avatar';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Spinner } from '../../components/ui/Spinner';
-import { Cell, Row, Table } from '../../components/ui/Table';
-import { Pager, SearchInput, Toolbar } from '../../components/ui/Toolbar';
+import { Table } from '../../components/ui/Table';
+import { Pager, SearchInput } from '../../components/ui/Toolbar';
 import { useCan } from '../../lib/useCan';
 import { errorMessage } from '../../lib/problem';
-import { formatDate, formatDateOfBirth } from '../../lib/clinicTime';
+import { clinicToday } from '../../lib/clinicTime';
 import { useClinicTimeZone } from '../clinic/api';
 import { PatientForm } from './PatientForm';
 import { usePatientsQuery } from './api';
-import { DirectoryHeader, NextVisit } from './directory';
+import { DIRECTORY_COLUMNS, DirectoryHeader, PatientRow } from './directory';
 
 /**
  * The patient list, built from `docs/prototype/laptop-08-patients-list.png`.
@@ -45,6 +42,7 @@ const PAGE_SIZE = 25;
 
 export const PatientsPage = () => {
   const timeZone = useClinicTimeZone();
+  const today = clinicToday(timeZone);
   const canWrite = useCan('patients', 'write');
 
   const [search, setSearch] = useState('');
@@ -82,27 +80,25 @@ export const PatientsPage = () => {
     <>
       <DirectoryHeader />
 
-      <Card padded={false} className="mb-4 p-4">
-        <Toolbar
-          action={
-            canWrite ? (
-              <Button
-                onClick={() => {
-                  setAdding(true);
-                }}
-              >
-                ＋ Add Patient
-              </Button>
-            ) : undefined
-          }
-        >
-          <SearchInput
-            label="Search patients"
-            placeholder="Search name or contact"
-            value={search}
-            onChange={setSearch}
-          />
-        </Toolbar>
+      <Card
+        padded={false}
+        className="mb-4 flex flex-wrap items-center justify-between gap-3 px-4 py-3"
+      >
+        <SearchInput
+          label="Search patients"
+          placeholder="Search name or contact"
+          value={search}
+          onChange={setSearch}
+        />
+        {canWrite && (
+          <Button
+            onClick={() => {
+              setAdding(true);
+            }}
+          >
+            ＋ Add Patient
+          </Button>
+        )}
       </Card>
 
       {isLoading && <Spinner />}
@@ -158,65 +154,28 @@ export const PatientsPage = () => {
 
       {data !== undefined && data.items.length > 0 && (
         <>
-          <Table
-            caption="Patients at this clinic"
-            head={['Patient', 'Contact details', 'Last appointment', 'Next appointment', 'Profile']}
-          >
+          <Table caption="Patients at this clinic" head={DIRECTORY_COLUMNS}>
             {data.items.map((patient) => (
-              <Row key={patient.id}>
-                <Cell>
-                  <span className="flex items-center gap-3">
-                    <Avatar name={patient.fullName} />
-                    <span className="flex flex-col gap-0.5">
-                      <strong className="font-semibold text-default text-sm">
-                        {/* Masked for a platform role, which is a state and not an error. */}
-                        {patient.fullName ?? 'Name hidden'}
-                      </strong>
-                      <span className="text-muted text-xs">
-                        {patient.dateOfBirth === null
-                          ? 'Date of birth not recorded'
-                          : `DOB ${formatDateOfBirth(patient.dateOfBirth)}`}
-                      </span>
-                    </span>
-                  </span>
-                </Cell>
-                <Cell muted={patient.phone === null}>
-                  <span className="font-semibold">{patient.phone ?? 'Hidden'}</span>
-                </Cell>
-                <Cell muted={patient.lastAppointmentAt === null}>
-                  {patient.lastAppointmentAt === null
-                    ? 'No previous appointments'
-                    : formatDate(patient.lastAppointmentAt, timeZone)}
-                </Cell>
-                <Cell>
-                  <NextVisit next={patient.nextAppointment} timeZone={timeZone} />
-                </Cell>
-                <Cell>
-                  <Link
-                    to={`/patients/${patient.id}`}
-                    className="inline-flex items-center gap-1 font-semibold text-accent text-sm hover:underline"
-                  >
-                    View profile
-                    <ArrowRight size={14} aria-hidden="true" />
-                  </Link>
-                </Cell>
-              </Row>
+              <PatientRow key={patient.id} patient={patient} timeZone={timeZone} today={today} />
             ))}
           </Table>
 
-          <Pager
-            page={cursors.length}
-            hasNext={data.nextCursor !== null}
-            busy={isFetching}
-            onPrevious={() => {
-              setCursors((previous) => previous.slice(0, -1));
-            }}
-            onNext={() => {
-              setCursors((previous) =>
-                data.nextCursor === null ? previous : [...previous, data.nextCursor],
-              );
-            }}
-          />
+          {/* A pager on a single page is two dead buttons. */}
+          {(cursors.length > 1 || data.nextCursor !== null) && (
+            <Pager
+              page={cursors.length}
+              hasNext={data.nextCursor !== null}
+              busy={isFetching}
+              onPrevious={() => {
+                setCursors((previous) => previous.slice(0, -1));
+              }}
+              onNext={() => {
+                setCursors((previous) =>
+                  data.nextCursor === null ? previous : [...previous, data.nextCursor],
+                );
+              }}
+            />
+          )}
         </>
       )}
 

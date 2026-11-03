@@ -126,3 +126,17 @@ export const formatTime24 = (instant: string, timeZone: string): string =>
 /** `2025-05-19`, the clinic's calendar day, as the reference's list and drawer write a date. */
 export const formatIsoDay = (instant: string, timeZone: string): string =>
   clinicDayOf(new Date(instant), timeZone);
+
+/**
+ * Whole years between a date of birth and a clinic day, both `YYYY-MM-DD`.
+ *
+ * Compared as calendar parts rather than through `Date`, for the reason `formatDateOfBirth`
+ * gives: a birthday has no time and no zone, so arithmetic on instants can land a day off.
+ */
+export const ageOn = (dateOfBirth: string, today: string): number => {
+  const [birthYear = 0, birthMonth = 0, birthDay = 0] = dateOfBirth.split('-').map(Number);
+  const [year = 0, month = 0, day = 0] = today.split('-').map(Number);
+  const hadBirthday = month > birthMonth || (month === birthMonth && day >= birthDay);
+
+  return year - birthYear - (hadBirthday ? 0 : 1);
+};

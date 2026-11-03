@@ -1,7 +1,11 @@
 import type { PatientSummary } from '@clinicai/api-client';
+import { ChevronRight } from 'lucide-react';
+import { Link } from 'react-router';
+import { Avatar } from '../../components/ui/Avatar';
 import { Card } from '../../components/ui/Card';
-import { Badge } from '../../components/ui/Table';
-import { formatDate, formatTime24 } from '../../lib/clinicTime';
+import { Badge, Cell, Row } from '../../components/ui/Table';
+import { ageOn, formatDate, formatDateOfBirth, formatTime24 } from '../../lib/clinicTime';
+import { formatPhone } from '../../lib/phone';
 import { statusBadge, statusLabel } from '../appointments/status';
 import { usePatientSummaryQuery } from './api';
 
@@ -14,6 +18,13 @@ import { usePatientSummaryQuery } from './api';
  * The list is paged and searched, so its length is neither the clinic's patient count nor
  * stable while someone types. The counts are fetched once, under the same doctor scope as the
  * list, and do not move with the search box.
+ *
+ * ─── EVERY ROW IS TWO LINES ─────────────────────────────────────────────────────
+ *
+ * A primary line and a muted one in every column that has something to add, so rows are one
+ * height whether or not a visit is booked, and the eye can run down any column. The status
+ * has a column of its own for the same reason: a badge buried at the end of a panel cannot
+ * be scanned.
  */
 
 const plural = (count: number, one: string, many: string): string =>
@@ -55,38 +66,101 @@ export const DirectoryHeader = () => {
   );
 };
 
-/**
- * The next visit as a small panel: when, what, and where it stands.
- *
- * The status is the appointment's, labelled the way the appointment screens label it, so an
- * AI booking awaiting confirmation reads the same here as it does in the calendar.
- */
-export const NextVisit = ({
-  next,
+export const DIRECTORY_COLUMNS = [
+  'Patient',
+  'Contact',
+  'Last appointment',
+  'Next appointment',
+  'Status',
+  'Profile',
+] as const;
+
+const Quiet = ({ children }: { readonly children: string }) => (
+  <span className="text-subtle">{children}</span>
+);
+
+export const PatientRow = ({
+  patient,
   timeZone,
+  today,
 }: {
-  readonly next: PatientSummary['nextAppointment'];
+  readonly patient: PatientSummary;
   readonly timeZone: string;
+  readonly today: string;
 }) => {
-  if (next === null) {
-    return <span className="text-muted">Nothing booked</span>;
-  }
+  const next = patient.nextAppointment;
 
   return (
-    <div className="flex max-w-[340px] flex-col gap-1 rounded-lg border border-border-chrome bg-surface-sunken px-3.5 py-2.5">
-      <div className="flex items-center justify-between gap-3">
-        <strong className="font-semibold text-default text-sm">
-          {formatDate(next.startAt, timeZone)}
-        </strong>
-        <Badge kind={statusBadge(next.status, next.source)}>
-          {statusLabel(next.status, next.source)}
-        </Badge>
-      </div>
-      <span className="text-muted text-xs">
-        {[formatTime24(next.startAt, timeZone), next.serviceName]
-          .filter((part) => part !== null)
-          .join(' · ')}
-      </span>
-    </div>
+    <Row>
+      <Cell>
+        <span className="flex items-center gap-3">
+          <Avatar name={patient.fullName} size="md" />
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <strong className="font-semibold text-default text-sm">
+              {/* Masked for a platform role, which is a state and not an error. */}
+              {patient.fullName ?? 'Name hidden'}
+            </strong>
+            <span className="text-muted text-xs">
+              {patient.dateOfBirth === null
+                ? 'Date of birth not recorded'
+                : `${formatDateOfBirth(patient.dateOfBirth)} · ${String(ageOn(patient.dateOfBirth, today))} yrs`}
+            </span>
+          </span>
+        </span>
+      </Cell>
+
+      <Cell>
+        {patient.phone === null ? (
+          <Quiet>Hidden</Quiet>
+        ) : (
+          <span className="whitespace-nowrap font-medium text-default tabular-nums">
+            {formatPhone(patient.phone)}
+          </span>
+        )}
+      </Cell>
+
+      <Cell>
+        {patient.lastAppointmentAt === null ? (
+          <Quiet>None yet</Quiet>
+        ) : (
+          <span className="whitespace-nowrap">
+            {formatDate(patient.lastAppointmentAt, timeZone)}
+          </span>
+        )}
+      </Cell>
+
+      <Cell>
+        {next === null ? (
+          <Quiet>Not booked</Quiet>
+        ) : (
+          <span className="flex flex-col gap-0.5">
+            <span className="whitespace-nowrap font-medium text-default">
+              {`${formatDate(next.startAt, timeZone)} · ${formatTime24(next.startAt, timeZone)}`}
+            </span>
+            <span className="text-muted text-xs">{next.serviceName ?? 'No service named'}</span>
+          </span>
+        )}
+      </Cell>
+
+      <Cell>
+        {next === null ? (
+          <Quiet>—</Quiet>
+        ) : (
+          <Badge kind={statusBadge(next.status, next.source)}>
+            {statusLabel(next.status, next.source)}
+          </Badge>
+        )}
+      </Cell>
+
+      <Cell>
+        <Link
+          to={`/patients/${patient.id}`}
+          className="inline-flex h-8 items-center gap-1 whitespace-nowrap rounded-control border border-border-chrome bg-surface px-3 font-semibold text-default text-xs shadow-control hover:border-accent/40 hover:text-accent"
+        >
+          View profile
+          <ChevronRight size={14} aria-hidden="true" />
+        </Link>
+      </Cell>
+    </Row>
   );
 };
