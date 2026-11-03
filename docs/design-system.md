@@ -76,18 +76,44 @@ round to the nearest step, and **nothing moved by more than 2 pixels.**
 
 Weights are Inter 400, 500, 600 and 700. The prototype also loads a 900, which nothing used.
 
-## Radius: snapped from seventeen steps to five
+## Radius: snapped from seventeen steps, then tightened
 
-Seventeen distinct radii, with 8, 9, 10, 11, 12, 13, 14, 15, 16 and 18 all present. The same
-problem and the same treatment.
+The prototype has seventeen distinct radii, with 8, 9, 10, 11, 12, 13, 14, 15, 16 and 18 all
+present. They were first snapped to a five-step scale of 8 to 16px. On 2026-11-03, at the
+clinic's request, the whole scale was tightened to 4 to 10px. The prototype's soft corners read
+as a consumer app on a screen staff use all day for clinical records. The steps kept their
+names, so every component moved with the tokens.
 
-| Token              | Size  | Prototype radii it absorbed |
-| ------------------ | ----- | --------------------------- |
-| `--ca-radius-sm`   | 8px   | 5, 6, 7, 8                  |
-| `--ca-radius-md`   | 10px  | 9, 10, 11                   |
-| `--ca-radius-lg`   | 12px  | 12, 13                      |
-| `--ca-radius-xl`   | 16px  | 14, 15, 16, 18, 20, 24      |
-| `--ca-radius-full` | 999px | 99, 999                     |
+| Token                 | Size  | Was   | Used for                             |
+| --------------------- | ----- | ----- | ------------------------------------ |
+| `--ca-radius-sm`      | 4px   | 8px   | Small chips, the keyboard hint       |
+| `--ca-radius-md`      | 6px   | 10px  | Inputs, badges, menu items           |
+| `--ca-radius-lg`      | 8px   | 12px  | Panels inside a card, the day list   |
+| `--ca-radius-xl`      | 10px  | 16px  | Modals, the empty state              |
+| `--ca-radius-control` | 6px   | 11px  | Buttons, icon buttons, the logo tile |
+| `--ca-radius-card`    | 10px  | 18px  | Every card on every screen           |
+| `--ca-radius-full`    | 999px | 999px | Avatars (circles), switches, dots    |
+
+One-off radii the export carried (22px on the modal, 14px on the account avatar, 12px and 9px
+on the view switcher, and others) were replaced with these tokens rather than kept.
+
+## Elevation: shorter and quieter
+
+Tightened with the radius. The prototype's long 30px blur under every card and its coloured
+glow under every blue button made surfaces look like they floated. A crisp short shadow reads
+as a surface sitting on the page.
+
+| Token                       | Value                                                            | Was                                   |
+| --------------------------- | ---------------------------------------------------------------- | ------------------------------------- |
+| `--ca-shadow-card`          | `0 1px 2px rgba(23,38,75,0.04), 0 2px 8px rgba(23,38,75,0.04)`   | `0 8px 30px rgba(37,55,103,0.06)`     |
+| `--ca-shadow-control` (new) | `0 1px 2px rgba(23,38,75,0.08)`                                  | none                                  |
+| `--ca-shadow-accent`        | `0 1px 2px rgba(36,87,207,0.24)`                                 | `0 7px 9px rgba(53,106,230,0.2)`      |
+| `--ca-shadow-accent-strong` | `0 1px 3px rgba(36,87,207,0.3)`                                  | `0 8px 9px rgba(53,106,230,0.25)`     |
+| `--ca-shadow-popover`       | `0 4px 16px rgba(23,38,75,0.1), 0 1px 3px rgba(23,38,75,0.06)`   | `0 2px 8px rgba(30,49,90,0.08)`       |
+| `--ca-shadow-modal`         | `0 24px 70px rgba(20,34,68,0.2)` (unchanged, now used by modals) | same, but modals used the card shadow |
+
+Both applications carry the same values (D-009). The admin console has no accent shadow, control
+radius or card radius, because nothing there uses them yet.
 
 ## The two layers, and why dark mode is cheap later
 
