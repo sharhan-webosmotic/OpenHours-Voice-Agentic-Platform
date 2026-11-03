@@ -1,9 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link } from 'react-router';
+import { useSearchParams } from 'react-router';
+import { Bot, Building2, CalendarClock, Clock } from 'lucide-react';
 import {
   AGENT_TONES,
   agentProfileSchema,
   bookingPolicySchema,
+  clinicHoursSchema,
   clinicProfileSchema,
   type AgentProfileInput,
   type BookingPolicyInput,
@@ -18,19 +20,19 @@ import { Spinner } from '../../components/ui/Spinner';
 import { cn } from '../../components/ui/cn';
 import { useCan } from '../../lib/useCan';
 import { errorMessage } from '../../lib/problem';
-import { formatOpeningMinute } from '../../lib/clinicTime';
 import {
   useClinic,
+  useReplaceHoursMutation,
   useUpdateAgentProfileMutation,
   useUpdateBookingPolicyMutation,
   useUpdateProfileMutation,
 } from '../clinic/api';
+import { WeeklyHoursEditor, type WeekHours } from './WeeklyHoursEditor';
 
 /**
- * Clinic settings, from `docs/prototype/laptop-18-settings.png`.
- *
- * The capture's structure is kept: a section index on the left, section cards stacked on the
- * right, each with a heading, a sentence under it and its fields in two columns.
+ * Clinic settings: a section index on the left and ONE section on the right at a time, held
+ * in the URL (`?section=hours`) so a link or a reload lands on the same panel. Each section is
+ * a card with its heading, a sentence under it, its fields, and its own save.
  *
  * ─── FOUR DEVIATIONS, AND THE FIRST ONE IS THE IMPORTANT ONE ────────────────────
  *
@@ -42,9 +44,9 @@ import {
  *    which the matrix lets a clinic owner READ and not write; a platform administrator
  *    changes them in the admin console. Showing them as editable and having the server refuse
  *    the save would be the product offering a door that is locked.
- * 3. OPENING HOURS ARE SHOWN, NOT EDITED, with a link to the editor on Doctors and Staff. The
- *    prototype has the same four time fields on both screens, and two editors for one record
- *    is two things to keep in step.
+ * 3. OPENING HOURS ARE EDITED HERE, a day at a time, and nowhere else. The prototype has an
+ *    editor on two screens; two editors for one record is two things to keep in step, so the
+ *    one on Doctors and Staff now points here.
  * 4. THERE IS NO ON/OFF SWITCH FOR THE AI RECEPTIONIST. The capture has a green toggle and a
  *    line admitting it is simulated. Nothing in the platform turns an agent on or off: a
  *    clinic's calls reach the agent because a number is mapped to it, and that mapping is
@@ -52,40 +54,68 @@ import {
  */
 
 const SectionCard = ({
-  id,
   title,
   description,
   children,
   footer,
 }: {
-  readonly id: string;
   readonly title: string;
   readonly description: string;
   readonly children: ReactNode;
   readonly footer?: ReactNode | undefined;
 }) => (
-  <Card id={id} className="flex scroll-mt-6 flex-col gap-5">
-    <div className="flex flex-col gap-0.5">
-      <h2 className="m-0 font-semibold text-default text-md">{title}</h2>
-      <p className="m-0 text-muted text-xs">{description}</p>
+  <Card padded={false} className="flex flex-col">
+    <div className="flex flex-col gap-1 border-border-chrome border-b px-6 py-5">
+      <h2 className="m-0 font-bold text-default text-lg">{title}</h2>
+      <p className="m-0 max-w-3xl text-muted text-sm">{description}</p>
     </div>
 
-    {children}
+    <div className="flex flex-col gap-6 px-6 py-6">{children}</div>
 
     {footer !== undefined && (
-      <div className="flex items-center justify-end gap-3 border-border border-t pt-4">
+      <div className="flex items-center justify-end gap-3 rounded-b-card border-border-chrome border-t bg-surface-sunken px-6 py-4">
         {footer}
       </div>
     )}
   </Card>
 );
 
+/** A titled group of fields inside a section, so a long form reads as parts. */
+const FieldGroup = ({
+  title,
+  children,
+}: {
+  readonly title: string;
+  readonly children: ReactNode;
+}) => (
+  <fieldset className="m-0 flex flex-col gap-4 border-0 p-0">
+    <legend className="mb-3 p-0 font-semibold text-muted text-xs uppercase tracking-[0.6px]">
+      {title}
+    </legend>
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{children}</div>
+  </fieldset>
+);
+
 const SECTIONS = [
-  { id: 'profile', label: 'Clinic profile' },
-  { id: 'hours', label: 'Opening hours' },
-  { id: 'booking', label: 'Booking preferences' },
-  { id: 'agent', label: 'AI receptionist' },
+  { id: 'profile', label: 'Clinic profile', hint: 'Name, contact and address', Icon: Building2 },
+  { id: 'hours', label: 'Opening hours', hint: 'When patients can book', Icon: Clock },
+  {
+    id: 'booking',
+    label: 'Booking preferences',
+    hint: 'Notice, grid and limits',
+    Icon: CalendarClock,
+  },
+  { id: 'agent', label: 'AI receptionist', hint: 'What callers hear', Icon: Bot },
 ] as const;
+
+type SectionId = (typeof SECTIONS)[number]['id'];
+
+const isSection = (value: string | null): value is SectionId =>
+  SECTIONS.some((section) => section.id === value);
+
+const toWeekInput = (week: WeekHours) => ({
+  days: week.map((day) => ({ weekday: day.weekday, segments: [...day.segments] })),
+});
 
 export const SettingsPage = () => {
   const { data: clinic, isLoading, isError, error, refetch } = useClinic();
@@ -94,6 +124,10 @@ export const SettingsPage = () => {
   const [updateProfile, savingProfile] = useUpdateProfileMutation();
   const [updateBookingPolicy, savingPolicy] = useUpdateBookingPolicyMutation();
   const [updateAgentProfile, savingAgent] = useUpdateAgentProfileMutation();
+  const [replaceHours, savingHours] = useReplaceHoursMutation();
+  const [params, setParams] = useSearchParams();
+  const requested = params.get('section');
+  const section: SectionId = isSection(requested) ? requested : 'profile';
 
   const [profile, setProfile] = useState<ClinicProfileInput | undefined>(undefined);
   const [policy, setPolicy] = useState<BookingPolicyInput | undefined>(undefined);
@@ -215,425 +249,451 @@ export const SettingsPage = () => {
   };
 
   return (
-    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
-      <Card padded={false} className="hidden flex-col gap-1 p-3 lg:flex">
-        <span className="px-3 py-2 font-semibold text-default text-xs">Settings</span>
-        {SECTIONS.map((section) => (
-          <a
-            key={section.id}
-            href={`#${section.id}`}
-            className="rounded-md px-3 py-2 text-muted text-xs hover:bg-background hover:text-default"
-          >
-            {section.label}
-          </a>
-        ))}
+    <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[16rem_minmax(0,1fr)]">
+      <Card padded={false} className="p-2 lg:sticky lg:top-[92px]">
+        <nav aria-label="Settings sections" className="flex flex-col gap-1">
+          {SECTIONS.map(({ id, label, hint, Icon }) => {
+            const current = id === section;
+
+            return (
+              <button
+                key={id}
+                type="button"
+                aria-current={current ? 'page' : undefined}
+                onClick={() => {
+                  setSaved(undefined);
+                  setProblem(undefined);
+                  setParams({ section: id }, { replace: true });
+                }}
+                className={cn(
+                  'flex items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors',
+                  current ? 'bg-accent-surface' : 'hover:bg-background',
+                )}
+              >
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    'grid size-8 shrink-0 place-items-center rounded-md',
+                    current ? 'bg-accent text-inverse' : 'bg-background text-muted',
+                  )}
+                >
+                  <Icon size={16} />
+                </span>
+                <span className="flex min-w-0 flex-col">
+                  <span
+                    className={cn(
+                      'font-semibold text-sm',
+                      current ? 'text-accent' : 'text-default',
+                    )}
+                  >
+                    {label}
+                  </span>
+                  <span className="truncate text-muted text-xs">{hint}</span>
+                </span>
+              </button>
+            );
+          })}
+        </nav>
       </Card>
 
-      <div className="flex flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-4">
         {problem !== undefined && <Alert kind="danger">{problem}</Alert>}
         {saved !== undefined && <Alert kind="success">{saved} saved.</Alert>}
 
-        <SectionCard
-          id="profile"
-          title="Clinic profile"
-          description="The clinic's own details. The agent reads the address and the contact number to callers, so what is here is what a patient is told."
-          footer={
-            canWrite ? (
-              <Button
-                loading={savingProfile.isLoading}
-                onClick={() => {
-                  void save(
-                    'Clinic profile',
-                    () => updateProfile({ organisationId, input: profile }).unwrap(),
-                    () => {
-                      const parsed = clinicProfileSchema.safeParse(profile);
-                      return parsed.success
-                        ? { ok: true }
-                        : {
-                            ok: false,
-                            message: parsed.error.issues
-                              .map((issue) => `${issue.path.join('.')} ${issue.message}`)
-                              .join(' '),
-                          };
-                    },
-                  );
-                }}
-              >
-                Save clinic profile
-              </Button>
-            ) : undefined
-          }
-        >
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field
-              label="Clinic name"
-              hint="Changed by a platform administrator, not here."
-              value={clinic.organisation.name}
-              readOnly
-              disabled
-            />
-            <Field
-              label="Public phone number"
-              hint="The number patients call. Also changed in the admin console."
-              value={clinic.organisation.clinicPhone ?? 'Not recorded'}
-              readOnly
-              disabled
-            />
-            <Field
-              label="Legal name"
-              value={profile.legalName ?? ''}
-              disabled={!canWrite}
-              onChange={(event) => {
-                setProfile({ ...profile, legalName: event.target.value });
-              }}
-            />
-            <Field
-              label="Contact email"
-              type="email"
-              value={profile.contactEmail ?? ''}
-              disabled={!canWrite}
-              onChange={(event) => {
-                setProfile({ ...profile, contactEmail: event.target.value });
-              }}
-            />
-            <Field
-              label="Contact phone"
-              value={profile.contactPhone ?? ''}
-              disabled={!canWrite}
-              onChange={(event) => {
-                setProfile({ ...profile, contactPhone: event.target.value });
-              }}
-            />
-            <Field
-              label="Website"
-              value={profile.website ?? ''}
-              disabled={!canWrite}
-              onChange={(event) => {
-                setProfile({ ...profile, website: event.target.value });
-              }}
-            />
-            <Field
-              label="Address line 1"
-              value={profile.addressLine1 ?? ''}
-              disabled={!canWrite}
-              onChange={(event) => {
-                setProfile({ ...profile, addressLine1: event.target.value });
-              }}
-            />
-            <Field
-              label="Address line 2"
-              value={profile.addressLine2 ?? ''}
-              disabled={!canWrite}
-              onChange={(event) => {
-                setProfile({ ...profile, addressLine2: event.target.value });
-              }}
-            />
-            <Field
-              label="City"
-              value={profile.city ?? ''}
-              disabled={!canWrite}
-              onChange={(event) => {
-                setProfile({ ...profile, city: event.target.value });
-              }}
-            />
-            <Field
-              label="State"
-              value={profile.state ?? ''}
-              disabled={!canWrite}
-              onChange={(event) => {
-                setProfile({ ...profile, state: event.target.value });
-              }}
-            />
-            <Field
-              label="Postal code"
-              value={profile.postalCode ?? ''}
-              disabled={!canWrite}
-              onChange={(event) => {
-                setProfile({ ...profile, postalCode: event.target.value });
-              }}
-            />
-          </div>
-        </SectionCard>
-
-        <SectionCard
-          id="hours"
-          title="Opening hours"
-          description="Every bookable slot is calculated from these. They are edited on Doctors and Staff, so there is one editor for one record rather than two that can disagree."
-        >
-          <ul className="m-0 flex list-none flex-col gap-2 p-0">
-            {clinic.hours.map((day) => (
-              <li
-                key={day.weekday}
-                className="flex items-center justify-between gap-4 border-border border-b py-2 last:border-b-0"
-              >
-                <span className="font-semibold text-default text-xs capitalize">
-                  {day.weekday.toLowerCase()}
-                </span>
-                <span
-                  className={cn(
-                    'text-xs',
-                    day.segments.length === 0 ? 'text-subtle' : 'text-muted',
-                  )}
+        {section === 'profile' && (
+          <SectionCard
+            title="Clinic profile"
+            description="The clinic's own details. The agent reads the address and the contact number to callers, so what is here is what a patient is told."
+            footer={
+              canWrite ? (
+                <Button
+                  loading={savingProfile.isLoading}
+                  onClick={() => {
+                    void save(
+                      'Clinic profile',
+                      () => updateProfile({ organisationId, input: profile }).unwrap(),
+                      () => {
+                        const parsed = clinicProfileSchema.safeParse(profile);
+                        return parsed.success
+                          ? { ok: true }
+                          : {
+                              ok: false,
+                              message: parsed.error.issues
+                                .map((issue) => `${issue.path.join('.')} ${issue.message}`)
+                                .join(' '),
+                            };
+                      },
+                    );
+                  }}
                 >
-                  {day.segments.length === 0
-                    ? 'Closed'
-                    : day.segments
-                        .map(
-                          (segment) =>
-                            `${formatOpeningMinute(segment.opensAtMinute)} to ${formatOpeningMinute(
-                              segment.closesAtMinute,
-                            )}`,
-                        )
-                        .join(', ')}
-                </span>
-              </li>
-            ))}
-          </ul>
-
-          {clinic.organisation.openingHoursCollectedAt === null && (
-            <Alert kind="warning">
-              Nobody has confirmed this clinic&apos;s opening hours yet, so the agent will not state
-              any, and no slots can be offered. Set them on Doctors and Staff.
-            </Alert>
-          )}
-
-          <Link
-            to="/staff"
-            className="self-start font-semibold text-accent text-xs hover:underline"
+                  Save clinic profile
+                </Button>
+              ) : undefined
+            }
           >
-            Edit opening hours on Doctors and Staff
-          </Link>
-        </SectionCard>
-
-        <SectionCard
-          id="booking"
-          title="Booking preferences"
-          description="The rules the slot engine applies: the grid times sit on, how much notice the clinic needs, and how far ahead it takes bookings."
-          footer={
-            canWrite ? (
-              <Button
-                loading={savingPolicy.isLoading}
-                onClick={() => {
-                  void save(
-                    'Booking preferences',
-                    () => updateBookingPolicy({ organisationId, input: policy }).unwrap(),
-                    () => {
-                      const parsed = bookingPolicySchema.safeParse(policy);
-                      return parsed.success
-                        ? { ok: true }
-                        : {
-                            ok: false,
-                            message: parsed.error.issues
-                              .map((issue) => `${issue.path.join('.')} ${issue.message}`)
-                              .join(' '),
-                          };
-                    },
-                  );
+            <FieldGroup title="Identity">
+              <Field
+                label="Clinic name"
+                hint="Changed by a platform administrator, not here."
+                value={clinic.organisation.name}
+                readOnly
+                disabled
+              />
+              <Field
+                label="Public phone number"
+                hint="The number patients call. Also changed in the admin console."
+                value={clinic.organisation.clinicPhone ?? 'Not recorded'}
+                readOnly
+                disabled
+              />
+              <Field
+                label="Legal name"
+                value={profile.legalName ?? ''}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  setProfile({ ...profile, legalName: event.target.value });
                 }}
-              >
-                Save booking preferences
-              </Button>
-            ) : undefined
-          }
-        >
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Field
-              label="Slot grid, in minutes"
-              hint="Times are offered on this grid: 15 gives 09:00, 09:15, 09:30."
-              type="number"
-              min={5}
-              max={240}
-              step={5}
-              value={policy.slotGranularityMinutes ?? ''}
-              disabled={!canWrite}
-              onChange={(event) => {
-                setPolicy({
-                  ...policy,
-                  slotGranularityMinutes:
-                    event.target.value === '' ? null : Number(event.target.value),
-                });
-              }}
-            />
-            <Field
-              label="Minimum notice, in minutes"
-              hint="How close to a slot a booking may still be made."
-              type="number"
-              min={0}
-              value={policy.minimumNoticeMinutes ?? ''}
-              disabled={!canWrite}
-              onChange={(event) => {
-                setPolicy({
-                  ...policy,
-                  minimumNoticeMinutes:
-                    event.target.value === '' ? null : Number(event.target.value),
-                });
-              }}
-            />
-            <Field
-              label="Maximum advance, in days"
-              hint="How far ahead the agent may book."
-              type="number"
-              min={1}
-              max={365}
-              value={policy.maximumAdvanceDays ?? ''}
-              disabled={!canWrite}
-              onChange={(event) => {
-                setPolicy({
-                  ...policy,
-                  maximumAdvanceDays: event.target.value === '' ? null : Number(event.target.value),
-                });
-              }}
-            />
-            <Field
-              label="Gap after each appointment, in minutes"
-              hint="Applied unless a doctor has a buffer of their own."
-              type="number"
-              min={0}
-              max={120}
-              value={policy.defaultBufferMinutes ?? ''}
-              disabled={!canWrite}
-              onChange={(event) => {
-                setPolicy({
-                  ...policy,
-                  defaultBufferMinutes:
-                    event.target.value === '' ? null : Number(event.target.value),
-                });
-              }}
-            />
-            <Field
-              label="Patients per slot"
-              hint="More than one only for a clinic that deliberately overbooks."
-              type="number"
-              min={1}
-              max={10}
-              value={policy.maxPerSlot ?? ''}
-              disabled={!canWrite}
-              onChange={(event) => {
-                setPolicy({
-                  ...policy,
-                  maxPerSlot: event.target.value === '' ? null : Number(event.target.value),
-                });
-              }}
-            />
-            <Field
-              label="Cancellation window, in hours"
-              hint="How late a patient may cancel without it counting against them."
-              type="number"
-              min={0}
-              value={policy.cancellationWindowHours ?? ''}
-              disabled={!canWrite}
-              onChange={(event) => {
-                setPolicy({
-                  ...policy,
-                  cancellationWindowHours:
-                    event.target.value === '' ? null : Number(event.target.value),
-                });
-              }}
-            />
-          </div>
+              />
+            </FieldGroup>
 
-          <TextAreaField
-            label="No-show policy"
-            hint="In the clinic's own words. The agent reads this out when a caller asks."
-            rows={2}
-            value={policy.noShowPolicy ?? ''}
-            disabled={!canWrite}
-            onChange={(event) => {
-              setPolicy({ ...policy, noShowPolicy: event.target.value });
-            }}
-          />
-        </SectionCard>
-
-        <SectionCard
-          id="agent"
-          title="AI receptionist"
-          description="What the agent says and how it says it. This is the text a patient hears, so it is written here rather than in a prompt file."
-          footer={
-            canWrite ? (
-              <Button
-                loading={savingAgent.isLoading}
-                onClick={() => {
-                  void save(
-                    'AI receptionist',
-                    () => updateAgentProfile({ organisationId, input: agent }).unwrap(),
-                    () => {
-                      const parsed = agentProfileSchema.safeParse(agent);
-                      return parsed.success
-                        ? { ok: true }
-                        : {
-                            ok: false,
-                            message: parsed.error.issues
-                              .map((issue) => `${issue.path.join('.')} ${issue.message}`)
-                              .join(' '),
-                          };
-                    },
-                  );
+            <FieldGroup title="Contact">
+              <Field
+                label="Contact email"
+                type="email"
+                value={profile.contactEmail ?? ''}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  setProfile({ ...profile, contactEmail: event.target.value });
                 }}
-              >
-                Save AI receptionist
-              </Button>
-            ) : undefined
-          }
-        >
-          <Alert kind="info">
-            There is no switch that turns the agent on or off. A clinic&apos;s calls reach the agent
-            because its number is mapped to one, and that mapping is managed in the admin console.
-          </Alert>
+              />
+              <Field
+                label="Contact phone"
+                value={profile.contactPhone ?? ''}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  setProfile({ ...profile, contactPhone: event.target.value });
+                }}
+              />
+              <Field
+                label="Website"
+                value={profile.website ?? ''}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  setProfile({ ...profile, website: event.target.value });
+                }}
+              />
+            </FieldGroup>
 
-          <TextAreaField
-            label="Greeting"
-            hint="The first thing a caller hears."
-            rows={2}
-            value={agent.greeting ?? ''}
-            disabled={!canWrite}
-            onChange={(event) => {
-              setAgent({ ...agent, greeting: event.target.value });
-            }}
-          />
+            <FieldGroup title="Address">
+              <Field
+                label="Address line 1"
+                value={profile.addressLine1 ?? ''}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  setProfile({ ...profile, addressLine1: event.target.value });
+                }}
+              />
+              <Field
+                label="Address line 2"
+                value={profile.addressLine2 ?? ''}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  setProfile({ ...profile, addressLine2: event.target.value });
+                }}
+              />
+              <Field
+                label="City"
+                value={profile.city ?? ''}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  setProfile({ ...profile, city: event.target.value });
+                }}
+              />
+              <Field
+                label="State"
+                value={profile.state ?? ''}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  setProfile({ ...profile, state: event.target.value });
+                }}
+              />
+              <Field
+                label="Postal code"
+                value={profile.postalCode ?? ''}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  setProfile({ ...profile, postalCode: event.target.value });
+                }}
+              />
+            </FieldGroup>
+          </SectionCard>
+        )}
 
-          <SelectField
-            label="Tone"
-            value={agent.tone ?? ''}
-            disabled={!canWrite}
-            options={[
-              { value: '', label: 'Not set' },
-              ...AGENT_TONES.map((tone) => ({
-                value: tone,
-                label: tone.charAt(0) + tone.slice(1).toLowerCase(),
-              })),
-            ]}
-            onChange={(event) => {
-              setAgent({
-                ...agent,
-                tone:
-                  event.target.value === ''
-                    ? null
-                    : (event.target.value as AgentProfileInput['tone']),
-              });
-            }}
-          />
+        {section === 'hours' && (
+          <SectionCard
+            title="Opening hours"
+            description="When the clinic takes appointments. Every slot the agent and the desk can offer is calculated from these, each doctor's own hours and the booking preferences."
+          >
+            {clinic.organisation.openingHoursCollectedAt === null && (
+              <Alert kind="warning">
+                Nobody has confirmed this clinic&apos;s opening hours yet, so the agent will not
+                state any and no slots can be offered. Save the week below to confirm them.
+              </Alert>
+            )}
+            <WeeklyHoursEditor
+              week={clinic.hours}
+              canWrite={canWrite}
+              saving={savingHours.isLoading}
+              noun="The clinic"
+              onSave={async (week) => {
+                const parsed = clinicHoursSchema.safeParse(toWeekInput(week));
+                if (!parsed.success) {
+                  return parsed.error.issues.map((issue) => issue.message).join(' ');
+                }
+                try {
+                  await replaceHours({ organisationId, input: parsed.data }).unwrap();
+                  return undefined;
+                } catch (caught) {
+                  return errorMessage(caught, 'The opening hours were not saved.');
+                }
+              }}
+            />
+          </SectionCard>
+        )}
 
-          <TextAreaField
-            label="What to say when fully booked"
-            rows={2}
-            value={agent.fullyBookedResponse ?? ''}
-            disabled={!canWrite}
-            onChange={(event) => {
-              setAgent({ ...agent, fullyBookedResponse: event.target.value });
-            }}
-          />
+        {section === 'booking' && (
+          <SectionCard
+            title="Booking preferences"
+            description="The rules the slot engine applies: the grid times sit on, how much notice the clinic needs, and how far ahead it takes bookings."
+            footer={
+              canWrite ? (
+                <Button
+                  loading={savingPolicy.isLoading}
+                  onClick={() => {
+                    void save(
+                      'Booking preferences',
+                      () => updateBookingPolicy({ organisationId, input: policy }).unwrap(),
+                      () => {
+                        const parsed = bookingPolicySchema.safeParse(policy);
+                        return parsed.success
+                          ? { ok: true }
+                          : {
+                              ok: false,
+                              message: parsed.error.issues
+                                .map((issue) => `${issue.path.join('.')} ${issue.message}`)
+                                .join(' '),
+                            };
+                      },
+                    );
+                  }}
+                >
+                  Save booking preferences
+                </Button>
+              ) : undefined
+            }
+          >
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field
+                label="Slot grid, in minutes"
+                hint="Times are offered on this grid: 15 gives 09:00, 09:15, 09:30."
+                type="number"
+                min={5}
+                max={240}
+                step={5}
+                value={policy.slotGranularityMinutes ?? ''}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  setPolicy({
+                    ...policy,
+                    slotGranularityMinutes:
+                      event.target.value === '' ? null : Number(event.target.value),
+                  });
+                }}
+              />
+              <Field
+                label="Minimum notice, in minutes"
+                hint="How close to a slot a booking may still be made."
+                type="number"
+                min={0}
+                value={policy.minimumNoticeMinutes ?? ''}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  setPolicy({
+                    ...policy,
+                    minimumNoticeMinutes:
+                      event.target.value === '' ? null : Number(event.target.value),
+                  });
+                }}
+              />
+              <Field
+                label="Maximum advance, in days"
+                hint="How far ahead the agent may book."
+                type="number"
+                min={1}
+                max={365}
+                value={policy.maximumAdvanceDays ?? ''}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  setPolicy({
+                    ...policy,
+                    maximumAdvanceDays:
+                      event.target.value === '' ? null : Number(event.target.value),
+                  });
+                }}
+              />
+              <Field
+                label="Gap after each appointment, in minutes"
+                hint="Applied unless a doctor has a buffer of their own."
+                type="number"
+                min={0}
+                max={120}
+                value={policy.defaultBufferMinutes ?? ''}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  setPolicy({
+                    ...policy,
+                    defaultBufferMinutes:
+                      event.target.value === '' ? null : Number(event.target.value),
+                  });
+                }}
+              />
+              <Field
+                label="Patients per slot"
+                hint="More than one only for a clinic that deliberately overbooks."
+                type="number"
+                min={1}
+                max={10}
+                value={policy.maxPerSlot ?? ''}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  setPolicy({
+                    ...policy,
+                    maxPerSlot: event.target.value === '' ? null : Number(event.target.value),
+                  });
+                }}
+              />
+              <Field
+                label="Cancellation window, in hours"
+                hint="How late a patient may cancel without it counting against them."
+                type="number"
+                min={0}
+                value={policy.cancellationWindowHours ?? ''}
+                disabled={!canWrite}
+                onChange={(event) => {
+                  setPolicy({
+                    ...policy,
+                    cancellationWindowHours:
+                      event.target.value === '' ? null : Number(event.target.value),
+                  });
+                }}
+              />
+            </div>
 
-          <TextAreaField
-            label="When to put a caller through to a person"
-            hint="The agent never diagnoses, prescribes or decides anything clinical. This is where a clinic adds its own escalations on top of that."
-            rows={2}
-            value={agent.escalationRules ?? ''}
-            disabled={!canWrite}
-            onChange={(event) => {
-              setAgent({ ...agent, escalationRules: event.target.value });
-            }}
-          />
-        </SectionCard>
+            <TextAreaField
+              label="No-show policy"
+              hint="In the clinic's own words. The agent reads this out when a caller asks."
+              rows={2}
+              value={policy.noShowPolicy ?? ''}
+              disabled={!canWrite}
+              onChange={(event) => {
+                setPolicy({ ...policy, noShowPolicy: event.target.value });
+              }}
+            />
+          </SectionCard>
+        )}
+
+        {section === 'agent' && (
+          <SectionCard
+            title="AI receptionist"
+            description="What the agent says and how it says it. This is the text a patient hears, so it is written here rather than in a prompt file."
+            footer={
+              canWrite ? (
+                <Button
+                  loading={savingAgent.isLoading}
+                  onClick={() => {
+                    void save(
+                      'AI receptionist',
+                      () => updateAgentProfile({ organisationId, input: agent }).unwrap(),
+                      () => {
+                        const parsed = agentProfileSchema.safeParse(agent);
+                        return parsed.success
+                          ? { ok: true }
+                          : {
+                              ok: false,
+                              message: parsed.error.issues
+                                .map((issue) => `${issue.path.join('.')} ${issue.message}`)
+                                .join(' '),
+                            };
+                      },
+                    );
+                  }}
+                >
+                  Save AI receptionist
+                </Button>
+              ) : undefined
+            }
+          >
+            <Alert kind="info">
+              There is no switch that turns the agent on or off. A clinic&apos;s calls reach the
+              agent because its number is mapped to one, and that mapping is managed in the admin
+              console.
+            </Alert>
+
+            <TextAreaField
+              label="Greeting"
+              hint="The first thing a caller hears."
+              rows={2}
+              value={agent.greeting ?? ''}
+              disabled={!canWrite}
+              onChange={(event) => {
+                setAgent({ ...agent, greeting: event.target.value });
+              }}
+            />
+
+            <SelectField
+              label="Tone"
+              value={agent.tone ?? ''}
+              disabled={!canWrite}
+              options={[
+                { value: '', label: 'Not set' },
+                ...AGENT_TONES.map((tone) => ({
+                  value: tone,
+                  label: tone.charAt(0) + tone.slice(1).toLowerCase(),
+                })),
+              ]}
+              onChange={(event) => {
+                setAgent({
+                  ...agent,
+                  tone:
+                    event.target.value === ''
+                      ? null
+                      : (event.target.value as AgentProfileInput['tone']),
+                });
+              }}
+            />
+
+            <TextAreaField
+              label="What to say when fully booked"
+              rows={2}
+              value={agent.fullyBookedResponse ?? ''}
+              disabled={!canWrite}
+              onChange={(event) => {
+                setAgent({ ...agent, fullyBookedResponse: event.target.value });
+              }}
+            />
+
+            <TextAreaField
+              label="When to put a caller through to a person"
+              hint="The agent never diagnoses, prescribes or decides anything clinical. This is where a clinic adds its own escalations on top of that."
+              rows={2}
+              value={agent.escalationRules ?? ''}
+              disabled={!canWrite}
+              onChange={(event) => {
+                setAgent({ ...agent, escalationRules: event.target.value });
+              }}
+            />
+          </SectionCard>
+        )}
       </div>
     </div>
   );

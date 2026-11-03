@@ -125,78 +125,21 @@ describe('doctors and staff', () => {
     expect(screen.getByText(/configured for one doctor/)).toBeInTheDocument();
   });
 
-  it('seeds the hours editor from the clinic and saves all seven weekdays', async () => {
-    const stub = signedIn({
-      ...baseRoutes,
-      [`PUT /api/v1/organisations/${ORGANISATION_ID}/hours`]: { status: 204 },
-    });
+  it('points at the one opening-hours editor, in Clinic Settings', async () => {
+    renderWith(<StaffPage />, signedIn());
 
-    renderWith(<StaffPage />, stub);
-
-    // Monday to Friday 09:00 to 17:00 in the fixture.
-    expect(await screen.findByLabelText('Day starts')).toHaveValue('09:00');
-    expect(screen.getByLabelText('Day ends')).toHaveValue('17:00');
-    expect(screen.getByRole('button', { name: 'Mon' })).toHaveAttribute('aria-pressed', 'true');
-    expect(screen.getByRole('button', { name: 'Sat' })).toHaveAttribute('aria-pressed', 'false');
-
-    await userEvent.click(screen.getByRole('button', { name: 'Save opening hours' }));
-
-    await waitFor(() => {
-      const sent = stub.calls.requests.find((request) => request.method === 'PUT');
-      const days = (sent?.body as { days: readonly { weekday: string; segments: unknown[] }[] })
-        .days;
-
-      /**
-       * ALL SEVEN, including the closed ones. That is the API's contract: a weekly off is a
-       * weekday with no segments, and sending only the open days would leave the server unable
-       * to tell a closure from an omission.
-       */
-      expect(days).toHaveLength(7);
-      expect(days.find((day) => day.weekday === 'SATURDAY')?.segments).toEqual([]);
-      expect(days.find((day) => day.weekday === 'MONDAY')?.segments).toEqual([
-        { opensAtMinute: 540, closesAtMinute: 1020 },
-      ]);
-    });
-  });
-
-  it('writes a break as two segments', async () => {
-    const stub = signedIn({
-      ...baseRoutes,
-      [`PUT /api/v1/organisations/${ORGANISATION_ID}/hours`]: { status: 204 },
-    });
-
-    renderWith(<StaffPage />, stub);
-    await screen.findByLabelText('Break starts');
-
-    await userEvent.type(screen.getByLabelText('Break starts'), '13:00');
-    await userEvent.type(screen.getByLabelText('Break ends'), '14:00');
-    await userEvent.click(screen.getByRole('button', { name: 'Save opening hours' }));
-
-    await waitFor(() => {
-      const sent = stub.calls.requests.find((request) => request.method === 'PUT');
-      const days = (sent?.body as { days: readonly { weekday: string; segments: unknown[] }[] })
-        .days;
-
-      // D-013: a break IS the gap between two opening segments. Nothing stores a break.
-      expect(days.find((day) => day.weekday === 'MONDAY')?.segments).toEqual([
-        { opensAtMinute: 540, closesAtMinute: 780 },
-        { opensAtMinute: 840, closesAtMinute: 1020 },
-      ]);
-    });
+    // Two editors for one record is two things to keep in step; this screen no longer has one.
+    expect(await screen.findByRole('link', { name: 'Open opening hours' })).toHaveAttribute(
+      'href',
+      '/settings?section=hours',
+    );
+    expect(screen.queryByLabelText('Starts')).not.toBeInTheDocument();
   });
 
   it('says the staff list is unavailable rather than showing an empty one', async () => {
     renderWith(<StaffPage />, signedIn());
 
     expect(await screen.findByText('The staff list is not available yet')).toBeInTheDocument();
-  });
-
-  it('disables the editor for a role that may not write', async () => {
-    renderWith(<StaffPage />, signedIn(baseRoutes, 'STAFF'));
-
-    // STAFF reads `doctors_services_hours` and does not write it.
-    expect(await screen.findByLabelText('Day starts')).toBeDisabled();
-    expect(screen.queryByRole('button', { name: 'Save opening hours' })).not.toBeInTheDocument();
   });
 });
 
@@ -220,6 +163,7 @@ describe('clinic settings', () => {
 
     renderWith(<SettingsPage />, stub);
 
+    await userEvent.click(await screen.findByRole('button', { name: /Booking preferences/ }));
     await userEvent.clear(await screen.findByLabelText('Minimum notice, in minutes'));
     await userEvent.type(screen.getByLabelText('Minimum notice, in minutes'), '120');
     await userEvent.click(screen.getByRole('button', { name: 'Save booking preferences' }));
@@ -234,14 +178,105 @@ describe('clinic settings', () => {
     expect(sent[0]?.body).toMatchObject({ minimumNoticeMinutes: 120 });
   });
 
-  it('shows the opening hours read-only and points at the one editor', async () => {
-    renderWith(<SettingsPage />, signedIn());
+  const openHours = async (stub = signedIn()) => {
+    renderWith(<SettingsPage />, stub);
+    await userEvent.click(await screen.findByRole('button', { name: /Opening hours/ }));
+    return stub;
+  };
 
-    // Five of them, one per open weekday, which is the point of listing the week.
-    expect(await screen.findAllByText('09:00 to 17:00')).toHaveLength(5);
-    expect(
-      screen.getByRole('link', { name: 'Edit opening hours on Doctors and Staff' }),
-    ).toBeInTheDocument();
+  const savedWeek = async (stub: ReturnType<typeof signedIn>) => {
+    let days: readonly { weekday: string; segments: unknown[] }[] = [];
+    await waitFor(() => {
+      const sent = stub.calls.requests.find((request) => request.method === 'PUT');
+      days = (sent?.body as { days: typeof days }).days;
+      expect(days).toHaveLength(7);
+    });
+    return days;
+  };
+
+  const withHoursSave = () =>
+    signedIn({
+      ...baseRoutes,
+      [`PUT /api/v1/organisations/${ORGANISATION_ID}/hours`]: { status: 204 },
+    });
+
+  it('edits the opening hours here, seeded from the clinic, a day at a time', async () => {
+    await openHours();
+
+    // Monday is selected first, and the fixture opens it 09:00 to 17:00.
+    expect(await screen.findByRole('heading', { name: 'Monday availability' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Starts')).toHaveValue('09:00');
+    expect(screen.getByLabelText('Ends')).toHaveValue('17:00');
+    expect(screen.getByRole('switch', { name: 'Saturday open' })).toHaveAttribute(
+      'aria-checked',
+      'false',
+    );
+    // Nothing changed yet, so there is nothing to save or discard.
+    expect(screen.getByRole('button', { name: 'Save weekly schedule' })).toBeDisabled();
+  });
+
+  it('opens a closed day and saves all seven weekdays', async () => {
+    const stub = await openHours(withHoursSave());
+
+    await userEvent.click(await screen.findByRole('switch', { name: 'Saturday open' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save weekly schedule' }));
+
+    const days = await savedWeek(stub);
+    /**
+     * ALL SEVEN, including the closed ones: the API's contract, since a weekly off is a
+     * weekday with no segments and an omission is not a closure.
+     */
+    expect(days.find((day) => day.weekday === 'SATURDAY')?.segments).toEqual([
+      { opensAtMinute: 540, closesAtMinute: 1020 },
+    ]);
+    expect(days.find((day) => day.weekday === 'SUNDAY')?.segments).toEqual([]);
+    expect(await screen.findByText('Weekly schedule saved.')).toBeInTheDocument();
+  });
+
+  it('writes a break as two segments, on that day only', async () => {
+    const stub = await openHours(withHoursSave());
+
+    await userEvent.type(await screen.findByLabelText('Break starts'), '13:00');
+    await userEvent.type(screen.getByLabelText('Break ends'), '14:00');
+    await userEvent.click(screen.getByRole('button', { name: 'Save weekly schedule' }));
+
+    const days = await savedWeek(stub);
+    // D-013: a break IS the gap between two opening segments.
+    expect(days.find((day) => day.weekday === 'MONDAY')?.segments).toEqual([
+      { opensAtMinute: 540, closesAtMinute: 780 },
+      { opensAtMinute: 840, closesAtMinute: 1020 },
+    ]);
+    // Each day is its own: Tuesday keeps its hours without a break.
+    expect(days.find((day) => day.weekday === 'TUESDAY')?.segments).toEqual([
+      { opensAtMinute: 540, closesAtMinute: 1020 },
+    ]);
+  });
+
+  it('refuses hours the API would refuse, before sending anything', async () => {
+    const stub = await openHours(withHoursSave());
+
+    const ends = await screen.findByLabelText('Ends');
+    await userEvent.clear(ends);
+    await userEvent.type(ends, '08:00');
+    await userEvent.click(screen.getByRole('button', { name: 'Save weekly schedule' }));
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(stub.calls.requests.some((request) => request.method === 'PUT')).toBe(false);
+  });
+
+  it('shows the hours to a role that may not change them, with nothing to press', async () => {
+    await openHours(signedIn(baseRoutes, 'STAFF'));
+
+    expect(await screen.findByLabelText('Starts')).toBeDisabled();
+    expect(screen.getByRole('switch', { name: 'Monday open' })).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Save weekly schedule' })).not.toBeInTheDocument();
+  });
+
+  it('opens on the section the address names', async () => {
+    renderWith(<SettingsPage />, signedIn(), ['/settings?section=agent']);
+
+    expect(await screen.findByRole('heading', { name: 'AI receptionist' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('Legal name')).not.toBeInTheDocument();
   });
 
   it('warns when nobody has confirmed the opening hours', async () => {
@@ -258,6 +293,8 @@ describe('clinic settings', () => {
       }),
     );
 
+    await userEvent.click(await screen.findByRole('button', { name: /Opening hours/ }));
+
     /**
      * D-013's distinction, on screen: hours that exist are not the same as hours somebody
      * confirmed, and until they are confirmed the agent states none and no slot is offered.
@@ -267,6 +304,7 @@ describe('clinic settings', () => {
 
   it('says there is no on/off switch for the agent', async () => {
     renderWith(<SettingsPage />, signedIn());
+    await userEvent.click(await screen.findByRole('button', { name: /AI receptionist/ }));
 
     expect(await screen.findByText(/no switch that turns the agent on or off/)).toBeInTheDocument();
   });
