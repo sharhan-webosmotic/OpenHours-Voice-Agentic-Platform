@@ -374,6 +374,17 @@ const RECIPES = new Map<string, (token: string) => Promise<number>>([
     },
   ],
   [
+    'GET /api/v1/analytics/overview',
+    async (token) => {
+      // A platform role reads it at scope `usage` and must name the clinic; a clinic role's
+      // own organisation wins and the parameter is ignored.
+      const response = await request(app)
+        .get(`/api/v1/analytics/overview?organisationId=${org.organisationId}`)
+        .set('Authorization', `Bearer ${token}`);
+      return response.status;
+    },
+  ],
+  [
     'GET /api/v1/calls',
     async (token) => {
       const response = await request(app)

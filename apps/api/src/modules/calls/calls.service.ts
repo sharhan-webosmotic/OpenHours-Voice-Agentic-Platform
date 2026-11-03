@@ -12,6 +12,17 @@ import * as repository from './calls.repository.js';
 import type { ListCallsQuery } from './calls.schemas.js';
 
 /**
+ * A doctor id that matches no row, for an account with `own` scope and no doctor behind it.
+ *
+ * THE NIL UUID, NOT A WORD. The first version of this sentinel was the string
+ * `'no-such-doctor'`, which PostgreSQL refuses as input to a uuid column, so a doctor whose
+ * account was never linked to a doctor row got a 500 instead of an empty screen. The nil uuid
+ * is a valid value that no row can hold, since every id here is a v7 uuid generated in the
+ * application, so the filter narrows to nothing as intended.
+ */
+const MATCHES_NO_DOCTOR = '00000000-0000-0000-0000-000000000000';
+
+/**
  * Reading the call history.
  *
  * ─── THREE DIFFERENT READERS, THREE DIFFERENT ANSWERS ───────────────────────────
@@ -125,7 +136,7 @@ const ownDoctorId = async (
    * undefined filter, would widen `own` to `all` for a misconfigured user, which is the
    * direction that must never happen by accident.
    */
-  return doctor?.id ?? 'no-such-doctor';
+  return doctor?.id ?? MATCHES_NO_DOCTOR;
 };
 
 export const list = async (

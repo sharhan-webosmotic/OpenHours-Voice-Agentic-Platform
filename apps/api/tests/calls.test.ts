@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
+import * as service from '../src/modules/calls/calls.service.js';
 import { hashPassword } from '../src/common/passwords.js';
 import { uuidV7 } from '../src/common/uuid.js';
 import { jsonBody } from '../src/test-support/http.js';
@@ -262,6 +263,35 @@ describe('a doctor reads only calls that are theirs', () => {
      */
     expect(ids).not.toContain(unlinkedCallId);
     expect(ids).not.toContain(recordedCallId);
+  });
+
+  it('sees an empty history, not an error, when their account has no doctor behind it', async () => {
+    /**
+     * A regression test. `own` with no doctor row used a sentinel id of `'no-such-doctor'`,
+     * which PostgreSQL refuses as a uuid, so this account got a 500. The overview's tests
+     * found it; the fix is the nil uuid, which is valid and matches no row.
+     */
+    const unlinked = await asPlatform(ownerClient(), (tx) =>
+      tx.user.create({
+        data: {
+          id: uuidV7(),
+          organisationId: clinic.organisationId,
+          email: `calls.unlinked.${Date.now()}@test.invalid`,
+          passwordHash: 'x',
+          fullName: 'Unlinked Doctor',
+          role: 'DOCTOR',
+          status: 'ACTIVE',
+        },
+      }),
+    );
+
+    const result = await service.list(
+      { userId: unlinked.id, role: 'DOCTOR', organisationId: clinic.organisationId },
+      undefined,
+      { limit: 25, status: undefined },
+    );
+
+    expect(result.items).toEqual([]);
   });
 
   it('is refused a recording, which their row denies entirely', async () => {

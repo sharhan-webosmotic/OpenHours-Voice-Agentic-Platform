@@ -292,6 +292,11 @@ function patientAndAppointmentRecipes(): readonly [string, (token: string) => Pr
       registered: `${appointments}/:appointmentId/status`,
       path: () => `${appointments}/${appointmentId()}/status`,
     },
+    {
+      method: 'get',
+      registered: '/api/v1/analytics/overview',
+      path: () => '/api/v1/analytics/overview',
+    },
     // The call history is as gated as everything else: a user holding a temporary password
     // reads nothing, including the call that came in while they were being set up.
     { method: 'get', registered: calls, path: () => calls },
