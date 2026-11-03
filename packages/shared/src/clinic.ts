@@ -489,3 +489,18 @@ export const sarvamMappingSchema = z.object({
 });
 
 export type SarvamMappingInput = z.infer<typeof sarvamMappingSchema>;
+
+// ─── A clinic owner's login, created from the admin console ─────────────────────
+
+/**
+ * The person the clinic's first login belongs to.
+ *
+ * No password field: the platform generates a temporary one, shows it once and stores only its
+ * hash (D-003), for the same reason it generates the Sarvam secrets rather than accepting them.
+ */
+export const createClinicOwnerSchema = z.object({
+  fullName: requiredText(200),
+  email: z.string().trim().toLowerCase().pipe(z.email('must be an email address').max(254)),
+});
+
+export type CreateClinicOwnerInput = z.infer<typeof createClinicOwnerSchema>;

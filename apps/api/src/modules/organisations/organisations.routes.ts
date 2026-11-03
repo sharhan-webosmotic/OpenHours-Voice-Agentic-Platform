@@ -5,6 +5,7 @@ import type {
   ClinicFaqsInput,
   ClinicHoursInput,
   ClinicProfileInput,
+  CreateClinicOwnerInput,
   CreateOrganisationInput,
   DoctorInput,
   OrganisationStatus,
@@ -21,9 +22,14 @@ import {
   requireUser,
 } from '../../common/auth.middleware.js';
 import { currentPrincipal } from '../../common/permissions.js';
-import { presentClinicDetail, presentOrganisationSummary } from './organisations.presenter.js';
+import {
+  presentClinicDetail,
+  presentOrganisationSummary,
+  presentPromptPreview,
+} from './organisations.presenter.js';
 import * as schemas from './organisations.schemas.js';
 import * as service from './organisations.service.js';
+import { createClinicOwner } from '../clinic-users/clinic-users.service.js';
 
 /**
  * Clinic configuration endpoints, for the admin console.
@@ -87,6 +93,30 @@ registerRoute({
   response: schemas.clinicDetailResponseSchema,
   permission: 'organisations:read',
   phiSensitive: false,
+  auditAction: 'organisation.viewed',
+});
+
+registerRoute({
+  method: 'get',
+  path: `${BASE}/:organisationId/prompt-preview`,
+  summary: "The clinic's master prompt as it would be rendered now, read-only",
+  params: schemas.organisationParamsSchema,
+  response: schemas.promptPreviewResponseSchema,
+  permission: 'organisations:read',
+  phiSensitive: false,
+  auditAction: 'organisation.prompt_previewed',
+});
+
+registerRoute({
+  method: 'post',
+  path: `${BASE}/:organisationId/owners`,
+  summary: 'Create a clinic owner login, returning its temporary password once',
+  params: schemas.organisationParamsSchema,
+  body: schemas.createClinicOwnerSchema,
+  response: schemas.createdClinicOwnerResponseSchema,
+  permission: 'clinic_users:write',
+  phiSensitive: false,
+  auditAction: 'clinic_user.created',
 });
 
 registerRoute({
@@ -304,6 +334,33 @@ export const organisationsRouter = (): Router => {
       const detail = await service.getClinic(currentPrincipal(), organisationId(req));
 
       res.status(200).json(presentClinicDetail(detail));
+    },
+  );
+
+  router.get(
+    '/:organisationId/prompt-preview',
+    ...AUTHENTICATED,
+    validate({ params: schemas.organisationParamsSchema }),
+    async (req: Request, res: Response) => {
+      const preview = await service.previewPrompt(currentPrincipal(), organisationId(req));
+
+      // The clinic's whole configuration in one block of text: never kept by a cache.
+      res.set('Cache-Control', 'no-store');
+      res.status(200).json(presentPromptPreview(preview));
+    },
+  );
+
+  router.post(
+    '/:organisationId/owners',
+    ...AUTHENTICATED,
+    validate({ params: schemas.organisationParamsSchema, body: schemas.createClinicOwnerSchema }),
+    async (req: Request, res: Response) => {
+      const { body } = validatedData<OrganisationParams, unknown, CreateClinicOwnerInput>(req);
+      const created = await createClinicOwner(currentPrincipal(), organisationId(req), body);
+
+      // Carries a live temporary password: no browser, proxy or cache may keep a copy.
+      res.set('Cache-Control', 'no-store');
+      res.status(201).json(created);
     },
   );
 

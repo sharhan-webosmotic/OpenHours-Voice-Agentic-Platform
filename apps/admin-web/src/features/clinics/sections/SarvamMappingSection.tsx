@@ -248,6 +248,18 @@ export const SarvamMappingSection = ({
           </p>
         )}
 
+        {mapping?.toolSecretSet === true && (
+          <p className="m-0 text-xs text-muted">
+            {mapping.webhookSecretSet
+              ? `Webhook secret set${
+                  mapping.webhookSecretSetAt === null
+                    ? ''
+                    : ` on ${new Date(mapping.webhookSecretSetAt).toLocaleString('en-IN')}`
+                }.`
+              : 'No webhook secret yet: this clinic was mapped before webhook secrets existed. Saving the mapping generates one and leaves the tool secret alone.'}
+          </p>
+        )}
+
         {canWrite && mapping?.toolSecretSet === true && confirmingRegenerate === undefined && (
           <div className="flex flex-wrap gap-3">
             {(['toolSecret', 'webhookSecret'] as const).map((secret) => (

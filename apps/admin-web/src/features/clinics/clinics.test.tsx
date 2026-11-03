@@ -34,6 +34,8 @@ const createService = vi.fn();
 const updateService = vi.fn();
 const createDoctor = vi.fn();
 const updateDoctor = vi.fn();
+const previewPrompt = vi.fn();
+const createOwner = vi.fn();
 
 vi.mock('../../lib/clinicsApi', () => ({
   clinicsApi: {
@@ -52,6 +54,8 @@ vi.mock('../../lib/clinicsApi', () => ({
     updateService: (...args: unknown[]) => updateService(...args) as Promise<void>,
     createDoctor: (...args: unknown[]) => createDoctor(...args) as Promise<unknown>,
     updateDoctor: (...args: unknown[]) => updateDoctor(...args) as Promise<void>,
+    previewPrompt: (...args: unknown[]) => previewPrompt(...args) as Promise<unknown>,
+    createOwner: (...args: unknown[]) => createOwner(...args) as Promise<unknown>,
   },
 }));
 
@@ -133,6 +137,8 @@ const detail = (overrides: Partial<ClinicDetailView> = {}): ClinicDetailView => 
     promptVersion: 'v0-placeholder',
     toolSecretSet: false,
     toolSecretSetAt: null,
+    webhookSecretSet: false,
+    webhookSecretSetAt: null,
   },
   // The console's shape: an agent row and nothing in it, which the server calls not configured.
   voiceAgent: {
@@ -309,7 +315,8 @@ describe('creating a clinic', () => {
         type: 'https://clinicai.health/problems/conflict',
         title: 'Conflict',
         status: 409,
-        detail: 'A clinic with that phone number already exists.',
+        detail:
+          'A clinic with that name already exists. Search for it in the clinic list, or choose a different name.',
       }),
     );
 
@@ -643,6 +650,8 @@ describe('the Sarvam tool secret', () => {
         promptVersion: 'v0-placeholder',
         toolSecretSet: true,
         toolSecretSetAt: '2026-10-03T00:00:00.000Z',
+        webhookSecretSet: true,
+        webhookSecretSetAt: '2026-10-03T00:00:00.000Z',
       },
     });
 
@@ -726,6 +735,8 @@ describe('the Sarvam tool secret', () => {
           promptVersion: 'v0-placeholder',
           toolSecretSet: true,
           toolSecretSetAt: '2026-10-03T00:00:00.000Z',
+          webhookSecretSet: true,
+          webhookSecretSetAt: '2026-10-03T00:00:00.000Z',
         },
       }),
     );
@@ -735,5 +746,200 @@ describe('the Sarvam tool secret', () => {
 
     // Only that one exists and when it was set. The value is unrecoverable by design.
     expect(screen.getByText(/Neither secret can be shown again/)).toBeInTheDocument();
+  });
+});
+
+/**
+ * A clipboard the tests can read back. jsdom has none, and the console treats a missing one as
+ * a failed copy, so each test that copies installs this first.
+ */
+const installClipboard = () => {
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+  return writeText;
+};
+
+describe('creating the clinic owner', () => {
+  const fillAndSubmit = async (fullName: string, email: string) => {
+    renderWith(<AppRoutes />, asSuperAdmin(), [`/clinics/${CLINIC_ID}`]);
+    await screen.findByRole('heading', { name: 'Clinic owner' });
+
+    await userEvent.type(screen.getByLabelText("Owner's full name"), fullName);
+    await userEvent.type(screen.getByLabelText("Owner's email address"), email);
+    await userEvent.click(screen.getByRole('button', { name: 'Create the clinic owner' }));
+  };
+
+  it('shows the temporary password once, with a warning and a working copy button', async () => {
+    const writeText = installClipboard();
+    createOwner.mockResolvedValue({
+      userId: 'user-9',
+      email: 'asha@sunrise.test',
+      fullName: 'Asha Rao',
+      temporaryPassword: 'ABCD-EFGH-JKMN-PQRS-TUVW-XYZ2',
+    });
+
+    await fillAndSubmit('Asha Rao', 'Asha@Sunrise.test');
+
+    expect(await screen.findByText('ABCD-EFGH-JKMN-PQRS-TUVW-XYZ2')).toBeInTheDocument();
+    expect(screen.getByText(/It is shown once/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/stored only as a hash, so it cannot be shown again/),
+    ).toBeInTheDocument();
+    // Sent as the shared schema normalises it: the email lower-cased.
+    expect(createOwner).toHaveBeenCalledWith(CLINIC_ID, {
+      fullName: 'Asha Rao',
+      email: 'asha@sunrise.test',
+    });
+
+    await userEvent.click(screen.getByRole('button', { name: 'Copy the password' }));
+
+    expect(writeText).toHaveBeenCalledWith('ABCD-EFGH-JKMN-PQRS-TUVW-XYZ2');
+    expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument();
+  });
+
+  it('says plainly when copying did not work, rather than implying it did', async () => {
+    Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
+    createOwner.mockResolvedValue({
+      userId: 'user-9',
+      email: 'asha@sunrise.test',
+      fullName: 'Asha Rao',
+      temporaryPassword: 'ABCD-EFGH-JKMN-PQRS-TUVW-XYZ2',
+    });
+
+    await fillAndSubmit('Asha Rao', 'asha@sunrise.test');
+    await userEvent.click(await screen.findByRole('button', { name: 'Copy the password' }));
+
+    expect(await screen.findByText(/Copying did not work/)).toBeInTheDocument();
+  });
+
+  it('refuses a malformed email in the form, and sends nothing', async () => {
+    await fillAndSubmit('Asha Rao', 'not-an-email');
+
+    expect(await screen.findByText('must be an email address')).toBeInTheDocument();
+    expect(createOwner).not.toHaveBeenCalled();
+  });
+
+  it('shows the server’s answer when the email is already in use', async () => {
+    createOwner.mockRejectedValue(
+      new ApiError({
+        type: 'https://clinicai.health/problems/conflict',
+        title: 'Conflict',
+        status: 409,
+        detail: 'An account with that email address already exists.',
+      }),
+    );
+
+    await fillAndSubmit('Asha Rao', 'asha@sunrise.test');
+
+    expect(
+      await screen.findByText('An account with that email address already exists.'),
+    ).toBeInTheDocument();
+  });
+});
+
+describe('the prompt preview', () => {
+  const preview = {
+    version: 'v0-placeholder',
+    approved: false,
+    versionRecorded: false,
+    text: 'You are the receptionist answering the telephone for Sunrise Dental.',
+    readiness: {
+      ready: false,
+      satisfiedCount: 3,
+      totalCount: 21,
+      incompleteSections: ['hours'],
+      missing: [
+        {
+          key: 'hours.collected',
+          section: 'hours',
+          label: 'Opening hours asked about for all seven weekdays',
+        },
+      ],
+    },
+  };
+
+  it('renders only when asked, because every render is an audited read', async () => {
+    renderWith(<AppRoutes />, asSuperAdmin(), [`/clinics/${CLINIC_ID}`]);
+    await screen.findByRole('heading', { name: 'Master prompt' });
+
+    expect(previewPrompt).not.toHaveBeenCalled();
+  });
+
+  it('shows the text, the version, the default-version note and what is missing, and copies', async () => {
+    const writeText = installClipboard();
+    previewPrompt.mockResolvedValue(preview);
+
+    renderWith(<AppRoutes />, asSuperAdmin(), [`/clinics/${CLINIC_ID}`]);
+    await userEvent.click(await screen.findByRole('button', { name: 'Render the prompt' }));
+
+    const text = await screen.findByLabelText('Rendered master prompt');
+    expect(text).toHaveTextContent(preview.text);
+    expect(screen.getByText('v0-placeholder')).toBeInTheDocument();
+    expect(screen.getByText(/placeholder wording, not for real callers/)).toBeInTheDocument();
+    expect(screen.getByText(/No version is recorded for this clinic yet/)).toBeInTheDocument();
+    expect(
+      screen.getByText('Opening hours asked about for all seven weekdays'),
+    ).toBeInTheDocument();
+    expect(previewPrompt).toHaveBeenCalledWith(CLINIC_ID);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Copy the prompt' }));
+    expect(writeText).toHaveBeenCalledWith(preview.text);
+  });
+
+  it('says why when the prompt cannot be rendered', async () => {
+    previewPrompt.mockRejectedValue(
+      new ApiError({
+        type: 'https://clinicai.health/problems/not-found',
+        title: 'Not Found',
+        status: 404,
+        detail: 'That clinic was not found.',
+      }),
+    );
+
+    renderWith(<AppRoutes />, asSuperAdmin(), [`/clinics/${CLINIC_ID}`]);
+    await userEvent.click(await screen.findByRole('button', { name: 'Render the prompt' }));
+
+    expect(await screen.findByText('That clinic was not found.')).toBeInTheDocument();
+  });
+});
+
+describe('the webhook secret on the clinic page', () => {
+  const mapping = {
+    sarvamAppId: 'app_123',
+    sarvamAppVersion: '1',
+    sarvamDeploymentId: 'dep_123',
+    sarvamConnectionId: 'conn_123',
+    agentPhone: '+919000000001',
+    promptVersion: 'v0-placeholder',
+    toolSecretSet: true,
+    toolSecretSetAt: '2026-10-03T00:00:00.000Z',
+  };
+
+  it('says when it was set', async () => {
+    get.mockResolvedValue(
+      detail({
+        sarvamMapping: {
+          ...mapping,
+          webhookSecretSet: true,
+          webhookSecretSetAt: '2026-10-04T00:00:00.000Z',
+        },
+      }),
+    );
+
+    renderWith(<AppRoutes />, asSuperAdmin(), [`/clinics/${CLINIC_ID}`]);
+
+    expect(await screen.findByText(/^Webhook secret set on/)).toBeInTheDocument();
+  });
+
+  it('tells an older clinic it has none, and that saving makes one without touching the tool secret', async () => {
+    get.mockResolvedValue(
+      detail({ sarvamMapping: { ...mapping, webhookSecretSet: false, webhookSecretSetAt: null } }),
+    );
+
+    renderWith(<AppRoutes />, asSuperAdmin(), [`/clinics/${CLINIC_ID}`]);
+
+    expect(
+      await screen.findByText(/No webhook secret yet.*leaves the tool secret alone/),
+    ).toBeInTheDocument();
   });
 });

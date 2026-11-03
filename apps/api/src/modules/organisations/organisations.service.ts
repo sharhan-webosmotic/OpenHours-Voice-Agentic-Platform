@@ -26,7 +26,8 @@ import { withClinicScope, withPrincipalScope } from '../../db/principal-scope.js
 import type { TenantDb } from '../../db/tenant-client.js';
 import { logger } from '../../common/logger.js';
 import { record } from '../audit/audit.service.js';
-import { findPromptVersion } from '../../voice/prompts/registry.js';
+import { DEFAULT_PROMPT_VERSION, findPromptVersion } from '../../voice/prompts/registry.js';
+import { renderClinicPrompt } from '../../voice/prompts/render.js';
 import * as repository from './organisations.repository.js';
 
 /**
@@ -223,10 +224,84 @@ export const getClinic = async (
       );
     }
 
+    /**
+     * Audited because the page shows the state of the clinic's Sarvam secrets (whether each
+     * exists and when it was set) beside its whole configuration. Ids only: which clinic was
+     * opened, never what it holds.
+     */
+    await record(db, {
+      organisationId,
+      action: 'organisation.viewed',
+      entityType: 'organisation',
+      entityId: organisationId,
+      metadata: {},
+    });
+
     return {
       ...configuration,
       readiness: readinessFor(configuration),
       voiceAgent: agentStatusOf(configuration),
+    };
+  });
+};
+
+export type PromptPreview = {
+  /** The master prompt version this text was rendered from. */
+  readonly version: string;
+  /** Whether that wording is approved for real callers. False for the placeholder. */
+  readonly approved: boolean;
+  /**
+   * Whether the clinic has a version recorded as pasted into Sarvam. When it has not, the
+   * preview is rendered from the default version, and the page says so.
+   */
+  readonly versionRecorded: boolean;
+  readonly text: string;
+  readonly readiness: ClinicReadiness;
+};
+
+/**
+ * The clinic's master prompt as `pnpm prompt:render` would print it, for the page to show.
+ *
+ * The same renderer and the same version rule as the command: the version the clinic is
+ * marked with, or the default when none is recorded. Read-only: it changes nothing, not even
+ * the recorded version, which only an operator saving the Sarvam mapping may set (D-014).
+ *
+ * Audited, because a rendered prompt is the clinic's whole configuration in one block of
+ * text. The row names the version, never the text.
+ */
+export const previewPrompt = async (
+  principal: Principal,
+  organisationId: string,
+): Promise<PromptPreview> => {
+  requirePermission('organisations', 'read', principal);
+
+  return withClinicScope(principal, organisationId, 'organisations.prompt_preview', async (db) => {
+    const configuration = await repository.findClinicConfiguration(db, organisationId);
+
+    if (configuration === null) {
+      throw new NotFoundError(
+        `organisation ${organisationId} is not reachable by this principal`,
+        'That clinic was not found.',
+      );
+    }
+
+    const readiness = readinessFor(configuration);
+    const rendered = renderClinicPrompt(configuration, readiness, DEFAULT_PROMPT_VERSION);
+
+    await record(db, {
+      organisationId,
+      action: 'organisation.prompt_previewed',
+      entityType: 'organisation',
+      entityId: organisationId,
+      metadata: { version: rendered.version, approved: rendered.approved },
+    });
+
+    return {
+      version: rendered.version,
+      approved: rendered.approved,
+      versionRecorded: configuration.sarvamMapping?.promptVersion != null,
+      text: rendered.text,
+      readiness,
     };
   });
 };

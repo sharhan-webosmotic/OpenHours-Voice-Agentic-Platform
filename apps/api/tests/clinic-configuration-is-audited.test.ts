@@ -121,6 +121,25 @@ const auditRowCount = async (action: string, actorUserId: string): Promise<numbe
 /** How to drive each audited configuration route, keyed exactly as the registry names it. */
 const RECIPES = new Map<string, () => Promise<number>>([
   [
+    // A read, audited because the page shows the state of the clinic's Sarvam secrets.
+    `GET ${base}/:organisationId`,
+    async () => (await authed.get(`${base}/${organisationId}`)).status,
+  ],
+  [
+    `GET ${base}/:organisationId/prompt-preview`,
+    async () => (await authed.get(`${base}/${organisationId}/prompt-preview`)).status,
+  ],
+  [
+    `POST ${base}/:organisationId/owners`,
+    async () =>
+      (
+        await authed.post(`${base}/${organisationId}/owners`).send({
+          fullName: 'Audited Owner',
+          email: `audited.owner.${uniqueSuffix()}@test.invalid`,
+        })
+      ).status,
+  ],
+  [
     `POST ${base}`,
     async () =>
       (

@@ -5,11 +5,8 @@ import { createApp } from '../src/app.js';
 import { PASSWORD_CHANGE_REQUIRED_TYPE } from '../src/common/errors.js';
 import { verifyPassword } from '../src/common/passwords.js';
 import { jsonBody, problemBody } from '../src/test-support/http.js';
-import {
-  assertLocalDatabase,
-  provisionClinic,
-  temporaryPassword,
-} from '../prisma/provision-clinic.js';
+import { assertLocalDatabase, provisionClinic } from '../prisma/provision-clinic.js';
+import { temporaryPassword } from '../src/modules/clinic-users/temporary-password.js';
 import { asPlatform, disconnectAll, ownerClient } from './support/db.js';
 
 /**

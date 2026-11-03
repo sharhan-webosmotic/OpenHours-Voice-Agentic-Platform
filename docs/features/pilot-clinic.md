@@ -80,6 +80,20 @@ request into a 409 telling the operator to search the list first. **That index a
 clinics with one name are a duplicate**, which holds while multi-branch clinics are out of
 scope and is the thing to revisit when branches arrive.
 
+### The owner's login, the prompt and the secrets, on the clinic page
+
+- **Clinic owner** creates the owner's sign-in for the dashboard. The server generates a
+  temporary password by the same code as `pnpm provision:clinic`, stores only its argon2 hash,
+  and returns it in that one response, which no cache may keep. The page shows it once with a
+  copy button. The owner must replace it at first sign-in (D-003). Governed by `clinic_users`.
+- **Master prompt** renders the prompt on request, read-only, with a copy button, the version
+  it came from, whether that wording is approved, and what is still missing. It records
+  nothing: only saving the Sarvam mapping records a version.
+- **Secrets** in the Sarvam mapping says whether each secret is set and when, never its value.
+
+Opening the page, rendering the prompt and creating the owner each write an audit row, with ids
+and flags only.
+
 ### Who can change what
 
 The permission matrix governs each section separately, and the differences are real rather
@@ -119,6 +133,42 @@ a terminal leaves the same audit trail as reading it through the console.
 on every render. What is finished and reviewable is the template format, the substitution set,
 the versioning and the renderer. The approved text lands as `v1` in
 `apps/api/src/voice/prompts/`, and adopting it means adding that file and the registry entry.
+
+### Clinics created before 2026-11-03 carry a version nobody recorded
+
+Until 2026-11-03, creating a clinic stamped `v0-placeholder` as its prompt version, so the
+readiness item "which master prompt version is loaded in Sarvam" was met before anyone had
+opened Sarvam. New clinics no longer get one. Clinics created before then still show the item
+as met, and need this once on each database that holds any.
+
+A stamped version is distinguishable from a recorded one through the audit trail: an operator
+recording a version is a `phone_voice_mapping.updated` row whose `fields` include
+`promptVersion`. The statement clears the version only where no such row exists, so a version
+somebody actually recorded is left alone. It is idempotent.
+
+```sql
+BEGIN;
+-- Row-level security is forced even for the table owner, so the update declares platform
+-- scope for this transaction only.
+SELECT set_config('app.platform', 'on', true);
+UPDATE voice_agents AS agent
+SET prompt_version = NULL
+WHERE agent.prompt_version = 'v0-placeholder'
+  AND NOT EXISTS (
+    SELECT 1 FROM audit_logs AS entry
+    WHERE entry.organisation_id = agent.organisation_id
+      AND entry.action = 'phone_voice_mapping.updated'
+      AND entry.metadata -> 'fields' ? 'promptVersion'
+  );
+COMMIT;
+```
+
+Run it as the database owner on a local or development database. Checked on 2026-11-03 against
+a scratch database: a clinic whose version was only stamped is cleared, one whose version an
+operator recorded is kept, and a second run changes nothing. It is a documented step rather than a migration because it decides
+what to change by reading the audit trail, and it should not run against staging or production
+without a second person reading it first (root `CLAUDE.md`). Run the readiness check afterwards:
+the clinics it changed now list the prompt version as missing.
 
 ### What is baked into the prompt, and what must never be
 

@@ -263,6 +263,27 @@ const RECIPES = new Map<string, (token: string) => Promise<number>>([
     },
   ],
   [
+    'GET /api/v1/organisations/:organisationId/prompt-preview',
+    async (token) =>
+      (
+        await request(app)
+          .get(`/api/v1/organisations/${org.organisationId}/prompt-preview`)
+          .set('Authorization', `Bearer ${token}`)
+      ).status,
+  ],
+  [
+    'POST /api/v1/organisations/:organisationId/owners',
+    async (token) =>
+      (
+        await request(app)
+          .post(`/api/v1/organisations/${org.organisationId}/owners`)
+          .set('Authorization', `Bearer ${token}`)
+          // A fresh email per role: one fixed address would answer 409 from the second
+          // granted role onwards, which says nothing about permissions.
+          .send({ fullName: 'Perm Owner', email: `perm.owner.${uniqueSuffix()}@test.invalid` })
+      ).status,
+  ],
+  [
     'POST /api/v1/organisations/:organisationId/services',
     async (token) => {
       const response = await request(app)
@@ -657,6 +678,10 @@ const EXPECTED_CELLS: Readonly<Record<string, `${Resource}:${Action}`>> = {
     'doctors_services_hours:write',
   // The Sarvam mapping: `phone_voice_mapping`.
   'PUT /api/v1/organisations/:organisationId/sarvam-mapping': 'phone_voice_mapping:write',
+  // The rendered prompt: the same cell as the clinic page it is shown on.
+  'GET /api/v1/organisations/:organisationId/prompt-preview': 'organisations:read',
+  // A clinic's logins: `clinic_users`, which grants the two platform roles the page allows.
+  'POST /api/v1/organisations/:organisationId/owners': 'clinic_users:write',
 };
 
 describe('every declared route permission is a real matrix cell and is enforced', () => {

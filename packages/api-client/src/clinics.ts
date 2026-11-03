@@ -4,6 +4,7 @@ import type {
   ClinicFaqsInput,
   ClinicHoursInput,
   ClinicProfileInput,
+  CreateClinicOwnerInput,
   CreateOrganisationInput,
   DoctorInput,
   OrganisationStatus,
@@ -107,6 +108,29 @@ export type SarvamMappingView = {
   readonly promptVersion: string | null;
   readonly toolSecretSet: boolean;
   readonly toolSecretSetAt: string | null;
+  /** Whether the webhook path secret exists, and when it was minted. Never the value. */
+  readonly webhookSecretSet: boolean;
+  readonly webhookSecretSetAt: string | null;
+};
+
+/** A rendered master prompt, read-only. */
+export type PromptPreviewView = {
+  /** The master prompt version the text was rendered from. */
+  readonly version: string;
+  /** Whether that wording is approved for real callers. */
+  readonly approved: boolean;
+  /** False when no version is recorded as pasted, so the default version was rendered. */
+  readonly versionRecorded: boolean;
+  readonly text: string;
+  readonly readiness: ReadinessView;
+};
+
+/** A new clinic owner. The temporary password is in this response and nowhere else. */
+export type CreatedClinicOwner = {
+  readonly userId: string;
+  readonly email: string;
+  readonly fullName: string;
+  readonly temporaryPassword: string;
 };
 
 export type TelephonyView = {
@@ -226,6 +250,12 @@ export const createClinicsApi = (authed: AuthedFetch) => {
 
     get: async (id: string): Promise<ClinicDetailView> =>
       parse<ClinicDetailView>(await authed(`${BASE}/${id}`)),
+
+    previewPrompt: async (id: string): Promise<PromptPreviewView> =>
+      parse<PromptPreviewView>(await authed(`${BASE}/${id}/prompt-preview`)),
+
+    createOwner: async (id: string, input: CreateClinicOwnerInput): Promise<CreatedClinicOwner> =>
+      parse<CreatedClinicOwner>(await authed(`${BASE}/${id}/owners`, 'POST', input)),
 
     create: async (
       input: CreateOrganisationInput,

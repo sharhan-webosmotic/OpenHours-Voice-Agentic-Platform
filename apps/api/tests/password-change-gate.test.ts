@@ -380,6 +380,16 @@ function clinicConfigurationRecipes(): readonly [string, (token: string) => Prom
       path: () => `${base}/${id()}/sarvam-mapping`,
     },
     {
+      method: 'get',
+      registered: `${base}/:organisationId/prompt-preview`,
+      path: () => `${base}/${id()}/prompt-preview`,
+    },
+    {
+      method: 'post',
+      registered: `${base}/:organisationId/owners`,
+      path: () => `${base}/${id()}/owners`,
+    },
+    {
       method: 'post',
       registered: `${base}/:organisationId/services`,
       path: () => `${base}/${id()}/services`,

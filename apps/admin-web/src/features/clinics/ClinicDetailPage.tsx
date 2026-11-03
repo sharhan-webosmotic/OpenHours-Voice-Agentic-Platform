@@ -15,6 +15,8 @@ import { FaqsSection } from './sections/FaqsSection';
 import { HoursSection } from './sections/HoursSection';
 import { IdentitySection } from './sections/IdentitySection';
 import { ProfileSection } from './sections/ProfileSection';
+import { ClinicOwnerSection } from './sections/ClinicOwnerSection';
+import { PromptPreviewSection } from './sections/PromptPreviewSection';
 import { SarvamMappingSection } from './sections/SarvamMappingSection';
 import { ServicesSection } from './sections/ServicesSection';
 import { TelephonySection } from './sections/TelephonySection';
@@ -53,6 +55,7 @@ export const ClinicDetailPage = () => {
   const canWriteSettings = useCan('clinic_settings', 'write');
   const canWritePeople = useCan('doctors_services_hours', 'write');
   const canWriteMapping = useCan('phone_voice_mapping', 'write');
+  const canCreateOwner = useCan('clinic_users', 'write');
 
   if (isPending) {
     return <Spinner />;
@@ -188,6 +191,8 @@ export const ClinicDetailPage = () => {
           canWrite={canWriteMapping}
           missingCount={countMissing(missing, 'sarvamMapping')}
         />
+        <PromptPreviewSection organisationId={clinic.organisation.id} />
+        {canCreateOwner && <ClinicOwnerSection organisationId={clinic.organisation.id} />}
       </div>
     </>
   );

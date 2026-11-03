@@ -1,5 +1,5 @@
 import { WEEKDAYS, type ClinicReadiness } from '@clinicai/shared';
-import type { ClinicDetail } from './organisations.service.js';
+import type { ClinicDetail, PromptPreview } from './organisations.service.js';
 import type { OrganisationListRow } from './organisations.repository.js';
 
 /**
@@ -126,7 +126,17 @@ export const presentClinicDetail = (detail: ClinicDetail) => ({
           promptVersion: detail.sarvamMapping.promptVersion,
           toolSecretSet: detail.sarvamMapping.toolSecretSet,
           toolSecretSetAt: iso(detail.sarvamMapping.toolSecretSetAt),
+          webhookSecretSet: detail.sarvamMapping.webhookSecretSet,
+          webhookSecretSetAt: iso(detail.sarvamMapping.webhookSecretSetAt),
         },
   readiness: presentReadiness(detail.readiness),
   voiceAgent: { state: detail.voiceAgent.state, missing: [...detail.voiceAgent.missing] },
+});
+
+export const presentPromptPreview = (preview: PromptPreview) => ({
+  version: preview.version,
+  approved: preview.approved,
+  versionRecorded: preview.versionRecorded,
+  text: preview.text,
+  readiness: presentReadiness(preview.readiness),
 });

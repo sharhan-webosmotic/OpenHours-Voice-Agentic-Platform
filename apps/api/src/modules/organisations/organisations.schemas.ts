@@ -11,6 +11,7 @@ import {
   clinicFaqsSchema,
   clinicHoursSchema,
   clinicProfileSchema,
+  createClinicOwnerSchema,
   createOrganisationSchema,
   doctorSchema,
   sarvamMappingSchema,
@@ -108,6 +109,9 @@ export const sarvamMappingResponseSchema = z.object({
   promptVersion: z.string().nullable(),
   toolSecretSet: z.boolean(),
   toolSecretSetAt: isoDate.nullable(),
+  /** Whether the webhook path secret exists and when it was minted. Never the value. */
+  webhookSecretSet: z.boolean(),
+  webhookSecretSetAt: isoDate.nullable(),
 });
 
 export const clinicDetailResponseSchema = z.object({
@@ -215,6 +219,7 @@ export const doctorHoursResponseSchema = z.object({
 });
 
 export {
+  createClinicOwnerSchema,
   agentProfileSchema,
   bookingPolicySchema,
   clinicFaqsSchema,
@@ -228,3 +233,24 @@ export {
   updateOrganisationSchema,
   updateServiceSchema,
 };
+
+/** A rendered master prompt, for reading and copying. Changes nothing. */
+export const promptPreviewResponseSchema = z.object({
+  version: z.string(),
+  approved: z.boolean(),
+  /** False when no version is recorded as pasted, so the default version was rendered. */
+  versionRecorded: z.boolean(),
+  text: z.string(),
+  readiness: readinessResponseSchema,
+});
+
+/**
+ * A new clinic owner. `temporaryPassword` is in this response and nowhere else: it is stored
+ * only as a hash, so the page that shows it is the only chance to copy it.
+ */
+export const createdClinicOwnerResponseSchema = z.object({
+  userId: z.string(),
+  email: z.string(),
+  fullName: z.string(),
+  temporaryPassword: z.string(),
+});

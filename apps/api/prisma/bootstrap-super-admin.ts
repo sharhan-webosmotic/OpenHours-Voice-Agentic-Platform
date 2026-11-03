@@ -7,7 +7,7 @@ import { Role, UserStatus } from '../src/generated/prisma/enums.js';
 // Reused rather than copied: the readable-alphabet generator and the reasoning behind it
 // (CSPRNG, no characters that are misread aloud) are documented there, and a second
 // implementation would be a second opinion about how much entropy a handover password has.
-import { temporaryPassword } from './provision-clinic.js';
+import { temporaryPassword } from '../src/modules/clinic-users/temporary-password.js';
 
 /**
  * Creates the FIRST super admin, once, so that a freshly deployed platform has somebody
