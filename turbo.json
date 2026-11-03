@@ -17,6 +17,10 @@
       "dependsOn": ["^build", "generate"],
       "outputs": []
     },
+    "@clinicai/clinic-web#test": {
+      "dependsOn": ["^build", "generate", "@clinicai/admin-web#test"],
+      "outputs": []
+    },
     "dev": {
       "cache": false,
       "persistent": true
