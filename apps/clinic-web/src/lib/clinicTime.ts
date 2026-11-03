@@ -140,3 +140,22 @@ export const ageOn = (dateOfBirth: string, today: string): number => {
 
   return year - birthYear - (hadBirthday ? 0 : 1);
 };
+
+/**
+ * `Mon, 9 Nov 2026`, for a line that names a day in full.
+ *
+ * Assembled from parts because `en-IN` writes `Mon, 9 Nov, 2026`, with a comma before the
+ * year that reads as a list.
+ */
+export const formatLongDate = (instant: string, timeZone: string): string => {
+  const parts = dateFormatter(timeZone, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  }).formatToParts(new Date(instant));
+  const part = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((candidate) => candidate.type === type)?.value ?? '';
+
+  return `${part('weekday')}, ${part('day')} ${part('month')} ${part('year')}`;
+};

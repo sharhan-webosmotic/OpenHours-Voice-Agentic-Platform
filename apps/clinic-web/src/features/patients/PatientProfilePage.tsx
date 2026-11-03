@@ -5,22 +5,20 @@ import { Alert } from '../../components/ui/Alert';
 import { Avatar } from '../../components/ui/Avatar';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
-import { EmptyState } from '../../components/ui/EmptyState';
 import { Spinner } from '../../components/ui/Spinner';
-import { Badge } from '../../components/ui/Table';
 import { useCan } from '../../lib/useCan';
 import { errorMessage, isNotFound } from '../../lib/problem';
-import { formatDateOfBirth, formatDateTime } from '../../lib/clinicTime';
-import { statusBadge, statusLabel } from '../appointments/status';
+import { ageOn, clinicToday, formatDateOfBirth } from '../../lib/clinicTime';
+import { formatPhone } from '../../lib/phone';
 import { useClinic } from '../clinic/api';
 import { PatientForm } from './PatientForm';
 import { usePatientQuery } from './api';
+import { AppointmentOverlay, NextAppointmentCard, PatientTimeline } from './profile';
 
 /**
- * One patient, built from `docs/prototype/state-36-patient-profile.png`.
- *
- * The capture's layout is kept: a back link, an identity card on the left with the contact
- * details under it, and appointment history, follow-ups and notes stacked on the right.
+ * One patient, built from the profile reference: a back link, an identity card on the left
+ * with the contact details and notes under it, and the next appointment and the patient's
+ * timeline on the right.
  *
  * ─── THREE DEVIATIONS, ALL RECORDED IN THE FEATURE DOC ──────────────────────────
  *
@@ -34,10 +32,10 @@ import { usePatientQuery } from './api';
  *    The feature brief requires patients to be editable, so the entry point had to go
  *    somewhere, and the identity card is where the fields it edits are shown. Say if it
  *    belongs on the list row instead.
+ * 4. AGE WHERE THE REFERENCE SHOWS SEX. Sex is not stored; the age is, through the date of
+ *    birth, and it is the thing a receptionist checks a caller against.
  *
- * FOLLOW-UPS ARE AN HONEST EMPTY STATE. There is no follow-up endpoint, so the panel says
- * the feature is not available rather than showing an empty list that implies there is
- * nothing to show.
+ * Follow-ups, documents and uploads are not on the timeline: see `profile.tsx`.
  */
 
 export const PatientProfilePage = () => {
@@ -54,6 +52,7 @@ export const PatientProfilePage = () => {
   const timeZone = clinic?.organisation.timezone ?? 'UTC';
   const canWrite = useCan('patients', 'write');
   const [editing, setEditing] = useState(false);
+  const [openAppointmentId, setOpenAppointmentId] = useState<string | undefined>(undefined);
 
   const {
     data: patient,
@@ -112,11 +111,16 @@ export const PatientProfilePage = () => {
 
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
         <Card className="flex flex-col gap-5">
-          <div className="flex flex-col items-center gap-3 text-center">
+          <div className="flex flex-col items-center gap-2 text-center">
             <Avatar name={patient.fullName} size="xl" />
-            <strong className="font-semibold text-default text-md">
+            <strong className="pt-1 font-semibold text-default text-md">
               {patient.fullName ?? 'Name hidden'}
             </strong>
+            {patient.dateOfBirth !== null && (
+              <span className="text-muted text-xs">
+                {`${String(ageOn(patient.dateOfBirth, clinicToday(timeZone)))} years old`}
+              </span>
+            )}
           </div>
 
           {canWrite && (
@@ -135,82 +139,47 @@ export const PatientProfilePage = () => {
             </div>
           )}
 
-          <dl className="flex flex-col gap-4 border-border border-t pt-5">
+          <dl className="m-0 flex flex-col gap-4 border-border-chrome border-t pt-5">
             <div className="flex flex-col gap-1">
-              <dt className="font-semibold text-[0.6875rem] text-muted uppercase">Phone</dt>
-              <dd className="m-0 font-semibold text-default text-xs">
-                {patient.phone ?? 'Hidden'}
+              <dt className="text-muted text-xs uppercase tracking-[0.4px]">Phone</dt>
+              <dd className="m-0 font-semibold text-default text-sm tabular-nums">
+                {patient.phone === null ? 'Hidden' : formatPhone(patient.phone)}
               </dd>
             </div>
             <div className="flex flex-col gap-1">
-              <dt className="font-semibold text-[0.6875rem] text-muted uppercase">Date of birth</dt>
-              <dd className="m-0 font-semibold text-default text-xs">
+              <dt className="text-muted text-xs uppercase tracking-[0.4px]">Date of birth</dt>
+              <dd className="m-0 font-semibold text-default text-sm">
                 {formatDateOfBirth(patient.dateOfBirth)}
+              </dd>
+            </div>
+            <div className="flex flex-col gap-1">
+              <dt className="text-muted text-xs uppercase tracking-[0.4px]">Notes</dt>
+              <dd className="m-0 whitespace-pre-wrap text-default text-sm">
+                {patient.notes ?? 'No notes recorded.'}
               </dd>
             </div>
           </dl>
         </Card>
 
-        <div className="flex flex-col gap-4">
-          <Card padded={false} className="p-0">
-            <div className="flex flex-col gap-0.5 px-6 py-4">
-              <h2 className="m-0 font-semibold text-default text-md">Appointment history</h2>
-              <p className="m-0 text-muted text-xs">
-                Every appointment on this record, newest first.
-              </p>
-            </div>
-
-            {patient.appointments.length === 0 ? (
-              <div className="border-border border-t px-6 py-10 text-center text-muted text-xs">
-                No appointments yet.
-              </div>
-            ) : (
-              <ul className="m-0 list-none p-0">
-                {patient.appointments.map((appointment) => (
-                  <li
-                    key={appointment.id}
-                    className="flex items-center justify-between gap-4 border-border border-t px-6 py-4"
-                  >
-                    <span className="flex flex-col gap-0.5">
-                      <strong className="font-semibold text-default text-xs">
-                        {formatDateTime(appointment.startAt, timeZone)}
-                      </strong>
-                      <small className="text-muted text-xs">
-                        {appointment.doctorName}
-                        {appointment.serviceName === null ? '' : ` · ${appointment.serviceName}`}
-                      </small>
-                    </span>
-                    <Badge kind={statusBadge(appointment.status, appointment.source)}>
-                      {statusLabel(appointment.status, appointment.source)}
-                    </Badge>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-
-          <Card padded={false} className="p-0">
-            <div className="flex flex-col gap-0.5 px-6 py-4">
-              <h2 className="m-0 font-semibold text-default text-md">Follow-ups</h2>
-              <p className="m-0 text-muted text-xs">Tasks linked to this patient.</p>
-            </div>
-
-            <div className="border-border border-t px-6 py-6">
-              <EmptyState
-                title="Follow-ups are not available yet"
-                body="There is no follow-up endpoint in the platform, so nothing is shown here rather than an empty list that would imply this patient has none. Follow-ups arrive as their own feature."
-              />
-            </div>
-          </Card>
-
-          <Card>
-            <h2 className="m-0 mb-2 font-semibold text-default text-md">Notes</h2>
-            <p className="m-0 whitespace-pre-wrap text-muted text-xs">
-              {patient.notes ?? 'No notes recorded.'}
-            </p>
-          </Card>
+        <div className="flex min-w-0 flex-col gap-4">
+          <NextAppointmentCard
+            patient={patient}
+            timeZone={timeZone}
+            onOpen={setOpenAppointmentId}
+          />
+          <PatientTimeline patient={patient} timeZone={timeZone} onOpen={setOpenAppointmentId} />
         </div>
       </div>
+
+      {openAppointmentId !== undefined && (
+        <AppointmentOverlay
+          appointmentId={openAppointmentId}
+          timeZone={timeZone}
+          onClose={() => {
+            setOpenAppointmentId(undefined);
+          }}
+        />
+      )}
 
       {editing && (
         <PatientForm

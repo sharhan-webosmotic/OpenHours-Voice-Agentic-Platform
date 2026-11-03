@@ -246,17 +246,43 @@ describe('the patient profile', () => {
     expect(await screen.findByText('Test Patient One')).toBeInTheDocument();
     expect(screen.getByText('14 Jun 1988')).toBeInTheDocument();
     expect(screen.getByText('Prefers morning appointments.')).toBeInTheDocument();
-    expect(screen.getByText(/16 Nov 2026, 9:00 am/)).toBeInTheDocument();
+    expect(screen.getByText('Mon, 16 Nov 2026 · 09:00')).toBeInTheDocument();
   });
 
-  it('says follow-ups are unavailable rather than showing an empty list', async () => {
+  it('leads with the next appointment, naming its doctor', async () => {
     renderProfile();
 
-    /**
-     * The difference matters: an empty list says this patient has no follow-ups, which would
-     * be a claim the product cannot support, since there is no follow-up endpoint at all.
-     */
-    expect(await screen.findByText('Follow-ups are not available yet')).toBeInTheDocument();
+    expect(await screen.findByText('Next appointment')).toBeInTheDocument();
+    expect(screen.getByText('Mon, 16 Nov 2026 at 09:00 · Dr Test Doctor')).toBeInTheDocument();
+  });
+
+  it('opens the same appointment drawer from the timeline', async () => {
+    renderProfile();
+
+    await userEvent.click(await screen.findByRole('button', { name: 'View appointment' }));
+
+    // The appointments screen's own drawer, loaded by id, with its actions.
+    const dialog = await screen.findByRole('dialog', { name: 'Test Patient One' });
+    expect(within(dialog).getByRole('button', { name: 'Edit or reschedule' })).toBeInTheDocument();
+  });
+
+  it('offers no upload or follow-up control that has nothing behind it', async () => {
+    renderProfile();
+    await screen.findByText('Patient timeline');
+
+    expect(screen.queryByRole('button', { name: /Upload/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /follow-up/i })).not.toBeInTheDocument();
+  });
+
+  it('says plainly when nothing is booked next', async () => {
+    renderProfile({
+      ...baseRoutes,
+      [`GET /api/v1/patients/${PATIENT_ID}`]: {
+        body: { ...patientDetail, nextAppointment: null, nextAppointmentAt: null },
+      },
+    });
+
+    expect(await screen.findByText('Nothing is booked for this patient.')).toBeInTheDocument();
   });
 
   it('says so when the patient has no appointments', async () => {

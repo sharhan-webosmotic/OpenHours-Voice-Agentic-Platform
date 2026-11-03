@@ -288,6 +288,7 @@ export const baseRoutes: StubRoutes = {
   'GET /api/v1/appointments': { body: appointmentList },
   'GET /api/v1/appointments/agenda': { body: agenda() },
   'GET /api/v1/appointments/availability': { body: availability() },
+  [`GET /api/v1/appointments/${APPOINTMENT_ID}`]: { body: appointment },
   'GET /api/v1/calls': { body: callList },
   'GET /api/v1/analytics/overview': { body: overviewWeek },
   [`GET /api/v1/calls/${CALL_ID}`]: { body: callDetail },
