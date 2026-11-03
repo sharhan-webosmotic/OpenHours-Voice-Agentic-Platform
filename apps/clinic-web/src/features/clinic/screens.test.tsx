@@ -2,13 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWith, stubClient, user } from '../../test-support/harness';
-import {
-  agenda,
-  baseRoutes,
-  clinic,
-  ORGANISATION_ID,
-  SERVICE_ID,
-} from '../../test-support/fixtures';
+import { baseRoutes, clinic, ORGANISATION_ID, SERVICE_ID } from '../../test-support/fixtures';
 import { ServicesPage } from '../services/ServicesPage';
 import { StaffPage } from '../staff/StaffPage';
 import { SettingsPage } from '../settings/SettingsPage';
@@ -277,23 +271,80 @@ describe('clinic settings', () => {
 });
 
 describe('the overview', () => {
-  it('shows this week counts and today appointments from the agenda', async () => {
-    renderWith(
-      <OverviewPage />,
-      signedIn({
-        ...baseRoutes,
-        'GET /api/v1/appointments/agenda': { body: agenda('week') },
-      }),
-    );
+  /**
+   * The cards against the overview fixture, whose figures are chosen so each card has
+   * something different to say: a rise, a figure from nothing, and a fall.
+   */
+  it('shows the clinic’s own figures on the four cards', async () => {
+    renderWith(<OverviewPage />, signedIn());
+
+    // The cards draw before the figures arrive, with a dash where each number goes.
+    await screen.findByText('+50%');
+    const calls = screen.getByRole('heading', { name: 'Calls Answered' }).closest('section');
+    const bookings = screen.getByRole('heading', { name: 'AI Bookings' }).closest('section');
+    const attention = screen.getByRole('heading', { name: 'Needs Attention' }).closest('section');
+
+    // 6 against 4 is +50%; 1 against 2 is −50%.
+    expect(within(calls as HTMLElement).getByText('6')).toBeInTheDocument();
+    expect(within(calls as HTMLElement).getByText('+50%')).toBeInTheDocument();
+    expect(within(attention as HTMLElement).getByText('−50%')).toBeInTheDocument();
 
     /**
-     * TWICE, and that is the capture: the patient is in today's list and again in the
-     * calendar's day panel beside it. Asserting one would be asserting the calendar away.
+     * 3 against 0 has no percentage, and "New" is what it says rather than "+Infinity%" or
+     * an invented figure. This is the one place a made-up number would be easiest to slip in.
      */
-    expect((await screen.findAllByText('Test Patient One')).length).toBeGreaterThan(1);
-    expect(screen.getAllByText('9:00 am').length).toBeGreaterThan(0);
-    // CONFIRMED is 2 in the fixture.
-    expect(screen.getAllByText('2').length).toBeGreaterThan(0);
+    expect(within(bookings as HTMLElement).getByText('New')).toBeInTheDocument();
+  });
+
+  it('estimates revenue in rupees and labels it an estimate', async () => {
+    renderWith(<OverviewPage />, signedIn());
+
+    // 150,000 paise is ₹1,500: the listed price of three bookings, not money taken.
+    expect(await screen.findByText('₹1,500')).toBeInTheDocument();
+    expect(screen.getByText('ESTIMATE')).toBeInTheDocument();
+  });
+
+  it('says the agent is online and never claims call forwarding', async () => {
+    renderWith(<OverviewPage />, signedIn());
+
+    expect(await screen.findByText('Online')).toBeInTheDocument();
+    /**
+     * The reference has a green "Call Forwarding active" chip. Forwarding is the Android app,
+     * which does not exist yet, so asserting it is on would be the most confident claim on
+     * the screen and the least true one.
+     */
+    expect(screen.queryByText(/Call Forwarding/)).not.toBeInTheDocument();
+  });
+
+  it('asks the server for the period chosen', async () => {
+    const stub = signedIn();
+    renderWith(<OverviewPage />, stub);
+    await screen.findByText('₹1,500');
+
+    await userEvent.selectOptions(screen.getByLabelText('Period'), 'Last 30 days');
+
+    await waitFor(() => {
+      expect(stub.calls.requests.some((request) => request.path.includes('range=30d'))).toBe(true);
+    });
+  });
+
+  it('draws the outcome ring from recorded outcomes, unclassified calls as Other', async () => {
+    renderWith(<OverviewPage />, signedIn());
+
+    // Six calls: two booked, one enquiry, three nobody classified, which are Other.
+    expect(await screen.findByText('2 · 33%')).toBeInTheDocument();
+    expect(screen.getByText('3 · 50%')).toBeInTheDocument();
+  });
+
+  it('starts the calendar on Sunday, as the reference does', async () => {
+    renderWith(<OverviewPage />, signedIn());
+
+    const grid = await screen.findByRole('table', { name: /Appointments by day/ });
+    const headings = within(grid)
+      .getAllByRole('columnheader')
+      .map((cell) => cell.textContent);
+
+    expect(headings).toEqual(['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']);
   });
 
   it('draws a month grid whose days carry the appointments on them', async () => {
@@ -321,7 +372,6 @@ describe('the overview', () => {
       expect(withAppointments.length).toBeGreaterThan(0);
     });
   });
-
   it('moves between months and asks the server for the one shown', async () => {
     const stub = signedIn();
     renderWith(<OverviewPage />, stub);
@@ -336,7 +386,6 @@ describe('the overview', () => {
       expect(after.length).toBeGreaterThan(before.length);
     });
   });
-
   it('shows the day a receptionist clicks, by asking for that day', async () => {
     const stub = signedIn();
     renderWith(<OverviewPage />, stub);
@@ -353,36 +402,6 @@ describe('the overview', () => {
     await waitFor(() => {
       expect(stub.calls.requests.some((request) => request.path.includes('range=day'))).toBe(true);
     });
-  });
-
-  it('says why the call panels are empty instead of showing a number', async () => {
-    renderWith(<OverviewPage />, signedIn());
-
-    const panel = (await screen.findByText('AI receptionist activity')).parentElement;
-
-    /**
-     * The five panels the prototype fills with invented figures: calls answered, AI bookings,
-     * the outcome split, the activity chart and the revenue estimate. A plausible number here
-     * is a claim about what the agent did, and nothing in the platform can support it yet.
-     *
-     * Asserted against the panel's own text rather than with `getByText`, because the sentence
-     * is written across several lines of JSX and therefore several text nodes: the default
-     * matcher compares each node, and no single node holds the whole phrase.
-     */
-    expect(panel?.textContent).toContain('no call data in the platform yet');
-    expect(panel?.textContent).toContain('arrive with the voice integration');
-  });
-
-  it('offers a booking when the day is empty', async () => {
-    renderWith(
-      <OverviewPage />,
-      signedIn({
-        ...baseRoutes,
-        'GET /api/v1/appointments/agenda': { body: { ...agenda(), appointments: [] } },
-      }),
-    );
-
-    expect(await screen.findByText('Nothing booked today')).toBeInTheDocument();
   });
 });
 

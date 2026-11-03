@@ -49,6 +49,7 @@ export type {
 export {
   CALL_STATUSES,
   DASHBOARD_PATHS,
+  OVERVIEW_RANGES,
   toQueryString,
   type AgendaCounts,
   type AgendaQuery,
@@ -68,6 +69,9 @@ export {
   type CallStatus,
   type CallTranscriptTurn,
   type CallView,
+  type OverviewMetric,
+  type OverviewRange,
+  type OverviewResult,
   type PatientAppointment,
   type PatientDetail,
   type PatientListPage,

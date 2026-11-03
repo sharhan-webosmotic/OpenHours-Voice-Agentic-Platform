@@ -7,6 +7,7 @@ import type {
   CallListPage,
   CallView,
   ClinicDetailView,
+  OverviewResult,
   PatientDetail,
   PatientListPage,
 } from '@clinicai/api-client';
@@ -201,6 +202,47 @@ export const availability = (
 });
 
 /** The routes every screen needs, which a test then overrides one at a time. */
+/**
+ * The overview's figures for a week, chosen so every card has something different to say:
+ * a rise (calls 6 against 4), a figure from nothing ("New" for AI bookings against 0), and a
+ * fall (attention 1 against 2).
+ */
+export const overviewWeek: OverviewResult = {
+  range: '7d',
+  from: '2026-10-27T18:30:00.000Z',
+  to: '2026-11-03T18:30:00.000Z',
+  timeZone: 'Asia/Kolkata',
+  currency: 'INR',
+  kpis: {
+    callsAnswered: { value: 6, previous: 4 },
+    aiBookings: { value: 3, previous: 0 },
+    bookingRequests: { value: 2, today: 1 },
+    needsAttention: { value: 1, previous: 2 },
+  },
+  revenue: {
+    valueMinor: 150_000,
+    previousMinor: 0,
+    series: [0, 0, 0, 0, 0, 0, 0, 50_000, 0, 50_000, 0, 50_000],
+  },
+  daily: [
+    '2026-10-28',
+    '2026-10-29',
+    '2026-10-30',
+    '2026-10-31',
+    '2026-11-01',
+    '2026-11-02',
+    '2026-11-03',
+  ].map((day, index) => ({
+    day,
+    callsAnswered: index % 2,
+    aiBookings: index === 6 ? 1 : 0,
+    bookingRequests: 0,
+    needsAttention: 0,
+  })),
+  outcomes: { BOOKED: 2, RESCHEDULED: 0, CANCELLED: 0, INFORMATION: 1, TRANSFERRED: 0, NONE: 3 },
+  agent: { status: 'ACTIVE', lastCallAt: '2026-11-03T06:00:00.000Z' },
+};
+
 export const CALL_ID = '01932b00-0000-7000-8000-00000000c411';
 
 export const call: CallView = {
@@ -239,6 +281,7 @@ export const baseRoutes: StubRoutes = {
   'GET /api/v1/appointments/agenda': { body: agenda() },
   'GET /api/v1/appointments/availability': { body: availability() },
   'GET /api/v1/calls': { body: callList },
+  'GET /api/v1/analytics/overview': { body: overviewWeek },
   [`GET /api/v1/calls/${CALL_ID}`]: { body: callDetail },
   [`GET /api/v1/calls/${CALL_ID}/recording-url`]: {
     body: { url: 'https://storage.test/recording.wav?signature=stub', expiresInSeconds: 300 },

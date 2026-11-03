@@ -34,6 +34,7 @@ export const DASHBOARD_PATHS = {
   calls: '/api/v1/calls',
   call: (callId: string) => `/api/v1/calls/${callId}`,
   callRecordingUrl: (callId: string) => `/api/v1/calls/${callId}/recording-url`,
+  overview: '/api/v1/analytics/overview',
 } as const;
 
 // ─── Patients ───────────────────────────────────────────────────────────────────
@@ -301,4 +302,51 @@ export type CallListQuery = {
   readonly q?: string | undefined;
   readonly cursor?: string | undefined;
   readonly limit?: number | undefined;
+};
+
+// ─── Overview ───────────────────────────────────────────────────────────────────
+
+export const OVERVIEW_RANGES = ['today', '7d', '30d', 'month', 'last-month'] as const;
+
+export type OverviewRange = (typeof OVERVIEW_RANGES)[number];
+
+export type OverviewMetric = { readonly value: number; readonly previous: number };
+
+/**
+ * The overview's cards and charts: counts and sums, nothing that names a person.
+ *
+ * Every figure has the equal period before it, so a delta is two real numbers compared
+ * rather than a decoration. Transcribed from `apps/api/src/modules/analytics`.
+ */
+export type OverviewResult = {
+  readonly range: OverviewRange;
+  readonly from: string;
+  readonly to: string;
+  readonly timeZone: string;
+  readonly currency: string;
+  readonly kpis: {
+    readonly callsAnswered: OverviewMetric;
+    readonly aiBookings: OverviewMetric;
+    readonly bookingRequests: { readonly value: number; readonly today: number };
+    readonly needsAttention: OverviewMetric;
+  };
+  readonly revenue: {
+    readonly valueMinor: number;
+    readonly previousMinor: number;
+    readonly series: readonly number[];
+  };
+  readonly daily: readonly {
+    readonly day: string;
+    readonly callsAnswered: number;
+    readonly aiBookings: number;
+    readonly bookingRequests: number;
+    readonly needsAttention: number;
+  }[];
+  readonly outcomes: Readonly<
+    Record<'BOOKED' | 'RESCHEDULED' | 'CANCELLED' | 'INFORMATION' | 'TRANSFERRED' | 'NONE', number>
+  >;
+  readonly agent: {
+    readonly status: 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED' | null;
+    readonly lastCallAt: string | null;
+  };
 };
