@@ -487,6 +487,8 @@ enum WebhookEventStatus {
   RECEIVED
   PROCESSED
   FAILED
+  /// Stored, but the provider re-read could not run, so nothing was created from it.
+  UNVERIFIED
 
   @@map("webhook_event_status")
 }
