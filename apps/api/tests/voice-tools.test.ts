@@ -115,7 +115,9 @@ describe('authentication is the per-clinic secret and nothing else', () => {
 
 describe('one clinic, and only one clinic', () => {
   it('cannot find another clinic’s patient by their number', async () => {
-    const response = await tool('lookup-patient', secret).send({ phone: other.patientPhone });
+    const response = await tool('lookup-patient', secret).send({
+      callerNumber: other.patientPhone,
+    });
 
     // The number exists in the other clinic. The agent is told there is no record, which is
     // the same answer it gets for a number nobody has, because a different answer would
@@ -127,7 +129,9 @@ describe('one clinic, and only one clinic', () => {
   it('and the other clinic’s own agent finds that same patient', async () => {
     // The positive control. Without it the test above would pass just as well against a
     // lookup that found nobody for anybody, which is isolation by breakage.
-    const response = await tool('lookup-patient', otherSecret).send({ phone: other.patientPhone });
+    const response = await tool('lookup-patient', otherSecret).send({
+      callerNumber: other.patientPhone,
+    });
 
     expect(envelopeOf(response).data).toMatchObject({ found: true });
   });
@@ -212,7 +216,7 @@ describe('booking by voice', () => {
   it('books for a caller the clinic already knows', async () => {
     const when = nextBookableLocal();
     const response = await tool('book', secret).send({
-      phone: clinic.patientPhone,
+      callerNumber: clinic.patientPhone,
       date: when.date,
       time: when.time,
     });
@@ -239,7 +243,7 @@ describe('booking by voice', () => {
     const phone = '+919812300077';
 
     const response = await tool('book', secret).send({
-      phone,
+      callerNumber: phone,
       fullName: 'Voice New Caller',
       date: when.date,
       time: when.time,
@@ -260,7 +264,7 @@ describe('booking by voice', () => {
   it('asks for a name rather than registering a caller without one', async () => {
     const when = nextBookableLocal();
     const response = await tool('book', secret).send({
-      phone: '+919812300088',
+      callerNumber: '+919812300088',
       date: when.date,
       time: when.time,
     });
@@ -281,7 +285,7 @@ describe('booking by voice', () => {
   it('books once when the same tool call arrives twice', async () => {
     const when = nextBookableLocal();
     const body = {
-      phone: clinic.patientPhone,
+      callerNumber: clinic.patientPhone,
       date: when.date,
       time: when.time,
       callId: `call-${uuidV7()}`,
@@ -300,7 +304,7 @@ describe('booking by voice', () => {
 
   it('tells the caller a slot has gone rather than failing the call', async () => {
     const when = nextBookableLocal();
-    const body = { phone: clinic.patientPhone, date: when.date, time: when.time };
+    const body = { callerNumber: clinic.patientPhone, date: when.date, time: when.time };
 
     const first = envelopeOf(await tool('book', secret).send(body));
     // No idempotency key, so this is a genuine second attempt at a taken slot rather than
@@ -325,7 +329,7 @@ describe('booking by voice', () => {
     });
 
     const when = nextBookableLocal();
-    const response = await tool('lookup-patient', secret).send({ phone });
+    const response = await tool('lookup-patient', secret).send({ callerNumber: phone });
     const envelope = envelopeOf(response);
 
     expect(envelope.data).toMatchObject({ found: false, needsName: true });
@@ -337,12 +341,16 @@ describe('booking by voice', () => {
     expect(envelope.message).not.toContain('Shared Number One');
     expect(envelope.message).not.toContain('Shared Number Two');
 
-    const booked = await tool('book', secret).send({ phone, date: when.date, time: when.time });
+    const booked = await tool('book', secret).send({
+      callerNumber: phone,
+      date: when.date,
+      time: when.time,
+    });
     expect(envelopeOf(booked).ok).toBe(false);
 
     // With the name, the same number resolves to one record and books.
     const narrowed = await tool('book', secret).send({
-      phone,
+      callerNumber: phone,
       fullName: 'Shared Number Two',
       date: when.date,
       time: when.time,
@@ -356,7 +364,7 @@ describe('moving and cancelling', () => {
     const when = nextBookableLocal();
     const envelope = envelopeOf(
       await tool('book', secret).send({
-        phone,
+        callerNumber: phone,
         fullName: 'Voice Mover',
         date: when.date,
         time: when.time,
@@ -376,7 +384,7 @@ describe('moving and cancelling', () => {
 
     const when = nextBookableLocal();
     const response = await tool('reschedule', secret).send({
-      phone,
+      callerNumber: phone,
       date: when.date,
       time: when.time,
     });
@@ -392,7 +400,7 @@ describe('moving and cancelling', () => {
 
     const when = nextBookableLocal();
     const response = await tool('reschedule', secret).send({
-      phone,
+      callerNumber: phone,
       date: when.date,
       time: when.time,
     });
@@ -406,7 +414,10 @@ describe('moving and cancelling', () => {
     const phone = '+919812300333';
     const appointmentId = await bookFor(phone);
 
-    const response = await tool('cancel', secret).send({ phone, reason: 'Cannot make it' });
+    const response = await tool('cancel', secret).send({
+      callerNumber: phone,
+      reason: 'Cannot make it',
+    });
 
     expect(envelopeOf(response).ok).toBe(true);
 
@@ -417,11 +428,11 @@ describe('moving and cancelling', () => {
     expect(row?.status).toBe('CANCELLED');
   });
 
-  it('says it cannot find a booking rather than cancelling something else', async () => {
-    const response = await tool('cancel', secret).send({ phone: '+919812300444' });
+  it('offers a call back rather than cancelling something else', async () => {
+    const response = await tool('cancel', secret).send({ callerNumber: '+919812300444' });
 
     expect(envelopeOf(response).ok).toBe(false);
-    expect(envelopeOf(response).message).toMatch(/cannot find/i);
+    expect(envelopeOf(response).message).toMatch(/call you back/i);
   });
 });
 
@@ -432,7 +443,7 @@ describe('the audit trail names the agent, since the actor column cannot', () =>
 
     const booked = envelopeOf(
       await tool('book', secret).send({
-        phone,
+        callerNumber: phone,
         fullName: 'Voice Audited',
         date: when.date,
         time: when.time,
@@ -440,7 +451,11 @@ describe('the audit trail names the agent, since the actor column cannot', () =>
     );
     const appointmentId = String(booked.data?.['appointmentId']);
 
-    await tool('cancel', secret).send({ appointmentId, reason: 'Driven by a test.' });
+    await tool('cancel', secret).send({
+      callerNumber: phone,
+      appointmentId,
+      reason: 'Driven by a test.',
+    });
 
     const row = await asPlatform(ownerClient(), (tx) =>
       tx.auditLog.findFirst({
@@ -480,7 +495,7 @@ describe('a clinic with more than one per slot stored', () => {
 
     const when = nextBookableLocal();
     const booked = envelopeOf(
-      await tool('book', otherSecret).send({ phone: other.patientPhone, ...when }),
+      await tool('book', otherSecret).send({ callerNumber: other.patientPhone, ...when }),
     );
     expect(booked.ok).toBe(true);
 
@@ -490,5 +505,145 @@ describe('a clinic with more than one per slot stored', () => {
     const slots = (offered.data?.['slots'] ?? []) as readonly { readonly label: string }[];
 
     expect(slots.map((slot) => slot.label)).not.toContain(when.time);
+  });
+});
+
+/**
+ * WHO IS CALLING is the caller's own line, never a number they say (Feature 3 review, C2 and
+ * I6). Before this, any caller could say a neighbour's number, hear the neighbour's name read
+ * back, learn they were a patient here, and cancel their appointment.
+ */
+describe('the caller is identified by their own line', () => {
+  const storedName = async (patientId: string): Promise<string> =>
+    (
+      await asPlatform(ownerClient(), (tx) =>
+        tx.patient.findUniqueOrThrow({ where: { id: patientId }, select: { fullName: true } }),
+      )
+    ).fullName;
+
+  it('a registered line proceeds, and the stored name is never said or handed over', async () => {
+    const name = await storedName(clinic.ids.patients ?? '');
+    const lookup = await tool('lookup-patient', secret).send({ callerNumber: clinic.patientPhone });
+
+    expect(envelopeOf(lookup).data).toMatchObject({ found: true });
+    expect(JSON.stringify(lookup.body)).not.toContain(name);
+
+    const when = nextBookableLocal();
+    const booked = await tool('book', secret).send({ callerNumber: clinic.patientPhone, ...when });
+
+    expect(envelopeOf(booked).ok).toBe(true);
+    expect(JSON.stringify(booked.body)).not.toContain(name);
+  });
+
+  it('an unknown line is a new caller, and nothing says whether a record exists', async () => {
+    const unknownLine = '+919812300601';
+    const lookup = envelopeOf(
+      await tool('lookup-patient', secret).send({ callerNumber: unknownLine }),
+    );
+    // The same answer a line with no caller number at all gets: nothing was searched.
+    const withheld = envelopeOf(await tool('lookup-patient', secret).send({}));
+
+    expect(lookup.data).toMatchObject({ found: false, needsName: true });
+    expect(lookup.message).toBe(withheld.message);
+    expect(lookup.data).toEqual(withheld.data);
+  });
+
+  describe('a caller who speaks somebody else’s number', () => {
+    const strangerLine = '+919812300602';
+
+    it('is not looked up by it: the spoken number is ignored', async () => {
+      const name = await storedName(clinic.ids.patients ?? '');
+      const response = await tool('lookup-patient', secret).send({
+        callerNumber: strangerLine,
+        phone: clinic.patientPhone,
+      });
+
+      expect(envelopeOf(response).data).toMatchObject({ found: false });
+      expect(JSON.stringify(response.body)).not.toContain(name);
+    });
+
+    it('cannot cancel or move that number’s appointment, by number or by id', async () => {
+      const when = nextBookableLocal();
+      const theirs = envelopeOf(
+        await tool('book', secret).send({ callerNumber: clinic.patientPhone, ...when }),
+      );
+      const appointmentId = String(theirs.data?.['appointmentId']);
+      const later = nextBookableLocal();
+
+      const attempts = [
+        await tool('cancel', secret).send({
+          callerNumber: strangerLine,
+          phone: clinic.patientPhone,
+        }),
+        await tool('cancel', secret).send({ callerNumber: strangerLine, appointmentId }),
+        await tool('cancel', secret).send({ appointmentId }),
+        await tool('reschedule', secret).send({
+          callerNumber: strangerLine,
+          appointmentId,
+          ...later,
+        }),
+      ];
+
+      for (const attempt of attempts) {
+        expect(attempt.status).toBe(200);
+        expect(envelopeOf(attempt).ok).toBe(false);
+        expect(envelopeOf(attempt).message).toMatch(/call you back/i);
+      }
+
+      const row = await asPlatform(ownerClient(), (tx) =>
+        tx.appointment.findUniqueOrThrow({
+          where: { id: appointmentId },
+          select: { status: true, startAt: true },
+        }),
+      );
+      expect(row.status).toBe('SCHEDULED');
+    });
+
+    it('books as a NEW patient when their own line is withheld, never as the owner of the number', async () => {
+      const when = nextBookableLocal();
+      const before = await asPlatform(ownerClient(), (tx) =>
+        tx.patient.count({
+          where: { organisationId: clinic.organisationId, phone: clinic.patientPhone },
+        }),
+      );
+
+      const booked = envelopeOf(
+        await tool('book', secret).send({
+          phone: clinic.patientPhone,
+          fullName: 'Withheld Line Caller',
+          ...when,
+        }),
+      );
+
+      expect(booked.ok).toBe(true);
+
+      const appointment = await asPlatform(ownerClient(), (tx) =>
+        tx.appointment.findUniqueOrThrow({
+          where: { id: String(booked.data?.['appointmentId']) },
+          select: { patient: { select: { id: true, fullName: true } } },
+        }),
+      );
+
+      // Not attached to the record the spoken number belongs to.
+      expect(appointment.patient.id).not.toBe(clinic.ids.patients);
+      expect(appointment.patient.fullName).toBe('Withheld Line Caller');
+      expect(
+        await asPlatform(ownerClient(), (tx) =>
+          tx.patient.count({
+            where: { organisationId: clinic.organisationId, phone: clinic.patientPhone },
+          }),
+        ),
+      ).toBe(before + 1);
+    });
+  });
+
+  it('a withheld line with no number spoken is asked for one, so the booking is not lost', async () => {
+    const when = nextBookableLocal();
+    const response = envelopeOf(
+      await tool('book', secret).send({ fullName: 'No Number Yet', ...when }),
+    );
+
+    expect(response.ok).toBe(false);
+    expect(response.message).toMatch(/number the clinic can reach you on/i);
   });
 });

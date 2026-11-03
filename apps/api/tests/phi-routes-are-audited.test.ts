@@ -358,7 +358,7 @@ const RECIPES = new Map<string, () => Promise<Driven>>([
       const response = await request(app)
         .post('/voice/tools/lookup-patient')
         .set('Authorization', `Bearer ${toolSecret}`)
-        .send({ phone: org.patientPhone });
+        .send({ callerNumber: org.patientPhone });
       return { status: response.status, actorUserId: null };
     },
   ],
@@ -371,7 +371,7 @@ const RECIPES = new Map<string, () => Promise<Driven>>([
         .set('Authorization', `Bearer ${toolSecret}`)
         // No doctor and no service named: the fixture clinic has exactly one of each, which
         // is the case the tool is allowed to default. A clinic with two would be asked.
-        .send({ phone: org.patientPhone, date: when.date, time: when.time });
+        .send({ callerNumber: org.patientPhone, date: when.date, time: when.time });
       return { status: response.status, actorUserId: null };
     },
   ],
@@ -386,7 +386,7 @@ const RECIPES = new Map<string, () => Promise<Driven>>([
         // By id, not by number: the fixture patient would have several upcoming
         // appointments by this point in the file, and the tool correctly refuses to guess
         // which one a caller means. That refusal has its own test.
-        .send({ appointmentId, date: when.date, time: when.time });
+        .send({ callerNumber: org.patientPhone, appointmentId, date: when.date, time: when.time });
       return { status: response.status, actorUserId: null };
     },
   ],
@@ -413,7 +413,11 @@ const RECIPES = new Map<string, () => Promise<Driven>>([
       const response = await request(app)
         .post('/voice/tools/cancel')
         .set('Authorization', `Bearer ${toolSecret}`)
-        .send({ appointmentId, reason: 'Driven by the audit guard.' });
+        .send({
+          callerNumber: org.patientPhone,
+          appointmentId,
+          reason: 'Driven by the audit guard.',
+        });
       return { status: response.status, actorUserId: null };
     },
   ],
@@ -431,7 +435,7 @@ const bookForVoice = async (): Promise<string> => {
   const response = await request(app)
     .post('/voice/tools/book')
     .set('Authorization', `Bearer ${toolSecret}`)
-    .send({ phone: org.patientPhone, date: when.date, time: when.time });
+    .send({ callerNumber: org.patientPhone, date: when.date, time: when.time });
 
   const envelope = jsonBody<{ ok: boolean; message: string; data: { appointmentId: string } }>(
     response,

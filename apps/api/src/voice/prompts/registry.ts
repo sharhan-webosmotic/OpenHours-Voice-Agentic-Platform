@@ -1,4 +1,5 @@
 import { MASTER_PROMPT_V0_PLACEHOLDER } from './master-v0-placeholder.js';
+import { MASTER_PROMPT_V0_CALLER_IDENTITY } from './master-v0-caller-identity.js';
 
 /**
  * Every master prompt version the platform knows, keyed by the string a clinic stores.
@@ -66,10 +67,15 @@ const VERSIONS: readonly PromptVersion[] = [
     template: MASTER_PROMPT_V0_PLACEHOLDER,
     approved: false,
   },
+  {
+    version: 'v0-caller-identity',
+    template: MASTER_PROMPT_V0_CALLER_IDENTITY,
+    approved: false,
+  },
 ];
 
 /** The version a newly created clinic is marked as using. */
-export const DEFAULT_PROMPT_VERSION = 'v0-placeholder';
+export const DEFAULT_PROMPT_VERSION = 'v0-caller-identity';
 
 export const PROMPT_VERSIONS: readonly string[] = VERSIONS.map((entry) => entry.version);
 

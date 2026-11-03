@@ -3,6 +3,7 @@ import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { hashPassword, verifyPassword } from '../src/common/passwords.js';
 import { uuidV7 } from '../src/common/uuid.js';
+import { DEFAULT_PROMPT_VERSION } from '../src/voice/prompts/registry.js';
 import { jsonBody, problemBody } from '../src/test-support/http.js';
 import { asPlatform, disconnectAll, ownerClient } from './support/db.js';
 import { SARVAM_MAPPING_BODY, uniquePhone, uniqueSuffix } from './support/clinic-bodies.js';
@@ -237,7 +238,7 @@ describe('the prompt preview', () => {
 
     const preview = jsonBody<Preview>(response);
     expect(preview).toMatchObject({
-      version: 'v0-placeholder',
+      version: DEFAULT_PROMPT_VERSION,
       approved: false,
       versionRecorded: false,
     });
@@ -265,7 +266,7 @@ describe('the prompt preview', () => {
       {
         actorUserId: superAdminId,
         entityId: organisationId,
-        metadata: { version: 'v0-placeholder', approved: false },
+        metadata: { version: DEFAULT_PROMPT_VERSION, approved: false },
       },
     ]);
   });

@@ -8,18 +8,37 @@ dashboard feature, first half. Binding choices: D-004, D-006, D-012, D-021, D-02
 All are `POST`, all under `/voice/tools`, all authenticated by the per-clinic tool secret as
 `Authorization: Bearer <secret>`, and all answer `{ ok, message, data }`.
 
-| Endpoint             | Takes                                                            | Answers                                                  | PHI          |
-| -------------------- | ---------------------------------------------------------------- | -------------------------------------------------------- | ------------ |
-| `clinic-info`        | `topic` (`hours`, `address`, `services`, `general`)              | name, address, hours, services, the clinic's own answers | no           |
-| `lookup-patient`     | `phone`, optional `fullName`                                     | whether the caller has a record                          | yes, audited |
-| `check-availability` | `date`, and the doctor and service by id or by name              | bookable times, or why there are none                    | no           |
-| `book`               | `phone`, optional `fullName`, `date`, `time`, doctor and service | the appointment                                          | yes, audited |
-| `reschedule`         | `appointmentId` or `phone`, `date`, `time`                       | the moved appointment                                    | yes, audited |
-| `cancel`             | `appointmentId` or `phone`, optional `reason`                    | confirmation                                             | yes, audited |
+| Endpoint             | Takes                                                                               | Answers                                                  | PHI          |
+| -------------------- | ----------------------------------------------------------------------------------- | -------------------------------------------------------- | ------------ |
+| `clinic-info`        | `topic` (`hours`, `address`, `services`, `general`)                                 | name, address, hours, services, the clinic's own answers | no           |
+| `lookup-patient`     | `callerNumber`, optional `fullName`                                                 | whether the caller's own line has a record               | yes, audited |
+| `check-availability` | `date`, and the doctor and service by id or by name                                 | bookable times, or why there are none                    | no           |
+| `book`               | `callerNumber`, optional `phone` and `fullName`, `date`, `time`, doctor and service | the appointment                                          | yes, audited |
+| `reschedule`         | `callerNumber`, optional `appointmentId` and `fullName`, `date`, `time`             | the moved appointment                                    | yes, audited |
+| `cancel`             | `callerNumber`, optional `appointmentId`, `fullName` and `reason`                   | confirmation                                             | yes, audited |
 
-`message` is a whole short sentence, because it is spoken. It carries no patient data beyond
-what the caller just supplied: it confirms a name the caller gave, never a name the database
-holds for somebody else.
+`message` is a whole short sentence, because it is spoken. It carries only what the caller said
+in this call: no stored name and no stored detail, in `message` or in `data`.
+
+## Who the caller is
+
+**The caller's own line, never a number they speak** (Feature 3 review, C2 and I6). Before
+this, a caller could say a neighbour's number, hear the neighbour's name, learn they were a
+patient here and cancel their appointment.
+
+`callerNumber` is the number the call is coming from. **In each Sarvam tool's body template it
+must be filled from the call context's "User Identifier" variable** (`docs/sarvam-contract.md`
+section 2), never from anything the agent heard. The exact substitution syntax is not yet
+confirmed with Sarvam (contract section 9, question 3), so it has to be checked on the first
+configured agent before the first real call.
+
+| The caller's line                   | What happens                                                                                                                                                     |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Matches a patient                   | Proceeds. The name is not said back                                                                                                                              |
+| Matches several (a family's line)   | Asks for the full name and narrows by what the caller says. Never lists names                                                                                    |
+| Unknown                             | A new caller. Details are taken, nothing is searched, and nothing says whether a record exists                                                                   |
+| Missing, withheld or unusable       | Still bookable, so the appointment is not lost: the caller's spoken `phone` becomes the new patient's contact number. It is never searched, so it reaches nobody |
+| Any case, for reschedule and cancel | Acts only on that line's own upcoming appointments. Anything else, including an `appointmentId` that is not theirs, is a sentence offering a call back           |
 
 ## It adds no rules of its own
 
@@ -33,7 +52,7 @@ that got a rule wrong would be the one talking to patients.
 
 | Situation                                            | What it does                                                                                                                                                                     |
 | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Two patient records share the caller's number        | Asks for the full name. **Does not read the names out:** one number is usually a family, and whoever is holding the phone has not been authorised to learn who else lives there. |
+| Two patient records share the caller's line          | Asks for the full name. **Does not read the names out:** one number is usually a family, and whoever is holding the phone has not been authorised to learn who else lives there. |
 | The named doctor or service matches none, or several | Asks which, and books nothing                                                                                                                                                    |
 | Neither is named and the clinic has more than one    | Asks which. Defaults only when the clinic has exactly one, which is the pilot's shape                                                                                            |
 | The caller has more than one upcoming appointment    | Asks which day. Moving the wrong one of two is worse than a question                                                                                                             |

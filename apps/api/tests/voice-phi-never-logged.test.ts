@@ -81,7 +81,7 @@ describe('nothing a patient said reaches the log', () => {
       .post('/voice/tools/book')
       .set('Authorization', `Bearer ${secret}`)
       .send({
-        phone: PATIENT_PHONE,
+        callerNumber: PATIENT_PHONE,
         fullName: PATIENT_NAME,
         date: when.date,
         time: when.time,
@@ -94,13 +94,13 @@ describe('nothing a patient said reaches the log', () => {
     await request(app)
       .post('/voice/tools/cancel')
       .set('Authorization', `Bearer ${secret}`)
-      .send({ phone: PATIENT_PHONE, reason: SPOKEN_NOTE });
+      .send({ callerNumber: PATIENT_PHONE, reason: SPOKEN_NOTE });
 
     // A lookup that fails, so the rejection path logs as well as the success path.
     await request(app)
       .post('/voice/tools/lookup-patient')
       .set('Authorization', `Bearer ${secret}`)
-      .send({ phone: 'not a number at all' });
+      .send({ callerNumber: 'not a number at all' });
 
     expect(booked.status).toBe(200);
     // The requests really did run through the application, so the absence below is a
@@ -122,7 +122,7 @@ describe('nothing a patient said reaches the log', () => {
     // A past date, which the slot engine refuses deep inside the service: the failure is
     // logged by the router's own handler, with the body still in scope.
     await request(app).post('/voice/tools/book').set('Authorization', `Bearer ${secret}`).send({
-      phone: PATIENT_PHONE,
+      callerNumber: PATIENT_PHONE,
       fullName: PATIENT_NAME,
       date: '2020-01-06',
       time: '09:00',

@@ -45,12 +45,25 @@ import type {
  * ask. Picking the most likely row would be a booking made under somebody else's name, and
  * on a telephone nobody would notice until the patient arrived.
  *
+ * ─── WHO THE CALLER IS ──────────────────────────────────────────────────────────
+ *
+ * The caller's OWN LINE, from the provider's call context (`callerNumber`), and nothing else.
+ * A number the caller speaks is somebody's number, not proof of being them: identifying by it
+ * let any caller hear a stranger's name, learn they were a patient here, and cancel their
+ * appointment (Feature 3 review, C2 and I6). So:
+ *
+ *   - a line that matches a patient proceeds, without the name being said back
+ *   - an unknown or withheld line is a new caller: details are taken, nothing is searched,
+ *     and nothing says whether a record exists
+ *   - moving or cancelling touches only appointments belonging to the caller's own line, and
+ *     anything else is a sentence offering a call back
+ *
  * ─── WHAT IT MAY SAY ────────────────────────────────────────────────────────────
  *
- * `message` is spoken to whoever is on the line, so it carries no patient data beyond what
- * that caller just supplied. It confirms a name the caller gave, never a name the database
- * holds for somebody else, and the ambiguous cases are the reason: "is that for Priya or
- * Anil?" tells a stranger who lives at that number.
+ * `message` is spoken to whoever is on the line, so it carries ONLY what that caller said in
+ * this conversation. No stored name, no stored detail, ever, in `message` or in `data`: the
+ * agent may repeat anything it is handed, and a family's shared line means even the right
+ * line can be held by the wrong person.
  */
 
 const SOURCE: AppointmentSource = 'VOICE_AGENT';
@@ -71,6 +84,14 @@ const callerPhone = (spoken: string): string | null => {
   const result = normalisePhone(spoken);
   return result.ok ? result.e164 : null;
 };
+
+/** The caller's own line, in E.164, or null when the provider sent none or nothing usable. */
+const callerLine = (callerNumber: string | undefined): string | null =>
+  callerNumber === undefined ? null : callerPhone(callerNumber);
+
+/** What a caller hears when this call cannot safely act on a booking. */
+const CALL_BACK =
+  'I am not able to change that booking on this call. I can have the clinic call you back.';
 
 type Resolved<T> =
   { readonly ok: true; readonly value: T } | { readonly ok: false; readonly ask: string };
@@ -215,7 +236,7 @@ export const clinicInfo = async (
 };
 
 type PatientMatch =
-  | { readonly kind: 'one'; readonly id: string; readonly fullName: string }
+  | { readonly kind: 'one'; readonly id: string }
   | { readonly kind: 'none' }
   | { readonly kind: 'several' };
 
@@ -237,7 +258,7 @@ const matchPatient = async (
   const narrowed = fullName === undefined ? rows : byName(rows, fullName, (row) => row.fullName);
 
   if (narrowed.length === 1 && narrowed[0] !== undefined) {
-    return { kind: 'one', id: narrowed[0].id, fullName: narrowed[0].fullName };
+    return { kind: 'one', id: narrowed[0].id };
   }
 
   return narrowed.length === 0 ? { kind: 'none' } : { kind: 'several' };
@@ -251,14 +272,15 @@ export const lookupPatient = async (
   requirePermission('patients', 'read', principal);
   const organisationId = organisationInScope(principal, undefined);
 
-  const phone = callerPhone(body.phone);
+  const line = callerLine(body.callerNumber);
 
-  if (phone === null) {
-    return refusal('I could not make out that number. Could you say it again, digit by digit?');
+  if (line === null) {
+    // No line to identify anybody by, so a new caller. Nothing is searched, so nothing is read.
+    return success('Could I take your full name, please?', { found: false, needsName: true });
   }
 
   return withOrganisationScope(principal, organisationId, 'voice.lookup-patient', async (db) => {
-    const match = await matchPatient(db, organisationId, phone, body.fullName);
+    const match = await matchPatient(db, organisationId, line, body.fullName);
 
     /**
      * Audited as a read of patient data, because that is what it is: somebody rang and the
@@ -280,17 +302,14 @@ export const lookupPatient = async (
     }
 
     if (match.kind === 'none') {
-      return success('I do not have a record for this number yet.', {
-        found: false,
-        needsName: false,
-      });
+      // A new caller. The sentence is the same whether or not a record exists elsewhere.
+      return body.fullName === undefined
+        ? success('Could I take your full name, please?', { found: false, needsName: true })
+        : success('Thank you.', { found: false, needsName: false });
     }
 
-    return success(`Thank you, I have your record, ${match.fullName}.`, {
-      found: true,
-      patientId: match.id,
-      fullName: match.fullName,
-    });
+    // Found, and the stored name is neither said nor handed to the agent to say.
+    return success('Thank you, I can help you with that.', { found: true, needsName: false });
   });
 };
 
@@ -413,10 +432,20 @@ export const book = async (
   requirePermission('appointments', 'write', principal);
   const organisationId = organisationInScope(principal, undefined);
 
-  const phone = callerPhone(body.phone);
+  const line = callerLine(body.callerNumber);
+  /**
+   * The number a NEW patient's record is made with: their own line when we can see it,
+   * otherwise one they spoke, so a withheld line does not cost them the appointment. The
+   * spoken one is never searched, so it cannot reach anybody else's record.
+   */
+  const contact = line ?? (body.phone === undefined ? null : callerPhone(body.phone));
 
-  if (phone === null) {
-    return refusal('I could not make out that number. Could you say it again, digit by digit?');
+  if (contact === null) {
+    return refusal(
+      body.phone === undefined
+        ? 'Could I take a number the clinic can reach you on?'
+        : 'I could not make out that number. Could you say it again, digit by digit?',
+    );
   }
 
   const resolved = await withOrganisationScope(
@@ -427,7 +456,10 @@ export const book = async (
       const targets = await repository.resolvableTargets(db, organisationId);
 
       return {
-        patient: await matchPatient(db, organisationId, phone, body.fullName),
+        patient:
+          line === null
+            ? ({ kind: 'none' } as const)
+            : await matchPatient(db, organisationId, line, body.fullName),
         doctor: resolveTarget(
           targets.doctors,
           (row) => row.fullName,
@@ -477,7 +509,7 @@ export const book = async (
       : (
           await patients.create(principal, undefined, {
             fullName: body.fullName ?? '',
-            phone,
+            phone: contact,
             dateOfBirth: null,
             notes: null,
           })
@@ -519,60 +551,37 @@ export const book = async (
 };
 
 /**
- * The appointment a caller means when they do not know its id, which is every caller.
+ * The caller's own upcoming appointments that still hold a slot.
  *
- * Their next appointment that still holds a slot. More than one and the agent asks, because
- * moving the wrong one of two upcoming appointments is worse than a question.
+ * Bounded: a patient with more than this many upcoming visits is asked which day, the same as
+ * one with two, so the bound changes no answer.
  */
-const upcomingFor = async (
-  db: TenantDb,
-  organisationId: string,
-  patientId: string,
-  now: Date,
-): Promise<
-  | { readonly kind: 'one'; readonly id: string }
-  | { readonly kind: 'none' }
-  | { readonly kind: 'several' }
-> => {
-  const rows = await appointmentRepository.list(db, {
-    organisationId,
-    patientId,
-    from: now,
-    status: ['SCHEDULED', 'CONFIRMED'],
-    take: 3,
-  });
-
-  if (rows.length === 1 && rows[0] !== undefined) {
-    return { kind: 'one', id: rows[0].id };
-  }
-
-  return rows.length === 0 ? { kind: 'none' } : { kind: 'several' };
-};
+const UPCOMING_LIMIT = 10;
 
 type Located =
   | { readonly ok: true; readonly appointmentId: string }
   | { readonly ok: false; readonly ask: string };
 
+/**
+ * Which appointment a reschedule or cancel acts on: one belonging to the CALLER'S OWN LINE.
+ *
+ * No line, a line with no record, or an `appointmentId` that is not one of that line's
+ * upcoming appointments are all the same answer, a call back. Saying which would tell a
+ * caller something about a record they have not shown they own.
+ */
 const locateAppointment = async (
   identity: VoiceAgentIdentity,
-  body: { readonly appointmentId?: string | undefined; readonly phone?: string | undefined },
+  body: {
+    readonly callerNumber?: string | undefined;
+    readonly appointmentId?: string | undefined;
+    readonly fullName?: string | undefined;
+  },
   now: Date,
 ): Promise<Located> => {
-  if (body.appointmentId !== undefined) {
-    return { ok: true, appointmentId: body.appointmentId };
-  }
+  const line = callerLine(body.callerNumber);
 
-  if (body.phone === undefined) {
-    return { ok: false, ask: 'Could I take the number the appointment was booked under?' };
-  }
-
-  const phone = callerPhone(body.phone);
-
-  if (phone === null) {
-    return {
-      ok: false,
-      ask: 'I could not make out that number. Could you say it again, digit by digit?',
-    };
+  if (line === null) {
+    return { ok: false, ask: CALL_BACK };
   }
 
   const principal = voicePrincipal(identity);
@@ -582,31 +591,41 @@ const locateAppointment = async (
     principal,
     organisationId,
     'voice.locate-appointment',
-    async (db) => {
-      const patient = await matchPatient(db, organisationId, phone, undefined);
+    async (db): Promise<Located> => {
+      const patient = await matchPatient(db, organisationId, line, body.fullName);
 
       if (patient.kind === 'several') {
         return { ok: false, ask: 'Could I take the full name of the patient, please?' };
       }
 
       if (patient.kind === 'none') {
-        return { ok: false, ask: 'I cannot find a booking under that number.' };
+        return { ok: false, ask: CALL_BACK };
       }
 
-      const upcoming = await upcomingFor(db, organisationId, patient.id, now);
+      const upcoming = await appointmentRepository.list(db, {
+        organisationId,
+        patientId: patient.id,
+        from: now,
+        status: ['SCHEDULED', 'CONFIRMED'],
+        take: UPCOMING_LIMIT,
+      });
 
-      if (upcoming.kind === 'none') {
-        return { ok: false, ask: 'I cannot see an upcoming appointment under that number.' };
+      if (body.appointmentId !== undefined) {
+        return upcoming.some((row) => row.id === body.appointmentId)
+          ? { ok: true, appointmentId: body.appointmentId }
+          : { ok: false, ask: CALL_BACK };
       }
 
-      if (upcoming.kind === 'several') {
-        return {
-          ok: false,
-          ask: 'There is more than one appointment booked. Which day were you calling about?',
-        };
+      if (upcoming.length === 1 && upcoming[0] !== undefined) {
+        return { ok: true, appointmentId: upcoming[0].id };
       }
 
-      return { ok: true, appointmentId: upcoming.id };
+      return upcoming.length === 0
+        ? { ok: false, ask: CALL_BACK }
+        : {
+            ok: false,
+            ask: 'There is more than one appointment booked. Which day were you calling about?',
+          };
     },
   );
 };

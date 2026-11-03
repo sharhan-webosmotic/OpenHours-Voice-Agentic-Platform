@@ -421,3 +421,26 @@ describe('the registry', () => {
     }
   });
 });
+
+/**
+ * The agent must not identify anybody by a number they speak (Feature 3 review, C2), because
+ * the tools no longer do. A prompt that still told it to ask "which number is the booking
+ * under?" would invite exactly the impersonation the endpoints refuse.
+ */
+describe('the default version on who is calling', () => {
+  const template = findPromptVersion(DEFAULT_PROMPT_VERSION)?.template ?? '';
+
+  it('tells the agent the caller is recognised by their own line, not a spoken number', () => {
+    expect(template).toContain('WHO IS CALLING');
+    expect(template).toMatch(/never ask for a phone number to find out who someone is/i);
+    expect(template).toMatch(/never use a number a caller\s+tells you to look anybody up/i);
+  });
+
+  it('forbids reading back anything from the clinic’s records', () => {
+    expect(template).toMatch(/never say a patient's name, an appointment or any other detail/i);
+  });
+
+  it('keeps the earlier version unedited for clinics still marked with it', () => {
+    expect(findPromptVersion('v0-placeholder')?.template).not.toContain('WHO IS CALLING');
+  });
+});

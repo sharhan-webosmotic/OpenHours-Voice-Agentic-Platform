@@ -44,6 +44,20 @@ const spokenPhone = z.string().trim().min(4).max(32);
 const spokenName = z.string().trim().min(1).max(200);
 
 /**
+ * WHO IS CALLING: the caller's own line, from the provider's call context, never from speech.
+ *
+ * Each Sarvam tool's body is a template we author in its dashboard, and the contract lists
+ * the caller's number ("User Identifier") among the call-context variables a tool can use
+ * (`docs/sarvam-contract.md` section 2). Every tool that touches a patient's record templates
+ * it in as `callerNumber`. It is the ONLY thing that identifies a patient (Feature 3 review,
+ * C2): a number the caller speaks is somebody's number, not proof of being them.
+ *
+ * OPTIONAL because a withheld or unrecognisable line must not cost a patient their booking.
+ * Without it the caller is treated as new, and nothing is looked up, moved or cancelled.
+ */
+const callerNumber = z.string().trim().min(4).max(32).optional();
+
+/**
  * The provider's own identifiers for the call and this tool invocation.
  *
  * BOTH OPTIONAL AND BOTH UNKNOWN. Whether Sarvam sends anything of the kind to a tool is
@@ -71,9 +85,13 @@ export const clinicInfoBodySchema = z.object({
   topic: z.enum(CLINIC_INFO_TOPICS).default('general'),
 });
 
+/**
+ * Whether the caller's own line belongs to a patient. There is no spoken number here, so
+ * nobody can ask whether some other number is a patient of this clinic.
+ */
 export const lookupPatientBodySchema = z.object({
-  phone: spokenPhone,
-  /** Narrows a number that several records share, which a family's number usually is. */
+  callerNumber,
+  /** Narrows a line that several records share, which a family's number usually is. */
   fullName: spokenName.optional(),
 });
 
@@ -83,7 +101,12 @@ export const checkAvailabilityBodySchema = z.object({
 });
 
 export const bookBodySchema = z.object({
-  phone: spokenPhone,
+  callerNumber,
+  /**
+   * A contact number the caller SPOKE, used for one thing only: the record of a new patient
+   * calling from a line we cannot see. It is never searched, so it cannot find anybody.
+   */
+  phone: spokenPhone.optional(),
   /** Required only when the caller has no record yet, which the service decides. */
   fullName: spokenName.optional(),
   date: clinicDay,
@@ -92,18 +115,24 @@ export const bookBodySchema = z.object({
   ...callIdentifiers,
 });
 
+/**
+ * Moving and cancelling act only on appointments belonging to the caller's own line. An
+ * `appointmentId` picks between that line's appointments and is refused if it is not one.
+ */
 export const rescheduleBodySchema = z.object({
-  /** One of the two is required, which the service enforces so it can say which is missing. */
+  callerNumber,
   appointmentId: z.uuid().optional(),
-  phone: spokenPhone.optional(),
+  /** Narrows a line several patients share, as on the lookup. */
+  fullName: spokenName.optional(),
   date: clinicDay,
   time: clinicTime,
   ...callIdentifiers,
 });
 
 export const cancelBodySchema = z.object({
+  callerNumber,
   appointmentId: z.uuid().optional(),
-  phone: spokenPhone.optional(),
+  fullName: spokenName.optional(),
   /**
    * Bounded free text, and not patient data by intention (as on the dashboard's cancel).
    * "The patient asked to cancel" is a reason. No schema can stop a model writing a

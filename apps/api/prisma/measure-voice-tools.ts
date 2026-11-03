@@ -428,7 +428,7 @@ const main = async (): Promise<void> => {
         case 'clinic-info':
           return { topic: 'hours' };
         case 'lookup-patient':
-          return { phone: clinic.phones[index % clinic.phones.length] };
+          return { callerNumber: clinic.phones[index % clinic.phones.length] };
         case 'check-availability':
           /**
            * The service is NAMED, and the first run of this script is why.
@@ -462,7 +462,7 @@ const main = async (): Promise<void> => {
           const minute = 9 * 60 + (index % slotsPerDay) * 30;
 
           return {
-            phone: clinic.phones[index % clinic.phones.length],
+            callerNumber: clinic.phones[index % clinic.phones.length],
             date: target,
             time: formatMinuteOfDay(minute),
             serviceId: clinic.serviceId,
