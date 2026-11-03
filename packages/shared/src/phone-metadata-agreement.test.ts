@@ -51,6 +51,19 @@ const sweep = (): readonly string[] => {
   return inputs;
 };
 
+/**
+ * Both answers for every swept number, worked out once when the file loads.
+ *
+ * Computed here rather than inside each test so the cost (about seventeen thousand parses)
+ * lands outside every test's time limit. Inside the tests it timed out under the gate's
+ * parallel load, which is the same mistake as a lazy import inside an assertion.
+ */
+const SWEPT = sweep().map((input) => ({
+  input,
+  server: onServer(input),
+  browser: inBrowser(input),
+}));
+
 describe('the browser and the server on the same phone numbers', () => {
   for (const [input, expected] of NAMED) {
     it(`agree on ${JSON.stringify(input)}`, () => {
@@ -68,19 +81,17 @@ describe('the browser and the server on the same phone numbers', () => {
   }
 
   it('never has the browser refuse a number the server accepts', () => {
-    const refusedOnlyByBrowser = sweep().filter(
-      (input) => onServer(input).ok && !inBrowser(input).ok,
-    );
+    const refusedOnlyByBrowser = SWEPT.filter(
+      ({ server, browser }) => server.ok && !browser.ok,
+    ).map(({ input }) => input);
 
     expect(refusedOnlyByBrowser).toEqual([]);
   });
 
   it('stores the same E.164 whichever side normalised it', () => {
-    const different = sweep().filter((input) => {
-      const server = onServer(input);
-      const browser = inBrowser(input);
-      return server.ok && browser.ok && server.e164 !== browser.e164;
-    });
+    const different = SWEPT.filter(
+      ({ server, browser }) => server.ok && browser.ok && server.e164 !== browser.e164,
+    ).map(({ input }) => input);
 
     expect(different).toEqual([]);
   });
@@ -88,6 +99,6 @@ describe('the browser and the server on the same phone numbers', () => {
   it('has the server refuse some numbers the browser lets through, which is why it decides', () => {
     // Not a defect, and the reason this file exists: if the minimal set ever became as strict
     // as the full one this would fail, and the alias in the web apps could then be dropped.
-    expect(sweep().some((input) => inBrowser(input).ok && !onServer(input).ok)).toBe(true);
+    expect(SWEPT.some(({ server, browser }) => browser.ok && !server.ok)).toBe(true);
   });
 });

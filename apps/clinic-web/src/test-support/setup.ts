@@ -1,20 +1,30 @@
 import '@testing-library/jest-dom/vitest';
-import { afterEach } from 'vitest';
+import { afterEach, beforeAll } from 'vitest';
 import { cleanup, configure } from '@testing-library/react';
 
 /**
- * Testing Library's default `findBy*` timeout is one second, which is not enough here.
+ * Every lazily loaded route module is imported before any test in the file runs.
  *
- * The route tests navigate through two guards and then await a lazily-loaded chunk, and the
- * first such test in a file pays for the chunk's first compile. One second is comfortable
- * when the package runs alone and is not when `turbo` is running sixteen tasks across the
- * monorepo at once: the suite passed on its own and failed on the forced full run, on the
- * first test of the file, every time.
+ * THIS IS THE FIX FOR THE GATE'S INTERMITTENT FAILURES, not a timeout. A lazy page is imported
+ * the first time something renders it, so the first test in a file to render one paid for the
+ * import inside its own `findBy`. Importing the shell measured 0.8 seconds on a quiet machine
+ * and 4.4 seconds under the gate's parallel load, and "puts SUPER_ADMIN on a page their role
+ * can actually read" failed in two runs out of two of `turbo run test`. Raising the wait from
+ * one second to five, which is what was done first, only moved the threshold. Loading here
+ * takes the import out of every assertion, so a `findBy` measures rendering alone.
  *
- * Raised rather than papered over with a `waitFor` at each call site. A per-test wait would
- * have to be remembered, and forgetting one produces exactly this: a test that passes on a
- * quiet machine and fails in CI, which is the kind of flake people respond to by re-running
- * the build until it is green.
+ * The hook has its own generous timeout because it is the one place that cost now lands, and
+ * a slow import is not a test failure.
+ */
+beforeAll(async () => {
+  const { preloadPages } = await import('../app/routes');
+  await preloadPages();
+}, 60_000);
+
+/**
+ * Testing Library's default `findBy*` timeout is one second. Five gives a real asynchronous
+ * render (a mocked request resolving, a state update after it) headroom under load. It is no
+ * longer what absorbs a module import: the preload above does that.
  */
 configure({ asyncUtilTimeout: 5_000 });
 

@@ -29,6 +29,36 @@ import { useAuth } from './AuthProvider';
 
 const placeholders = () => import('../features/placeholders/pages');
 
+/** Every lazily loaded route module, in the order declared below. */
+const pageLoaders: (() => Promise<unknown>)[] = [];
+
+/**
+ * `lazy`, plus a record of the loader so the modules can be fetched ahead of a render.
+ *
+ * Every route component below goes through this rather than calling `lazy` directly, so
+ * `preloadPages` can never miss one.
+ */
+const page: typeof lazy = (load) => {
+  pageLoaders.push(load);
+  return lazy(load);
+};
+
+/**
+ * Fetches every lazily loaded route module now, rather than on first render.
+ *
+ * WHY THE TESTS NEED IT. A lazy page is imported the first time something renders it, and
+ * the first test in a file to render it paid for that import inside its own assertion. Under
+ * the gate's parallel load importing the shell alone took over four seconds, which is most
+ * of testing-library's five-second wait, so "puts SUPER_ADMIN on a page their role can
+ * actually read" failed intermittently while the page itself was fine. The test setup calls
+ * this before any test, so an assertion measures rendering and nothing else.
+ *
+ * Also usable as a prefetch once a user has signed in.
+ */
+export const preloadPages = async (): Promise<void> => {
+  await Promise.all(pageLoaders.map((load) => load()));
+};
+
 /**
  * The built screens, each lazily loaded on its own.
  *
@@ -37,25 +67,25 @@ const placeholders = () => import('../features/placeholders/pages');
  * nothing. A real screen carries its forms, its table and its feature's endpoints, so the
  * split is what keeps the entry chunk inside the budget in `vite.config.ts`.
  */
-const AppointmentsPage = lazy(async () => ({
+const AppointmentsPage = page(async () => ({
   default: (await import('../features/appointments/AppointmentsPage')).AppointmentsPage,
 }));
-const OverviewPage = lazy(async () => ({
+const OverviewPage = page(async () => ({
   default: (await import('../features/overview/OverviewPage')).OverviewPage,
 }));
-const SettingsPage = lazy(async () => ({
+const SettingsPage = page(async () => ({
   default: (await import('../features/settings/SettingsPage')).SettingsPage,
 }));
-const ServicesPage = lazy(async () => ({
+const ServicesPage = page(async () => ({
   default: (await import('../features/services/ServicesPage')).ServicesPage,
 }));
-const StaffPage = lazy(async () => ({
+const StaffPage = page(async () => ({
   default: (await import('../features/staff/StaffPage')).StaffPage,
 }));
-const PatientsPage = lazy(async () => ({
+const PatientsPage = page(async () => ({
   default: (await import('../features/patients/PatientsPage')).PatientsPage,
 }));
-const PatientProfilePage = lazy(async () => ({
+const PatientProfilePage = page(async () => ({
   default: (await import('../features/patients/PatientProfilePage')).PatientProfilePage,
 }));
 
@@ -72,13 +102,13 @@ const PatientProfilePage = lazy(async () => ({
  * A signed-in user pays one extra request for it, behind the `Suspense` the shell route
  * already needs, and it is cached from then on.
  */
-const AppShell = lazy(async () => ({ default: (await import('./AppShell')).AppShell }));
+const AppShell = page(async () => ({ default: (await import('./AppShell')).AppShell }));
 
-const CallsPage = lazy(async () => ({
+const CallsPage = page(async () => ({
   default: (await import('../features/calls/CallsPage')).CallsPage,
 }));
-const RemindersPage = lazy(async () => ({ default: (await placeholders()).RemindersPage }));
-const ReportsPage = lazy(async () => ({ default: (await placeholders()).ReportsPage }));
+const RemindersPage = page(async () => ({ default: (await placeholders()).RemindersPage }));
+const ReportsPage = page(async () => ({ default: (await placeholders()).ReportsPage }));
 
 /**
  * The element for each navigation path.

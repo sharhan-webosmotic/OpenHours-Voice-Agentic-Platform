@@ -19,11 +19,37 @@ import { useAuth } from './AuthProvider';
 
 const placeholders = () => import('../features/placeholders/pages');
 
-const InternalUsersPage = lazy(async () => ({
+/** Every lazily loaded route module, in the order declared below. */
+const pageLoaders: (() => Promise<unknown>)[] = [];
+
+/**
+ * `lazy`, plus a record of the loader so the modules can be fetched ahead of a render.
+ *
+ * Every route component below goes through this rather than calling `lazy` directly, so
+ * `preloadPages` can never miss one. Kept identical to the clinic dashboard's (D-009).
+ */
+const page: typeof lazy = (load) => {
+  pageLoaders.push(load);
+  return lazy(load);
+};
+
+/**
+ * Fetches every lazily loaded route module now, rather than on first render.
+ *
+ * The test setup calls this before any test, so the first test in a file to render a page no
+ * longer pays for importing it inside its own five-second wait, which is what made the clinic
+ * dashboard's suite fail intermittently under the gate's parallel load. Also usable as a
+ * prefetch once a user has signed in.
+ */
+export const preloadPages = async (): Promise<void> => {
+  await Promise.all(pageLoaders.map((load) => load()));
+};
+
+const InternalUsersPage = page(async () => ({
   default: (await placeholders()).InternalUsersPage,
 }));
-const MonitoringPage = lazy(async () => ({ default: (await placeholders()).MonitoringPage }));
-const SettingsPage = lazy(async () => ({ default: (await placeholders()).SettingsPage }));
+const MonitoringPage = page(async () => ({ default: (await placeholders()).MonitoringPage }));
+const SettingsPage = page(async () => ({ default: (await placeholders()).SettingsPage }));
 
 /**
  * The clinic screens, lazily loaded like everything else behind the shell.
@@ -32,13 +58,13 @@ const SettingsPage = lazy(async () => ({ default: (await placeholders()).Setting
  * list page is what every session opens on. Keeping them in separate chunks means the first
  * paint after sign-in does not carry the forms.
  */
-const ClinicsListPage = lazy(async () => ({
+const ClinicsListPage = page(async () => ({
   default: (await import('../features/clinics/ClinicsListPage')).ClinicsListPage,
 }));
-const CreateClinicPage = lazy(async () => ({
+const CreateClinicPage = page(async () => ({
   default: (await import('../features/clinics/CreateClinicPage')).CreateClinicPage,
 }));
-const ClinicDetailPage = lazy(async () => ({
+const ClinicDetailPage = page(async () => ({
   default: (await import('../features/clinics/ClinicDetailPage')).ClinicDetailPage,
 }));
 
