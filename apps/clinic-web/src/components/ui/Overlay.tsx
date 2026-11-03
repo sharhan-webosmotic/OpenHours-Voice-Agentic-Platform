@@ -40,6 +40,11 @@ export type OverlayProps = {
   /** The row of buttons pinned to the bottom of the panel. */
   readonly footer?: ReactNode | undefined;
   readonly variant?: 'modal' | 'drawer' | undefined;
+  /**
+   * `wide` is the booking sheet's 760px, from the reference; `standard` is everything else.
+   * A size rather than a class name, so the two widths stay the only two.
+   */
+  readonly size?: 'standard' | 'wide' | undefined;
 };
 
 export const Overlay = ({
@@ -49,6 +54,7 @@ export const Overlay = ({
   children,
   footer,
   variant = 'modal',
+  size = 'standard',
 }: OverlayProps) => {
   const panel = useRef<HTMLDivElement>(null);
   const opener = useRef<Element | null>(null);
@@ -114,7 +120,7 @@ export const Overlay = ({
   return (
     <div
       className={cn(
-        'fixed inset-0 z-50 flex bg-navy/40 backdrop-blur-[2px]',
+        'fixed inset-0 z-50 flex bg-scrim backdrop-blur-[2px]',
         variant === 'modal' ? 'items-center justify-center p-4' : 'items-stretch justify-end',
       )}
       onClick={onClose}
@@ -128,7 +134,7 @@ export const Overlay = ({
         className={cn(
           'flex max-h-full flex-col overflow-hidden bg-surface shadow-card outline-none',
           variant === 'modal'
-            ? 'w-full max-w-xl rounded-xl'
+            ? cn('w-full rounded-[22px]', size === 'wide' ? 'max-w-[760px]' : 'max-w-xl')
             : 'h-full w-full max-w-md border-border border-l',
         )}
         // A click inside the panel must not reach the backdrop's dismiss handler.
@@ -136,21 +142,27 @@ export const Overlay = ({
           event.stopPropagation();
         }}
       >
-        <div className="flex items-start justify-between gap-4 border-border border-b px-6 py-4">
-          <div className="flex flex-col gap-1">
+        {/*
+         * The reference's header: a 12px accent eyebrow with wide tracking, a 22px bold
+         * title, and a 34px close button on the chrome border.
+         */}
+        <div className="flex items-start justify-between gap-4 border-border-chrome border-b px-6 pt-6 pb-5">
+          <div className="flex flex-col gap-1.5">
             {eyebrow !== undefined && (
-              <span className="font-semibold text-[0.6875rem] text-accent uppercase tracking-wide">
+              <span className="font-bold text-accent text-xs uppercase tracking-[1px]">
                 {eyebrow}
               </span>
             )}
-            <h2 className="m-0 font-semibold text-md text-default">{title}</h2>
+            <h2 className="m-0 font-bold text-[1.375rem] text-default tracking-[-0.4px]">
+              {title}
+            </h2>
           </div>
 
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="rounded-md border border-border p-1.5 text-muted hover:bg-background"
+            className="grid size-[34px] shrink-0 place-items-center rounded-[10px] border border-border-chrome text-muted hover:bg-background"
           >
             <X size={16} aria-hidden="true" />
           </button>
@@ -159,7 +171,7 @@ export const Overlay = ({
         <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
 
         {footer !== undefined && (
-          <div className="flex items-center justify-end gap-3 border-border border-t px-6 py-4">
+          <div className="flex items-center justify-end gap-3 border-border-chrome border-t bg-surface-sunken px-6 py-4">
             {footer}
           </div>
         )}

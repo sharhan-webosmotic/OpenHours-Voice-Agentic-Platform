@@ -65,7 +65,13 @@ export type Stub = {
     logout: number;
     changePassword: number;
     /** Every authenticated request the screen made, in order. */
-    requests: { path: string; method: string; body: unknown }[];
+    requests: {
+      path: string;
+      method: string;
+      body: unknown;
+      /** The headers the screen asked for, so a test can see the Idempotency-Key it sent. */
+      headers: Readonly<Record<string, string>> | undefined;
+    }[];
   };
 };
 
@@ -75,7 +81,12 @@ export const stubClient = (options: StubOptions = {}): Stub => {
     refresh: 0,
     logout: 0,
     changePassword: 0,
-    requests: [] as { path: string; method: string; body: unknown }[],
+    requests: [] as {
+      path: string;
+      method: string;
+      body: unknown;
+      headers: Readonly<Record<string, string>> | undefined;
+    }[],
   };
   const bus = createSessionBus();
   let current = options.user;
@@ -132,8 +143,13 @@ export const stubClient = (options: StubOptions = {}): Stub => {
      * The recorded calls are what a test asserts a mutation actually sent, which matters for
      * the ones whose body is built from several pieces of screen state.
      */
-    request: (path: string, method = 'GET', body?: unknown) => {
-      calls.requests.push({ path, method, body });
+    request: (
+      path: string,
+      method = 'GET',
+      body?: unknown,
+      headers?: Readonly<Record<string, string>>,
+    ) => {
+      calls.requests.push({ path, method, body, headers });
 
       const key = `${method.toUpperCase()} ${path.split('?')[0] ?? path}`;
       const match = Object.keys(options.routes ?? {})

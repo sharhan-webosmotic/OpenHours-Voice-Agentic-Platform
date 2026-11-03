@@ -237,8 +237,8 @@ describe('the appointment detail drawer', () => {
   });
 });
 
-describe('the booking wizard', () => {
-  const openWizard = async (routes = baseRoutes) => {
+describe('the booking sheet', () => {
+  const openSheet = async (routes = baseRoutes) => {
     const stub = stubClient({ user: user('CLINIC_OWNER'), bootSucceeds: true, routes });
     renderWith(<AppointmentsPage />, stub);
 
@@ -246,16 +246,57 @@ describe('the booking wizard', () => {
     return stub;
   };
 
-  it('refuses to advance without a patient, and says which step is incomplete', async () => {
-    await openWizard();
+  const choosePatient = async (): Promise<void> => {
+    await userEvent.selectOptions(
+      await screen.findByLabelText('Select patient'),
+      await screen.findByRole('option', { name: /Test Patient One/ }),
+    );
+  };
+
+  it('lays out patient, doctor, service, date and times on one sheet', async () => {
+    await openSheet();
+
+    /**
+     * All five at once, as the reference draws them, rather than a wizard that hides four of
+     * them. The doctor and service are chosen already because the fixture clinic has one of
+     * each, which is the pilot's shape; with several, the receptionist chooses.
+     */
+    expect(await screen.findByLabelText('Select patient')).toBeInTheDocument();
+    expect(screen.getByLabelText('Doctor')).toBeInTheDocument();
+    expect(screen.getByLabelText('Select service')).toBeInTheDocument();
+    expect(screen.getByLabelText('Appointment date')).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '09:00' })).toBeInTheDocument();
+    expect(screen.getByText(/Calculated from .* hours for this weekday/)).toBeInTheDocument();
+  });
+
+  it('has no notes field, because nothing would keep what was typed', async () => {
+    await openSheet();
+    await screen.findByLabelText('Select patient');
+
+    // `appointments` has no notes column. A box that accepted a note and dropped it would
+    // tell a receptionist it had been saved.
+    expect(screen.queryByLabelText(/Notes/)).not.toBeInTheDocument();
+  });
+
+  it('refuses to continue without a patient, and says what is missing', async () => {
+    await openSheet();
 
     await userEvent.click(await screen.findByRole('button', { name: 'Continue' }));
 
     expect(await screen.findByText('Select a patient to continue.')).toBeInTheDocument();
   });
 
-  it('walks patient, service, time and review, then books the slot it was offered', async () => {
-    const stub = await openWizard({
+  it('refuses to continue without a time', async () => {
+    await openSheet();
+    await choosePatient();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+
+    expect(await screen.findByText('Choose an available time.')).toBeInTheDocument();
+  });
+
+  it('shows what is about to be booked, then books the slot it was offered', async () => {
+    const stub = await openSheet({
       ...baseRoutes,
       'POST /api/v1/appointments': {
         status: 201,
@@ -268,19 +309,15 @@ describe('the booking wizard', () => {
       },
     });
 
-    await userEvent.selectOptions(
-      await screen.findByLabelText('Select patient'),
-      await screen.findByRole('option', { name: /Test Patient One/ }),
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
-
-    await userEvent.click(await screen.findByRole('button', { name: /Consultation/ }));
-    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
-
+    await choosePatient();
     await userEvent.click(await screen.findByRole('button', { name: '09:00' }));
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Confirm appointment' }));
+    // A last look before the one action here a patient will act on. Scoped to the sheet,
+    // because the same patient is in the list behind it.
+    const sheet = await screen.findByRole('dialog', { name: /Book with/ });
+    expect(await within(sheet).findByText('Test Patient One')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Confirm appointment' }));
 
     await waitFor(() => {
       const booked = stub.calls.requests.find(
@@ -288,11 +325,9 @@ describe('the booking wizard', () => {
       );
 
       /**
-       * The INSTANT the server offered, sent back unchanged.
-       *
-       * Not a day and a wall-clock time: the slot list came back as instants, so returning one
-       * is returning the slot that was offered rather than a second conversion that could
-       * disagree with the first.
+       * The INSTANT the server offered, sent back unchanged: the slot list came back as
+       * instants, so returning one is returning the slot that was offered rather than a second
+       * conversion that could disagree with the first.
        */
       expect(booked?.body).toEqual({
         patientId: PATIENT_ID,
@@ -304,33 +339,23 @@ describe('the booking wizard', () => {
   });
 
   it('offers only active services', async () => {
-    await openWizard();
+    await openSheet();
 
-    await userEvent.selectOptions(
-      await screen.findByLabelText('Select patient'),
-      await screen.findByRole('option', { name: /Test Patient One/ }),
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    const select = await screen.findByLabelText('Select service');
 
-    expect(await screen.findByRole('button', { name: /Consultation/ })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Retired Service/ })).not.toBeInTheDocument();
+    expect(within(select).getByRole('option', { name: /Consultation/ })).toBeInTheDocument();
+    expect(
+      within(select).queryByRole('option', { name: /Retired Service/ }),
+    ).not.toBeInTheDocument();
   });
 
   it('says WHY a day has no times rather than just showing none', async () => {
-    await openWizard({
+    await openSheet({
       ...baseRoutes,
       'GET /api/v1/appointments/availability': {
         body: { ...availability([]), reason: 'CLINIC_CLOSED' },
       },
     });
-
-    await userEvent.selectOptions(
-      await screen.findByLabelText('Select patient'),
-      await screen.findByRole('option', { name: /Test Patient One/ }),
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
-    await userEvent.click(await screen.findByRole('button', { name: /Consultation/ }));
-    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
     // "The clinic is closed that day" and "every time is taken" are both no slots, and a
     // receptionist does something different about each.
@@ -339,15 +364,12 @@ describe('the booking wizard', () => {
 
   /**
    * THE RACE THE FEATURE BRIEF ASKS FOR: a slot taken between the list being drawn and the
-   * booking being submitted.
-   *
-   * The engine cannot prevent it, the exclusion constraint refuses the write, and what this
-   * asserts is the only part the interface owns: the user is told in words they can act on,
-   * is returned to the step where the choice is made, and the slot list is re-read rather
-   * than left showing the time that has just gone.
+   * booking being submitted. The exclusion constraint refuses the write; what this asserts is
+   * the part the interface owns: words a receptionist can act on, the sheet back on the
+   * times, and the times read again rather than still offering the one that has gone.
    */
   it('explains a slot taken between load and submit, and refreshes the times', async () => {
-    const stub = await openWizard({
+    const stub = await openSheet({
       ...baseRoutes,
       'POST /api/v1/appointments': {
         status: 409,
@@ -360,17 +382,11 @@ describe('the booking wizard', () => {
       },
     });
 
-    await userEvent.selectOptions(
-      await screen.findByLabelText('Select patient'),
-      await screen.findByRole('option', { name: /Test Patient One/ }),
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
-    await userEvent.click(await screen.findByRole('button', { name: /Consultation/ }));
-    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    await choosePatient();
     await userEvent.click(await screen.findByRole('button', { name: '09:00' }));
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
 
-    const availabilityCallsBefore = stub.calls.requests.filter((request) =>
+    const before = stub.calls.requests.filter((request) =>
       request.path.includes('availability'),
     ).length;
 
@@ -381,18 +397,16 @@ describe('the booking wizard', () => {
         'That time was just taken by another booking. Please choose another.',
       ),
     ).toBeInTheDocument();
-
-    // Back on the step with the times, and the times have been asked for again.
     expect(await screen.findByRole('button', { name: '09:30' })).toBeInTheDocument();
     await waitFor(() => {
       expect(
         stub.calls.requests.filter((request) => request.path.includes('availability')).length,
-      ).toBeGreaterThan(availabilityCallsBefore);
+      ).toBeGreaterThan(before);
     });
   });
 
   it('sends one Idempotency-Key and keeps it across a retry', async () => {
-    const stub = await openWizard({
+    const stub = await openSheet({
       ...baseRoutes,
       'POST /api/v1/appointments': {
         status: 409,
@@ -405,34 +419,26 @@ describe('the booking wizard', () => {
       },
     });
 
-    await userEvent.selectOptions(
-      await screen.findByLabelText('Select patient'),
-      await screen.findByRole('option', { name: /Test Patient One/ }),
-    );
-    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
-    await userEvent.click(await screen.findByRole('button', { name: /Consultation/ }));
-    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    await choosePatient();
     await userEvent.click(await screen.findByRole('button', { name: '09:00' }));
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
-
     await userEvent.click(await screen.findByRole('button', { name: 'Confirm appointment' }));
     await screen.findByText(/just taken/);
+
     await userEvent.click(await screen.findByRole('button', { name: '09:30' }));
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
     await userEvent.click(await screen.findByRole('button', { name: 'Confirm appointment' }));
 
     /**
-     * The same key on both attempts.
-     *
-     * A regenerated key would make the retry a NEW booking, which is the bug the header
-     * exists to prevent: the patient ends up with two appointments and the clinic finds out
-     * when both arrive.
+     * Two attempts, and the same key on both. A regenerated key would make the retry a NEW
+     * booking, which is the bug the header exists to prevent.
      */
     await waitFor(() => {
       const posts = stub.calls.requests.filter(
         (request) => request.method === 'POST' && request.path === '/api/v1/appointments',
       );
       expect(posts).toHaveLength(2);
+      expect(posts[0]?.headers?.['Idempotency-Key']).toBe(posts[1]?.headers?.['Idempotency-Key']);
     });
   });
 });

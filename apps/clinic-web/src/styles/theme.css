@@ -27,6 +27,7 @@
   --color-surface-sunken: var(--ca-color-surface-sunken);
   --color-border: var(--ca-color-border);
   --color-border-chrome: var(--ca-color-border-chrome);
+  --color-scrim: var(--ca-color-scrim);
 
   /* Text. `text-default` rather than `text-text`, which reads like a typo. */
   --color-default: var(--ca-color-text);

@@ -125,6 +125,13 @@
   --ca-color-accent-surface-soft: var(--ca-blue-025);
   --ca-color-accent-contrast: var(--ca-blue-100);
 
+  /**
+   * The veil behind a modal: the navy text colour at 42%, so a dialog reads as lifted off
+   * the page rather than floating over it. The old backdrop asked for `bg-navy/40`, a colour
+   * that was never defined, so every modal in the product has opened over an untinted page.
+   */
+  --ca-color-scrim: rgba(23, 38, 75, 0.42);
+
   /** The chrome: sidebar, header, and the sunken field inside them. */
   --ca-color-border-chrome: var(--ca-slate-150);
   --ca-color-surface-sunken: var(--ca-white-025);

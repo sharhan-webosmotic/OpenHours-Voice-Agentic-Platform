@@ -227,7 +227,7 @@ export const CallDetail = ({
           ) : (
             <Link
               to={`/appointments?appointmentId=${call.appointmentId}`}
-              className="rounded-md bg-accent px-4 py-2.5 text-center font-semibold text-on-accent text-xs hover:opacity-90"
+              className="rounded-md bg-accent px-4 py-2.5 text-center font-semibold text-inverse text-xs hover:opacity-90"
             >
               View related appointment
             </Link>

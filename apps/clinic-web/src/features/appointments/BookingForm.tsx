@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { AvailabilityReason, ServiceView } from '@clinicai/api-client';
+import type { AvailabilityReason } from '@clinicai/api-client';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Overlay } from '../../components/ui/Overlay';
 import { SelectField } from '../../components/ui/Input';
-import { DateInput } from '../../components/ui/Toolbar';
 import { Spinner } from '../../components/ui/Spinner';
 import { cn } from '../../components/ui/cn';
 import { errorMessage } from '../../lib/problem';
@@ -15,37 +14,41 @@ import { PatientForm } from '../patients/PatientForm';
 import { useAvailabilityQuery, useBookMutation } from './api';
 
 /**
- * Booking an appointment: the four-step wizard from the prototype's captures
- * (`state-30` to `state-33`).
+ * Booking an appointment: one scrolling sheet, as the clinic's reference draws it.
  *
- * The steps, their labels and their order are the prototype's: Patient, Service, Date and
- * time, Review. So is the behaviour that each step refuses to advance until it has what it
- * needs, with the message shown under the fields rather than beside them.
+ * ─── ONE SHEET, NOT FOUR STEPS ──────────────────────────────────────────────────
  *
- * ─── THE SLOT LIST IS THE SERVER'S, AND THAT IS THE WHOLE POINT OF STEP THREE ────
+ * The prototype export has a four-step wizard and the reference the clinic signed off
+ * replaced it with a single form: patient, doctor, service, date, then the free times, all
+ * visible at once. "Continue" then shows what is about to be booked for a last look, which
+ * is the old fourth step kept as a confirmation, because a booking is the one action here a
+ * patient will act on and it should not be one click from a mis-tapped slot.
  *
- * Nothing here works out which times are free. The availability endpoint applies the opening
- * hours, the doctor's working hours, time off, the service duration, the booking policy and
+ * ─── THE SLOT LIST IS THE SERVER'S ──────────────────────────────────────────────
+ *
+ * Nothing here works out which times are free. The availability endpoint applies the
+ * opening hours, the doctor's hours, time off, the service's length, the booking policy and
  * the appointments already in the book, and returns instants. The form offers what it was
- * given and sends one back, so there is no second implementation of those rules to disagree
- * with the first.
+ * given and sends one back, so no second implementation of those rules can disagree.
  *
- * ─── WHY AN EMPTY DAY SAYS WHY ──────────────────────────────────────────────────
+ * ─── AN EMPTY DAY SAYS WHY ──────────────────────────────────────────────────────
  *
- * `reason` turns "no slots" into something a receptionist can act on: the clinic is closed
- * that day, the doctor is not working, the date is beyond how far ahead this clinic books.
- * The prototype shows one sentence for all of them, which is the one thing here that is
- * better than the capture rather than the same as it.
+ * `reason` turns "no slots" into something a receptionist can act on: closed that day, the
+ * doctor is off, too far ahead. The reference shows one sentence for all of them.
  *
  * ─── IDEMPOTENCY ────────────────────────────────────────────────────────────────
  *
- * One key is minted when the form opens and sent with every attempt, so a double-clicked
- * button or a retried request returns the original booking rather than making a second one
- * (root CLAUDE.md rule 8). It is deliberately NOT regenerated between attempts: that would
- * make the retry a new booking, which is the bug the header exists to prevent.
+ * One key is minted when the sheet opens and sent with every attempt, so a double-click or a
+ * retried request returns the original booking (root CLAUDE.md rule 8). It is deliberately
+ * NOT regenerated between attempts: that would make the retry a new booking, which is the
+ * bug the header exists to prevent.
+ *
+ * ─── NO NOTES FIELD, YET ────────────────────────────────────────────────────────
+ *
+ * The reference ends with "Notes (optional)". `appointments` has no notes column, and a
+ * field that accepted text and dropped it would tell a receptionist their note was saved.
+ * Adding the column is a schema change, which needs approval, so the field waits for it.
  */
-
-const STEPS = ['Patient', 'Service', 'Date & time', 'Review'] as const;
 
 const NO_SLOTS: Record<AvailabilityReason, string> = {
   HOURS_NOT_COLLECTED:
@@ -56,6 +59,9 @@ const NO_SLOTS: Record<AvailabilityReason, string> = {
   DOCTOR_NOT_WORKING: 'The doctor is not working that day.',
   FULLY_BOOKED: 'Every time that day is taken.',
 };
+
+/** `Priya Shah` stays `Priya Shah`; the reference's possessive needs a name either way. */
+const possessive = (name: string): string => `${name}’s`;
 
 export const BookingForm = ({
   initialPatientId,
@@ -71,8 +77,9 @@ export const BookingForm = ({
 
   const timeZone = clinic?.organisation.timezone ?? 'UTC';
 
-  const [step, setStep] = useState(1);
+  const [reviewing, setReviewing] = useState(false);
   const [patientId, setPatientId] = useState(initialPatientId ?? '');
+  const [doctorId, setDoctorId] = useState('');
   const [serviceId, setServiceId] = useState('');
   const [date, setDate] = useState('');
   const [startAt, setStartAt] = useState('');
@@ -83,49 +90,53 @@ export const BookingForm = ({
    * Minted once per open, and kept across attempts. See the note above.
    *
    * `crypto.randomUUID` rather than a counter or a timestamp: two receptionists booking at
-   * the same moment must not share a key, because the second one's booking would come back
-   * as a replay of the first one's.
+   * the same moment must not share a key, because the second booking would come back as a
+   * replay of the first.
    */
   const [idempotencyKey] = useState(() => crypto.randomUUID());
 
   const { data: patients } = usePatientsQuery({ limit: 100 });
 
+  const doctors = useMemo(
+    () => (clinic?.doctors ?? []).filter((doctor) => doctor.active),
+    [clinic],
+  );
   const services = useMemo(
     () => (clinic?.services ?? []).filter((service) => service.active),
     [clinic],
   );
 
   /**
-   * THE PILOT HAS ONE DOCTOR, so there is no doctor step. The id still has to be chosen,
-   * and it is the clinic's only active doctor. A clinic with two would need a step here,
-   * which is the recorded deviation.
+   * Defaults, once the clinic is known: today on the clinic's own calendar, and the doctor
+   * and service when there is exactly one of each, which is the pilot's shape. With several,
+   * the receptionist chooses: picking the first would be a guess dressed as a default.
    */
-  const doctor = (clinic?.doctors ?? []).find((candidate) => candidate.active);
-
   useEffect(() => {
-    // Default to today on the clinic's calendar, once the time zone is known.
-    if (date === '' && clinic !== undefined) {
+    if (clinic === undefined) {
+      return;
+    }
+    if (date === '') {
       setDate(clinicToday(timeZone));
     }
-  }, [clinic, date, timeZone]);
+    if (doctorId === '' && doctors.length === 1 && doctors[0] !== undefined) {
+      setDoctorId(doctors[0].id);
+    }
+    if (serviceId === '' && services.length === 1 && services[0] !== undefined) {
+      setServiceId(services[0].id);
+    }
+  }, [clinic, date, doctorId, doctors, serviceId, services, timeZone]);
 
   const availability = useAvailabilityQuery(
-    {
-      doctorId: doctor?.id ?? '',
-      serviceId,
-      date,
-    },
-    { skip: step !== 3 || doctor === undefined || serviceId === '' || date === '' },
+    { doctorId, serviceId, date },
+    { skip: doctorId === '' || serviceId === '' || date === '' },
   );
 
   /**
    * Re-reads the slot list, but only if it was ever read.
    *
    * `refetch` THROWS on a query that has not started, which is the case whenever `skip` was
-   * true: a booking refused before the time step, or one whose service was cleared. It
-   * surfaced as "Cannot refetch a query that has not been started yet" in the test run rather
-   * than anywhere a user would see, which is exactly how an unhandled rejection reaches
-   * production.
+   * true. It surfaced as "Cannot refetch a query that has not been started yet" in a test run
+   * rather than anywhere a user would see, which is how an unhandled rejection ships.
    */
   const refreshTimes = (): void => {
     if (!availability.isUninitialized) {
@@ -133,40 +144,44 @@ export const BookingForm = ({
     }
   };
 
-  const selectedService: ServiceView | undefined = services.find(
-    (service) => service.id === serviceId,
-  );
-  const selectedPatient = patients?.items.find((patient) => patient.id === patientId);
+  const doctor = doctors.find((candidate) => candidate.id === doctorId);
+  const service = services.find((candidate) => candidate.id === serviceId);
+  const patient = patients?.items.find((candidate) => candidate.id === patientId);
+  const slot = availability.data?.slots.find((candidate) => candidate.startAt === startAt);
 
-  const next = (): void => {
-    if (step === 1 && patientId === '') {
+  /** Any change upstream of the time invalidates the time: it was free for the old choice. */
+  const resetTime = (): void => {
+    setStartAt('');
+  };
+
+  const proceed = (): void => {
+    if (patientId === '') {
       setProblem('Select a patient to continue.');
       return;
     }
-    if (step === 2 && serviceId === '') {
+    if (doctorId === '') {
+      setProblem('Select a doctor.');
+      return;
+    }
+    if (serviceId === '') {
       setProblem('Select a service.');
       return;
     }
-    if (step === 3 && startAt === '') {
+    if (startAt === '') {
       setProblem('Choose an available time.');
       return;
     }
 
     setProblem(undefined);
-    setStep((current) => Math.min(STEPS.length, current + 1));
+    setReviewing(true);
   };
 
   const confirm = async (): Promise<void> => {
-    if (doctor === undefined) {
-      setProblem('This clinic has no active doctor, so nothing can be booked yet.');
-      return;
-    }
-
     setProblem(undefined);
 
     try {
       const result = await book({
-        input: { patientId, doctorId: doctor.id, serviceId, startAt },
+        input: { patientId, doctorId, serviceId, startAt },
         idempotencyKey,
       }).unwrap();
 
@@ -174,42 +189,37 @@ export const BookingForm = ({
       onClose();
     } catch (error) {
       /**
-       * A 409 here is the ordinary case, not a crash: the slot was taken between the list
-       * being drawn and this click. The message says so and the user stays on the step with
-       * a refreshed list rather than being dropped back to the start.
+       * A 409 is the ordinary case, not a crash: the slot was taken between the list being
+       * drawn and this click. The message says so, the sheet returns to the times, and the
+       * times are read again rather than still offering the one that has gone.
        */
       setProblem(errorMessage(error, 'The appointment was not booked.'));
-      setStep(3);
+      setReviewing(false);
+      resetTime();
       refreshTimes();
     }
   };
+
+  const title = doctor === undefined ? 'Book an appointment' : `Book with ${doctor.fullName}`;
 
   return (
     <>
       <Overlay
         eyebrow="NEW APPOINTMENT"
-        title={doctor === undefined ? 'Book an appointment' : `Book with ${doctor.fullName}`}
+        title={title}
+        size="wide"
         onClose={onClose}
         footer={
-          <>
-            <Button
-              kind="secondary"
-              onClick={() => {
-                if (step === 1) {
-                  onClose();
-                  return;
-                }
-                setProblem(undefined);
-                setStep(step - 1);
-              }}
-              disabled={booking.isLoading}
-            >
-              {step === 1 ? 'Cancel' : 'Back'}
-            </Button>
-
-            {step < STEPS.length ? (
-              <Button onClick={next}>Continue</Button>
-            ) : (
+          reviewing ? (
+            <>
+              <Button
+                kind="secondary"
+                onClick={() => {
+                  setReviewing(false);
+                }}
+              >
+                Back
+              </Button>
               <Button
                 loading={booking.isLoading}
                 onClick={() => {
@@ -218,195 +228,176 @@ export const BookingForm = ({
               >
                 Confirm appointment
               </Button>
-            )}
-          </>
+            </>
+          ) : (
+            <>
+              <Button kind="secondary" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button onClick={proceed}>Continue</Button>
+            </>
+          )
         }
       >
-        <ol className="m-0 mb-6 flex list-none items-center gap-2 p-0">
-          {STEPS.map((label, index) => (
-            <li key={label} className="flex items-center gap-2">
-              <span
-                className={cn(
-                  'inline-flex size-6 items-center justify-center rounded-full font-semibold text-[0.6875rem]',
-                  step >= index + 1 ? 'bg-accent text-on-accent' : 'bg-background text-muted',
-                )}
-                aria-hidden="true"
-              >
-                {index + 1}
-              </span>
-              <span
-                className={cn(
-                  'text-xs',
-                  step >= index + 1 ? 'font-semibold text-default' : 'text-muted',
-                )}
-                aria-current={step === index + 1 ? 'step' : undefined}
-              >
-                {label}
-              </span>
-              {index < STEPS.length - 1 && (
-                <span className="h-px w-6 bg-border" aria-hidden="true" />
-              )}
-            </li>
-          ))}
-        </ol>
-
         {clinicLoading && <Spinner />}
 
-        {step === 1 && (
-          <div className="flex flex-col gap-3">
-            <SelectField
-              label="Select patient"
-              value={patientId}
-              onChange={(event) => {
-                setPatientId(event.target.value);
-              }}
-              options={[
-                { value: '', label: 'Choose a patient' },
-                ...(patients?.items ?? []).map((patient) => ({
-                  value: patient.id,
-                  label: `${patient.fullName ?? 'Name hidden'}${
-                    patient.phone === null ? '' : ` · ${patient.phone}`
+        {!clinicLoading && !reviewing && (
+          <div className="flex flex-col gap-5">
+            <div className="flex flex-col gap-2">
+              <SelectField
+                label="Select patient"
+                value={patientId}
+                placeholder="Choose a patient"
+                onChange={(event) => {
+                  setPatientId(event.target.value);
+                }}
+                options={(patients?.items ?? []).map((candidate) => ({
+                  value: candidate.id,
+                  label: `${candidate.fullName ?? 'Name hidden'}${
+                    candidate.phone === null ? '' : ` · ${candidate.phone}`
                   }`,
-                })),
-              ]}
-            />
+                }))}
+              />
+              <button
+                type="button"
+                className="self-start font-semibold text-accent text-xs hover:underline"
+                onClick={() => {
+                  setAddingPatient(true);
+                }}
+              >
+                ＋ Add a new patient
+              </button>
+            </div>
 
-            <button
-              type="button"
-              className="self-start font-semibold text-accent text-xs hover:underline"
-              onClick={() => {
-                setAddingPatient(true);
-              }}
-            >
-              ＋ Add a new patient
-            </button>
-          </div>
-        )}
+            {doctors.length === 0 ? (
+              <Alert kind="warning">
+                This clinic has no active doctor, so nothing can be booked yet.
+              </Alert>
+            ) : (
+              <SelectField
+                label="Doctor"
+                value={doctorId}
+                placeholder={doctors.length === 1 ? undefined : 'Choose a doctor'}
+                onChange={(event) => {
+                  setDoctorId(event.target.value);
+                  resetTime();
+                }}
+                options={doctors.map((candidate) => ({
+                  value: candidate.id,
+                  // "Dr. Sudhir · Cardiology Specialist", as the reference writes a doctor.
+                  label:
+                    candidate.specialty === null
+                      ? candidate.fullName
+                      : `${candidate.fullName} · ${candidate.specialty}`,
+                }))}
+              />
+            )}
 
-        {step === 2 && (
-          <div className="flex flex-col gap-2">
             {services.length === 0 ? (
               <Alert kind="warning">
                 This clinic has no active services, so there is nothing to book. Add one under
                 Services first.
               </Alert>
             ) : (
-              services.map((service) => (
-                <button
-                  key={service.id}
-                  type="button"
-                  aria-pressed={serviceId === service.id}
-                  onClick={() => {
-                    setServiceId(service.id);
-                    // A different service has a different duration, so the chosen time may no
-                    // longer be a slot at all.
-                    setStartAt('');
-                  }}
-                  className={cn(
-                    'flex flex-col gap-1 rounded-lg border p-4 text-left',
-                    serviceId === service.id
-                      ? 'border-accent bg-accent-surface'
-                      : 'border-border bg-surface hover:bg-background',
-                  )}
-                >
-                  <strong className="font-semibold text-default text-xs">{service.name}</strong>
-                  <small className="text-muted text-xs">
-                    {formatDuration(service.durationMinutes)} · {formatMoney(service.priceMinor)}
-                  </small>
-                </button>
-              ))
+              <SelectField
+                label="Select service"
+                value={serviceId}
+                placeholder={services.length === 1 ? undefined : 'Choose a service'}
+                onChange={(event) => {
+                  setServiceId(event.target.value);
+                  resetTime();
+                }}
+                options={services.map((candidate) => ({
+                  value: candidate.id,
+                  label: candidate.name,
+                }))}
+              />
             )}
-          </div>
-        )}
 
-        {step === 3 && (
-          <div className="flex flex-col gap-4">
-            <DateInput
-              label="Appointment date"
-              value={date}
-              min={clinicToday(timeZone)}
-              onChange={(value) => {
-                setDate(value);
-                setStartAt('');
-              }}
-            />
+            <label className="flex flex-col gap-1.5">
+              <span className="font-semibold text-default text-sm">Appointment date</span>
+              <input
+                type="date"
+                value={date}
+                onChange={(event) => {
+                  setDate(event.target.value);
+                  resetTime();
+                }}
+                className="h-[42px] rounded-[10px] border border-border bg-surface px-3.5 text-default text-sm"
+              />
+            </label>
 
-            <div className="flex flex-col gap-2">
-              <span className="font-semibold text-[0.6875rem] text-muted uppercase">
-                Available times
-              </span>
+            <fieldset className="m-0 flex flex-col gap-2.5 border-0 p-0">
+              <legend className="mb-2.5 font-semibold text-default text-sm">
+                Available time slots
+              </legend>
 
-              {availability.isFetching && <Spinner />}
+              {(doctorId === '' || serviceId === '') && (
+                <p className="m-0 text-muted text-xs">
+                  Choose a doctor and a service to see the free times.
+                </p>
+              )}
+
+              {availability.isFetching && availability.data === undefined && <Spinner />}
+
+              {availability.data !== undefined && availability.data.slots.length === 0 && (
+                <p className="m-0 text-muted text-xs">
+                  {availability.data.reason === null
+                    ? 'No times are free that day.'
+                    : NO_SLOTS[availability.data.reason]}
+                </p>
+              )}
 
               {availability.data !== undefined && availability.data.slots.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  {availability.data.slots.map((slot) => (
+                <div className="grid grid-cols-4 gap-2 sm:grid-cols-8">
+                  {availability.data.slots.map((candidate) => (
                     <button
-                      key={slot.startAt}
+                      key={candidate.startAt}
                       type="button"
-                      aria-pressed={startAt === slot.startAt}
+                      aria-pressed={startAt === candidate.startAt}
                       onClick={() => {
-                        setStartAt(slot.startAt);
+                        setStartAt(candidate.startAt);
+                        setProblem(undefined);
                       }}
                       className={cn(
-                        'h-9 rounded-md border px-3 font-semibold text-xs',
-                        startAt === slot.startAt
-                          ? 'border-accent bg-accent text-on-accent'
-                          : 'border-border bg-surface text-default hover:bg-background',
+                        'h-10 rounded-[10px] border font-bold text-[0.8125rem] transition-colors',
+                        startAt === candidate.startAt
+                          ? 'border-accent bg-accent text-inverse shadow-accent'
+                          : 'border-border bg-[#f6f8fc] text-accent hover:border-accent',
                       )}
                     >
-                      {slot.label}
+                      {candidate.label}
                     </button>
                   ))}
                 </div>
               )}
 
-              {availability.data !== undefined && availability.data.slots.length === 0 && (
-                <Alert kind="warning">
-                  {availability.data.reason === null
-                    ? 'No times are available that day.'
-                    : NO_SLOTS[availability.data.reason]}
-                </Alert>
+              {doctor !== undefined && (
+                <p className="m-0 text-muted text-xs">
+                  Calculated from {possessive(doctor.fullName)} hours for this weekday, break times,
+                  service duration, and existing bookings.
+                </p>
               )}
-
-              {availability.isError && (
-                <Alert kind="danger">
-                  {errorMessage(availability.error, 'Availability could not be loaded.')}
-                </Alert>
-              )}
-
-              <p className="m-0 text-subtle text-xs">
-                Calculated from the clinic&apos;s opening hours, the doctor&apos;s working hours,
-                the service duration and the appointments already booked.
-              </p>
-            </div>
+            </fieldset>
           </div>
         )}
 
-        {step === 4 && (
-          <dl className="m-0 flex flex-col gap-3 rounded-lg border border-border bg-background p-4">
+        {reviewing && (
+          <dl className="m-0 flex flex-col gap-3 rounded-xl bg-accent-surface p-5">
             {[
-              ['Patient', selectedPatient?.fullName ?? 'Name hidden'],
-              ['Service', selectedService?.name ?? '—'],
-              ['Date', date === '' ? '—' : formatDate(`${date}T00:00:00.000Z`, 'UTC')],
-              [
-                'Time',
-                startAt === ''
-                  ? '—'
-                  : (availability.data?.slots.find((slot) => slot.startAt === startAt)?.label ??
-                    '—'),
-              ],
+              ['Patient', patient?.fullName ?? '—'],
               ['Doctor', doctor?.fullName ?? '—'],
-              [
-                'Duration',
-                selectedService === undefined
-                  ? '—'
-                  : formatDuration(selectedService.durationMinutes),
-              ],
+              ['Service', service?.name ?? '—'],
+              ['Date', date === '' ? '—' : formatDate(`${date}T06:00:00.000Z`, 'UTC')],
+              ['Time', slot?.label ?? '—'],
+              ['Duration', service === undefined ? '—' : formatDuration(service.durationMinutes)],
+              ['Price', service === undefined ? '—' : formatMoney(service.priceMinor)],
             ].map(([label, value]) => (
               <div key={label} className="flex items-baseline justify-between gap-4">
-                <dt className="font-semibold text-[0.6875rem] text-muted uppercase">{label}</dt>
-                <dd className="m-0 font-semibold text-default text-xs">{value}</dd>
+                <dt className="font-semibold text-muted text-xs uppercase tracking-wide">
+                  {label}
+                </dt>
+                <dd className="m-0 font-semibold text-default text-sm">{value}</dd>
               </div>
             ))}
           </dl>

@@ -16,10 +16,10 @@ import {
   ShieldCheck,
   Stethoscope,
   Users,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import { isUserRole, type Role, type UserRole } from '@clinicai/shared';
-import { Button } from '../components/ui/Button';
 import { Logo } from '../components/ui/Logo';
 import { cn } from '../components/ui/cn';
 import { visibleNavigation, type NavItem } from './navigation';
@@ -240,7 +240,7 @@ const PersonMenu = ({
 
       <button
         type="button"
-        aria-haspopup="menu"
+        aria-haspopup="dialog"
         aria-expanded={open}
         aria-label="Account menu"
         onClick={() => {
@@ -267,25 +267,68 @@ const PersonMenu = ({
               setOpen(false);
             }}
           />
+          {/*
+           * The reference's account card: the name and a close button across the top, then
+           * the person large and centred, then their two actions at full width, the
+           * destructive one tinted red and last.
+           */}
           <div
-            role="menu"
+            role="dialog"
             aria-label="Account"
-            className="absolute top-[52px] right-0 z-50 w-56 rounded-xl border border-border bg-surface p-2 shadow-popover"
+            className="absolute top-[56px] right-0 z-50 w-[340px] overflow-hidden rounded-xl border border-border-chrome bg-surface shadow-popover"
           >
-            <p className="m-0 px-2 py-1.5 text-muted text-xs">
-              Signed in as <strong className="font-semibold text-default">{label}</strong>
-            </p>
-            <Button
-              kind="secondary"
-              fullWidth
-              loading={signingOut}
-              onClick={() => {
-                setSigningOut(true);
-                onSignOut();
-              }}
-            >
-              Sign out
-            </Button>
+            <div className="flex items-center justify-between border-border-chrome border-b px-4 py-3">
+              <strong className="font-semibold text-[0.9375rem] text-default">
+                {personName ?? label}
+              </strong>
+              <button
+                type="button"
+                aria-label="Close"
+                onClick={() => {
+                  setOpen(false);
+                }}
+                className="grid size-7 place-items-center rounded-lg bg-background text-muted hover:text-default"
+              >
+                <X size={14} aria-hidden="true" />
+              </button>
+            </div>
+
+            <div className="flex flex-col items-center gap-1 px-5 pt-5 pb-5 text-center">
+              <span className="mb-2 grid size-[58px] place-items-center rounded-[14px] bg-accent-contrast font-bold text-accent text-lg">
+                {initialsOf(personName ?? label)}
+              </span>
+              <span className="font-medium text-[0.9375rem] text-default">
+                {personName ?? label}
+              </span>
+              <span className="text-muted text-xs">{label}</span>
+
+              <div className="mt-4 flex w-full flex-col gap-2">
+                {/*
+                 * Present and inert: there is no profile screen yet. The design draws it,
+                 * and a button that went nowhere would be worse than one that says so.
+                 */}
+                <button
+                  type="button"
+                  disabled
+                  aria-disabled="true"
+                  title="A profile screen is not available yet."
+                  className="h-[38px] w-full cursor-not-allowed rounded-control border border-border-chrome bg-surface font-semibold text-muted text-sm"
+                >
+                  View profile
+                </button>
+                <button
+                  type="button"
+                  disabled={signingOut}
+                  onClick={() => {
+                    setSigningOut(true);
+                    onSignOut();
+                  }}
+                  className="h-[38px] w-full rounded-control border border-danger/20 bg-danger-surface font-semibold text-danger text-sm hover:border-danger/40 disabled:opacity-60"
+                >
+                  {signingOut ? 'Signing out…' : 'Logout'}
+                </button>
+              </div>
+            </div>
           </div>
         </>
       )}

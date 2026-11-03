@@ -152,7 +152,7 @@ export const RescheduleForm = ({
                       className={cn(
                         'h-9 rounded-md border px-3 font-semibold text-xs',
                         startAt === slot.startAt
-                          ? 'border-accent bg-accent text-on-accent'
+                          ? 'border-accent bg-accent text-inverse'
                           : 'border-border bg-surface text-default hover:bg-background',
                       )}
                     >

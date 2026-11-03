@@ -127,7 +127,7 @@ describe('signing out', () => {
     // Sign-out lives in the account menu now, behind the name in the header, which is where
     // the design's chevron says a menu is.
     await userEvent.click(await screen.findByRole('button', { name: 'Account menu' }));
-    await userEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Logout' }));
 
     expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
     expect(stub.calls.logout).toBe(1);

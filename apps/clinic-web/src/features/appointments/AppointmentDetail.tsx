@@ -83,7 +83,7 @@ export const AppointmentDetail = ({
     >
       <div className="flex items-center gap-4 rounded-xl bg-accent-surface p-4">
         <span
-          className="flex size-14 shrink-0 flex-col items-center justify-center rounded-lg bg-accent font-semibold text-on-accent"
+          className="flex size-14 shrink-0 flex-col items-center justify-center rounded-lg bg-accent font-semibold text-inverse"
           aria-hidden="true"
         >
           <span className="text-md leading-none">{day}</span>
@@ -194,7 +194,7 @@ export const AppointmentDetail = ({
                * A dialog on top of a drawer is two overlays deep and a keyboard user has to
                * escape twice. The reason box sits where the button was.
                */
-              <div className="flex flex-col gap-3 rounded-lg border border-danger-border bg-danger-surface p-4">
+              <div className="flex flex-col gap-3 rounded-lg border border-danger/30 bg-danger-surface p-4">
                 <strong className="font-semibold text-danger text-xs">
                   Cancel this appointment?
                 </strong>

@@ -74,13 +74,13 @@ describe('the header', () => {
     expect(link).toHaveAttribute('href', '/appointments?book=1');
   });
 
-  it('keeps sign-out in the account menu behind the name', async () => {
+  it('keeps Logout in the account card behind the name', async () => {
     renderWith(<AppRoutes />, signedIn(), ['/patients']);
 
-    expect(screen.queryByRole('button', { name: 'Sign out' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Logout' })).not.toBeInTheDocument();
 
     await userEvent.click(await screen.findByRole('button', { name: 'Account menu' }));
 
-    expect(await screen.findByRole('button', { name: 'Sign out' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Logout' })).toBeInTheDocument();
   });
 });

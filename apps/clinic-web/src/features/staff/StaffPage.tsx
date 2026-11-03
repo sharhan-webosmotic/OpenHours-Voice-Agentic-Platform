@@ -274,7 +274,7 @@ export const StaffPage = () => {
                   className={cn(
                     'h-10 min-w-16 rounded-md border px-3 font-semibold text-xs',
                     open
-                      ? 'border-accent bg-accent text-on-accent'
+                      ? 'border-accent bg-accent text-inverse'
                       : 'border-border bg-surface text-muted hover:bg-background',
                     !canWrite && 'cursor-not-allowed opacity-60',
                   )}
