@@ -145,6 +145,12 @@ const RECIPES = new Map<string, () => Promise<number>>([
     async () => (await authed.put(`${base}/${organisationId}/hours`).send(HOURS_BODY)).status,
   ],
   [
+    `PUT ${base}/:organisationId/doctors/:doctorId/hours`,
+    async () =>
+      (await authed.put(`${base}/${organisationId}/doctors/${doctorId}/hours`).send(HOURS_BODY))
+        .status,
+  ],
+  [
     `PUT ${base}/:organisationId/booking-policy`,
     async () =>
       (await authed.put(`${base}/${organisationId}/booking-policy`).send(BOOKING_POLICY_BODY))
