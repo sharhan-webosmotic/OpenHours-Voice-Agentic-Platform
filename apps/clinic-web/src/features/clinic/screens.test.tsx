@@ -24,10 +24,22 @@ describe('services', () => {
   it('lists a service with its duration and price in rupees', async () => {
     renderWith(<ServicesPage />, signedIn());
 
-    expect(await screen.findByText('Consultation')).toBeInTheDocument();
-    expect(screen.getByText('30 min')).toBeInTheDocument();
+    const card = (await screen.findByRole('heading', { name: 'Consultation' })).closest('li');
+
+    expect(card).not.toBeNull();
+    expect(within(card!).getByText('30 min')).toBeInTheDocument();
     // 50000 paise is ₹500, divided at this edge and nowhere deeper.
-    expect(screen.getByText('₹500')).toBeInTheDocument();
+    expect(within(card!).getByText('₹500')).toBeInTheDocument();
+  });
+
+  it('summarises only what can be booked today', async () => {
+    renderWith(<ServicesPage />, signedIn());
+
+    // The retired service is counted in the total and nowhere else: its fee and length
+    // describe nothing a patient can book.
+    expect(await screen.findByText('of 2')).toBeInTheDocument();
+    expect(screen.getByText('Average appointment').nextSibling).toHaveTextContent('30 min');
+    expect(screen.getByText('Current fee range').nextSibling).toHaveTextContent('₹500');
   });
 
   it('shows an inactive service as inactive rather than hiding it', async () => {
@@ -48,7 +60,7 @@ describe('services', () => {
     });
 
     renderWith(<ServicesPage />, stub);
-    await userEvent.click(await screen.findByRole('button', { name: /Add Service/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /Add service/ }));
 
     await userEvent.type(screen.getByLabelText('Service name'), 'Dressing');
     await userEvent.clear(screen.getByLabelText('Price in rupees'));
@@ -71,7 +83,7 @@ describe('services', () => {
     });
 
     renderWith(<ServicesPage />, stub);
-    await userEvent.click(await screen.findByRole('button', { name: /Add Service/ }));
+    await userEvent.click(await screen.findByRole('button', { name: /Add service/ }));
 
     await userEvent.type(screen.getByLabelText('Service name'), 'Dressing');
     await userEvent.clear(screen.getByLabelText('Price in rupees'));

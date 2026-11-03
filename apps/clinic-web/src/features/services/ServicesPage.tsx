@@ -1,17 +1,14 @@
 import { useState } from 'react';
-import { Briefcase } from 'lucide-react';
 import type { ServiceView } from '@clinicai/api-client';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Spinner } from '../../components/ui/Spinner';
-import { Badge } from '../../components/ui/Table';
 import { useCan } from '../../lib/useCan';
 import { errorMessage } from '../../lib/problem';
-import { formatDuration, formatMoney } from '../../lib/clinicTime';
 import { useClinic, useUpdateServiceMutation } from '../clinic/api';
 import { ServiceForm } from './ServiceForm';
+import { CatalogueStats, ServiceCard, summarise } from './catalogue';
 
 /**
  * The services a clinic offers, from `docs/prototype/laptop-12-services.png`.
@@ -84,12 +81,13 @@ export const ServicesPage = () => {
 
   return (
     <>
-      <Card padded={false} className="mb-4 flex flex-wrap items-center justify-between gap-4 p-4">
-        <div className="flex flex-col gap-0.5">
-          <strong className="font-semibold text-default text-md">Clinic services</strong>
-          <p className="m-0 text-muted text-xs">
-            What this clinic offers, and how long each appointment takes. The duration is what the
-            booking grid is built from.
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <p className="m-0 font-bold text-accent text-xs uppercase tracking-[1px]">
+            Care catalogue
+          </p>
+          <p className="m-0 text-muted text-sm">
+            {`Manage the appointments patients can book at ${clinic.organisation.name}. Each service's length is what the booking grid is built from.`}
           </p>
         </div>
 
@@ -99,10 +97,12 @@ export const ServicesPage = () => {
               setAdding(true);
             }}
           >
-            ＋ Add Service
+            ＋ Add service
           </Button>
         )}
-      </Card>
+      </div>
+
+      {clinic.services.length > 0 && <CatalogueStats summary={summarise(clinic.services)} />}
 
       {problem !== undefined && (
         <div className="mb-4">
@@ -121,71 +121,46 @@ export const ServicesPage = () => {
                   setAdding(true);
                 }}
               >
-                ＋ Add Service
+                ＋ Add service
               </Button>
             ) : undefined
           }
         />
       ) : (
-        <ul className="m-0 grid list-none grid-cols-1 gap-4 p-0 md:grid-cols-2 xl:grid-cols-3">
-          {clinic.services.map((service) => (
-            <li key={service.id}>
-              <Card className="flex h-full flex-col gap-4">
-                <div className="flex items-start justify-between gap-3">
-                  <span
-                    className="inline-flex size-10 items-center justify-center rounded-lg bg-accent-surface text-accent"
-                    aria-hidden="true"
-                  >
-                    <Briefcase size={18} />
-                  </span>
-                  <Badge kind={service.active ? 'success' : 'neutral'}>
-                    {service.active ? 'Active' : 'Inactive'}
-                  </Badge>
-                </div>
+        <section aria-labelledby="services-heading">
+          <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+            <div className="flex flex-col gap-0.5">
+              <h2 id="services-heading" className="m-0 font-bold text-default text-lg">
+                Services
+              </h2>
+              <p className="m-0 text-muted text-xs">
+                What the AI receptionist and the front desk can book.
+              </p>
+            </div>
+            <span className="text-muted text-xs">
+              {`${String(summarise(clinic.services).active)} bookable`}
+            </span>
+          </div>
 
-                <strong className="font-semibold text-default text-md">{service.name}</strong>
-
-                <dl className="m-0 mt-auto grid grid-cols-2 gap-2 border-border border-t pt-4">
-                  <div className="flex flex-col gap-1">
-                    <dt className="text-muted text-xs">Duration</dt>
-                    <dd className="m-0 font-semibold text-default text-xs">
-                      {formatDuration(service.durationMinutes)}
-                    </dd>
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <dt className="text-muted text-xs">Price</dt>
-                    <dd className="m-0 font-semibold text-default text-xs">
-                      {formatMoney(service.priceMinor)}
-                    </dd>
-                  </div>
-                </dl>
-
-                {canWrite && (
-                  <div className="flex items-center gap-3">
-                    <Button
-                      kind="secondary"
-                      onClick={() => {
-                        setEditing(service);
-                      }}
-                    >
-                      Edit details
-                    </Button>
-                    <button
-                      type="button"
-                      disabled={updating.isLoading}
-                      onClick={() => {
-                        void toggle(service);
-                      }}
-                      className="font-semibold text-accent text-xs hover:underline disabled:opacity-50"
-                    >
-                      {service.active ? 'Deactivate' : 'Activate'}
-                    </button>
-                  </div>
-                )}
-              </Card>
-            </li>
-          ))}
-        </ul>
+          <ul className="m-0 grid list-none grid-cols-1 gap-4 p-0 md:grid-cols-2 xl:grid-cols-3">
+            {clinic.services.map((service, index) => (
+              <li key={service.id}>
+                <ServiceCard
+                  service={service}
+                  index={index}
+                  canWrite={canWrite}
+                  busy={updating.isLoading}
+                  onEdit={() => {
+                    setEditing(service);
+                  }}
+                  onToggle={() => {
+                    void toggle(service);
+                  }}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
       {(adding || editing !== undefined) && (
