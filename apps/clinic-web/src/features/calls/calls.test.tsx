@@ -291,20 +291,38 @@ describe('the voice agent dashboard', () => {
           toolSecretSet: true,
           toolSecretSetAt: '2026-11-01T00:00:00.000Z',
         },
+        voiceAgent: { state: 'LIVE', missing: [] },
       },
     },
   };
 
-  it('says the agent is not connected when the clinic has no Sarvam mapping', async () => {
+  it('takes the state from the server, not from the agent row being switched on', async () => {
+    // The fixture clinic is not configured, as the server reports a console-made clinic.
     renderWith(<CallsPage />, signedIn());
 
-    // The fixture's overview reports ACTIVE, and that is the point: with no mapping the agent
-    // cannot be answering, and "Live" would tell the desk to stop picking up.
-    expect(await screen.findByText('Not connected')).toBeInTheDocument();
+    expect(await screen.findByText('Not configured')).toBeInTheDocument();
     expect(screen.queryByText('Live')).not.toBeInTheDocument();
   });
 
-  it('shows a mapped agent as live, with its number and versions', async () => {
+  it('names what a partly configured agent still needs', async () => {
+    renderWith(
+      <CallsPage />,
+      signedIn({
+        ...mapped,
+        [`GET /api/v1/organisations/${ORGANISATION_ID}`]: {
+          body: {
+            ...clinic,
+            voiceAgent: { state: 'PARTLY_CONFIGURED', missing: ['TOOL_SECRET'] },
+          },
+        },
+      }),
+    );
+
+    expect(await screen.findByText('Partly configured')).toBeInTheDocument();
+    expect(screen.getByText(/still needs the tool secret/)).toBeInTheDocument();
+  });
+
+  it('shows a live agent with its number and versions', async () => {
     renderWith(<CallsPage />, signedIn(mapped));
 
     expect(await screen.findByText('Live')).toBeInTheDocument();

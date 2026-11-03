@@ -121,8 +121,8 @@ export const CallsPage = () => {
       {clinic !== undefined && (
         <AgentCard
           mapping={clinic.sarvamMapping}
-          status={canAnalyse ? (overview.data?.agent.status ?? null) : undefined}
-          lastCallAt={overview.data?.agent.lastCallAt}
+          voiceAgent={clinic.voiceAgent}
+          lastCallAt={canAnalyse ? (overview.data?.agent.lastCallAt ?? null) : undefined}
           timeZone={timeZone}
           range={canAnalyse ? range : undefined}
           onRangeChange={setRange}

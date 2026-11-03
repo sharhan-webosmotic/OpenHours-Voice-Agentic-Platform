@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react';
 import type { OverviewRange, OverviewResult, SarvamMappingView } from '@clinicai/api-client';
+import type { VoiceAgentStatus } from '@clinicai/shared';
 import { AudioLines, CalendarCheck, Headset, PhoneIncoming, Percent } from 'lucide-react';
-import { Badge, type BadgeKind } from '../../components/ui/Table';
+import { Badge } from '../../components/ui/Table';
 import { cn } from '../../components/ui/cn';
 import { formatDateTime } from '../../lib/clinicTime';
 import { formatPhone } from '../../lib/phone';
+import { VOICE_AGENT_BADGE, voiceAgentSentence } from '../../lib/voiceAgentState';
 import { Change, Panel, PeriodSelect } from '../overview/cards';
 import { Sparkline } from '../overview/charts';
 
@@ -19,24 +21,12 @@ import { Sparkline } from '../overview/charts';
  * the two screens cannot disagree. Nothing here is computed from the page of calls below it,
  * which is paged and filtered and would make the counts move with the search box.
  *
- * ─── THE STATUS IS NEVER INFERRED ───────────────────────────────────────────────
+ * ─── THE STATE IS THE SERVER'S ──────────────────────────────────────────────────
  *
- * "Live" is shown only when the platform records the agent as active. A clinic with no
- * Sarvam mapping is "Not connected", whatever its call log holds, because a receptionist
- * reading "Live" will stop answering the phone.
+ * `clinic.voiceAgent`, worked out once from every part the agent needs. The first version
+ * read the agent row's status, which defaults to ACTIVE when the console creates a clinic,
+ * so an agent nobody had connected showed "Live" here.
  */
-
-type AgentStatus = OverviewResult['agent']['status'];
-
-const STATUS: Record<
-  'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED' | 'NONE',
-  { label: string; kind: BadgeKind }
-> = {
-  ACTIVE: { label: 'Live', kind: 'success' },
-  SUSPENDED: { label: 'Paused', kind: 'warning' },
-  DEACTIVATED: { label: 'Switched off', kind: 'danger' },
-  NONE: { label: 'Not connected', kind: 'neutral' },
-};
 
 const Detail = ({ label, children }: { readonly label: string; readonly children: ReactNode }) => (
   <div className="flex min-w-0 flex-col gap-1">
@@ -47,21 +37,21 @@ const Detail = ({ label, children }: { readonly label: string; readonly children
 
 export const AgentCard = ({
   mapping,
-  status,
+  voiceAgent,
   lastCallAt,
   timeZone,
   range,
   onRangeChange,
 }: {
   readonly mapping: SarvamMappingView | null;
-  /** Undefined for a role that may not read analytics: the status is then not shown at all. */
-  readonly status: AgentStatus | undefined;
+  readonly voiceAgent: VoiceAgentStatus;
+  /** Undefined for a role that may not read analytics, which is where it comes from. */
   readonly lastCallAt: string | null | undefined;
   readonly timeZone: string;
   readonly range: OverviewRange | undefined;
   readonly onRangeChange: (next: OverviewRange) => void;
 }) => {
-  const state = mapping === null ? STATUS.NONE : STATUS[status ?? 'NONE'];
+  const badge = VOICE_AGENT_BADGE[voiceAgent.state];
 
   return (
     <Panel
@@ -81,12 +71,17 @@ export const AgentCard = ({
           <div className="flex flex-col gap-0.5">
             <div className="flex items-center gap-2">
               <h2 className="m-0 font-bold text-default text-lg">AI Receptionist</h2>
-              {status !== undefined && <Badge kind={state.kind}>{state.label}</Badge>}
+              <Badge kind={badge.kind}>{badge.label}</Badge>
             </div>
             <p className="m-0 text-muted text-xs">
               Voice agent powered by Sarvam. It answers, books, reschedules and cancels, and never
               gives clinical advice.
             </p>
+            {voiceAgent.state !== 'LIVE' && (
+              <p className="m-0 pt-1 font-semibold text-default text-xs">
+                {voiceAgentSentence(voiceAgent)}
+              </p>
+            )}
           </div>
         </div>
         {range !== undefined && <PeriodSelect value={range} onChange={onRangeChange} />}
@@ -97,7 +92,11 @@ export const AgentCard = ({
           {mapping?.agentPhone == null ? 'Not assigned' : formatPhone(mapping.agentPhone)}
         </Detail>
         <Detail label="Last call">
-          {lastCallAt == null ? 'No calls yet' : formatDateTime(lastCallAt, timeZone)}
+          {lastCallAt === undefined
+            ? 'Not shown'
+            : lastCallAt === null
+              ? 'No calls yet'
+              : formatDateTime(lastCallAt, timeZone)}
         </Detail>
         <Detail label="Sarvam app version">{mapping?.sarvamAppVersion ?? 'Not set'}</Detail>
         <Detail label="Prompt version">{mapping?.promptVersion ?? 'Not set'}</Detail>

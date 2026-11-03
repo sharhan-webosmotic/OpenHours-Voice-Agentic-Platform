@@ -153,7 +153,6 @@ export type Overview = {
     Record<'BOOKED' | 'RESCHEDULED' | 'CANCELLED' | 'INFORMATION' | 'TRANSFERRED' | 'NONE', number>
   >;
   readonly agent: {
-    readonly status: 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED' | null;
     readonly lastCallAt: string | null;
   };
 };
@@ -278,7 +277,6 @@ export const overview = async (
       daily,
       outcomes,
       agent: {
-        status: agent.status,
         lastCallAt: agent.lastCallAt?.toISOString() ?? null,
       },
     };

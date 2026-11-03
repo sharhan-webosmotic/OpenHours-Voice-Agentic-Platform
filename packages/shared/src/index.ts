@@ -157,3 +157,14 @@ export {
   type ReadinessRequirement,
   type ReadinessSection,
 } from './clinic-readiness.js';
+
+export {
+  VOICE_AGENT_REQUIREMENTS,
+  VOICE_AGENT_REQUIREMENT_LABELS,
+  VOICE_AGENT_STATES,
+  voiceAgentStatus,
+  type VoiceAgentRequirement,
+  type VoiceAgentState,
+  type VoiceAgentStatus,
+  type VoiceAgentStatusInput,
+} from './voice-agent-status.js';

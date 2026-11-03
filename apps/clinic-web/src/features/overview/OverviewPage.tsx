@@ -78,6 +78,7 @@ export const OverviewPage = () => {
               personName={firstName(user?.fullName ?? '')}
               timeZone={timeZone}
               agent={overview.data?.agent}
+              voiceAgent={clinic?.voiceAgent}
               range={range}
               onRangeChange={setRange}
               now={now}

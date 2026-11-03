@@ -3,6 +3,8 @@ import {
   AGENT_TONES,
   ORGANISATION_STATUSES,
   RECORDING_CONSENT_MODES,
+  VOICE_AGENT_REQUIREMENTS,
+  VOICE_AGENT_STATES,
   WEEKDAYS,
   agentProfileSchema,
   bookingPolicySchema,
@@ -169,6 +171,11 @@ export const clinicDetailResponseSchema = z.object({
   ),
   sarvamMapping: sarvamMappingResponseSchema.nullable(),
   readiness: readinessResponseSchema,
+  /** Whether the AI receptionist can take a call now, and what it still needs. */
+  voiceAgent: z.object({
+    state: z.enum(VOICE_AGENT_STATES),
+    missing: z.array(z.enum(VOICE_AGENT_REQUIREMENTS)),
+  }),
 });
 
 export const createdOrganisationResponseSchema = z.object({

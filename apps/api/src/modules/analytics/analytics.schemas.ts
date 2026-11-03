@@ -73,7 +73,6 @@ export const overviewResponseSchema = z.object({
     NONE: z.number().int().nonnegative(),
   }),
   agent: z.object({
-    status: z.enum(['ACTIVE', 'SUSPENDED', 'DEACTIVATED']).nullable(),
     lastCallAt: z.string().nullable(),
   }),
 });

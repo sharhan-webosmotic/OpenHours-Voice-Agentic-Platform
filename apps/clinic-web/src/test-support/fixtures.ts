@@ -111,6 +111,11 @@ export const clinic: ClinicDetailView = {
     },
   ],
   sarvamMapping: null,
+  // No mapping, so not configured: the server's verdict for this shape.
+  voiceAgent: {
+    state: 'NOT_CONFIGURED',
+    missing: ['SARVAM_APP', 'SARVAM_DEPLOYMENT', 'AGENT_NUMBER', 'TOOL_SECRET', 'WEBHOOK_SECRET'],
+  },
   readiness: {
     ready: true,
     satisfiedCount: 10,
@@ -249,7 +254,7 @@ export const overviewWeek: OverviewResult = {
     needsAttention: 0,
   })),
   outcomes: { BOOKED: 2, RESCHEDULED: 0, CANCELLED: 0, INFORMATION: 1, TRANSFERRED: 0, NONE: 3 },
-  agent: { status: 'ACTIVE', lastCallAt: '2026-11-03T06:00:00.000Z' },
+  agent: { lastCallAt: '2026-11-03T06:00:00.000Z' },
 };
 
 export const CALL_ID = '01932b00-0000-7000-8000-00000000c411';

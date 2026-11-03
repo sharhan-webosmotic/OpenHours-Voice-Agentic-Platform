@@ -8,8 +8,10 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { OverviewRange, OverviewResult } from '@clinicai/api-client';
+import type { VoiceAgentStatus } from '@clinicai/shared';
 import { cn } from '../../components/ui/cn';
 import { formatMoney } from '../../lib/clinicTime';
+import { VOICE_AGENT_BADGE, voiceAgentSentence } from '../../lib/voiceAgentState';
 import { RevenueBars, Sparkline } from './charts';
 
 /**
@@ -170,6 +172,7 @@ export const HeroCard = ({
   personName,
   timeZone,
   agent,
+  voiceAgent,
   range,
   onRangeChange,
   now,
@@ -177,12 +180,14 @@ export const HeroCard = ({
   readonly personName: string;
   readonly timeZone: string;
   readonly agent: OverviewResult['agent'] | undefined;
+  /** The server's verdict on the agent, from the clinic. Undefined while it loads. */
+  readonly voiceAgent: VoiceAgentStatus | undefined;
   readonly range: OverviewRange;
   readonly onRangeChange: (next: OverviewRange) => void;
   readonly now: Date;
 }) => {
   const weekday = new Intl.DateTimeFormat('en-GB', { timeZone, weekday: 'long' }).format(now);
-  const online = agent?.status === 'ACTIVE';
+  const live = voiceAgent?.state === 'LIVE';
 
   return (
     <Panel
@@ -200,31 +205,33 @@ export const HeroCard = ({
           {greetingFor(now, timeZone)}, {personName}
         </p>
         <p className="m-0 text-muted text-sm leading-[20px]">
-          {agent === undefined
+          {voiceAgent === undefined
             ? 'Checking on your AI receptionist…'
-            : online
-              ? 'Your AI receptionist is managing calls and bookings.'
-              : 'Your AI receptionist is not taking calls right now.'}
+            : voiceAgentSentence(voiceAgent)}
         </p>
 
         <div className="flex flex-wrap items-center gap-2 pt-5">
           <span
             className={cn(
               'flex h-[25px] items-center gap-1.5 rounded-full px-[9px] font-bold text-xs',
-              online ? 'bg-success-surface text-[#128461]' : 'bg-background text-muted',
+              live
+                ? 'bg-success-surface text-[#128461]'
+                : voiceAgent?.state === 'PARTLY_CONFIGURED'
+                  ? 'bg-warning-surface text-warning'
+                  : 'bg-background text-muted',
             )}
           >
             <span
               className={cn(
                 'size-1.5 rounded-[3px]',
-                online ? 'bg-success shadow-[0px_0px_0px_3px_rgba(32,180,134,0.13)]' : 'bg-subtle',
+                live
+                  ? 'bg-success shadow-[0px_0px_0px_3px_rgba(32,180,134,0.13)]'
+                  : voiceAgent?.state === 'PARTLY_CONFIGURED'
+                    ? 'bg-warning'
+                    : 'bg-subtle',
               )}
             />
-            {online
-              ? 'Online'
-              : agent?.status === undefined || agent.status === null
-                ? 'Not connected'
-                : 'Offline'}
+            {voiceAgent === undefined ? '…' : VOICE_AGENT_BADGE[voiceAgent.state].label}
           </span>
           <span className="font-semibold text-muted text-xs leading-[13px]">
             {agent?.lastCallAt === null || agent?.lastCallAt === undefined

@@ -128,4 +128,5 @@ export const presentClinicDetail = (detail: ClinicDetail) => ({
           toolSecretSetAt: iso(detail.sarvamMapping.toolSecretSetAt),
         },
   readiness: presentReadiness(detail.readiness),
+  voiceAgent: { state: detail.voiceAgent.state, missing: [...detail.voiceAgent.missing] },
 });

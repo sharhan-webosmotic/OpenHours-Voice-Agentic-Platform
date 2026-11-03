@@ -115,26 +115,22 @@ export const pendingRequests = async (
     take: ROW_CAP,
   });
 
+/**
+ * When the clinic last took a call. The agent's STATE is not here: it is worked out once, from
+ * every part it needs, on the clinic itself (`voiceAgentStatus`), and this endpoint returning
+ * the bare row status beside it is how a screen came to show an unconfigured agent as live.
+ */
 export const agentSnapshot = async (
   db: TenantDb,
   organisationId: string,
-): Promise<{
-  readonly status: 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED' | null;
-  readonly lastCallAt: Date | null;
-}> => {
-  const [agent, last] = await db.$transaction([
-    db.voiceAgent.findFirst({ where: { organisationId }, select: { status: true } }),
-    db.call.findFirst({
-      where: { organisationId },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      select: { startedAt: true, createdAt: true },
-    }),
-  ]);
+): Promise<{ readonly lastCallAt: Date | null }> => {
+  const last = await db.call.findFirst({
+    where: { organisationId },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { startedAt: true, createdAt: true },
+  });
 
-  return {
-    status: agent?.status ?? null,
-    lastCallAt: last === null ? null : (last.startedAt ?? last.createdAt),
-  };
+  return { lastCallAt: last === null ? null : (last.startedAt ?? last.createdAt) };
 };
 
 /** The doctor row behind a DOCTOR user, for the `own` scope. */

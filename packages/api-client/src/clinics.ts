@@ -10,6 +10,7 @@ import type {
   ReadinessSection,
   SarvamMappingInput,
   ServiceInput,
+  VoiceAgentStatus,
   Weekday,
 } from '@clinicai/shared';
 import { ApiError, toProblem } from './problem.js';
@@ -140,6 +141,8 @@ export type ClinicDetailView = {
   readonly doctors: readonly DoctorView[];
   readonly sarvamMapping: SarvamMappingView | null;
   readonly readiness: ReadinessView;
+  /** Whether the AI receptionist can take a call now, worked out on the server. */
+  readonly voiceAgent: VoiceAgentStatus;
 };
 
 export type ClinicListFilters = {

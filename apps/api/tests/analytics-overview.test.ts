@@ -240,10 +240,12 @@ describe('the overview, last 7 days', () => {
     expect(result.outcomes.NONE).toBe(4);
   });
 
-  it('reports the agent and when it last took a call', async () => {
+  it('reports when the clinic last took a call, and not the agent state', async () => {
     const result = await overview(owner, undefined, '7d', NOW);
 
-    expect(result.agent.status).toBe('ACTIVE');
+    // The state is the clinic's `voiceAgent`, computed from every part; a second, partial
+    // answer here is what let an unconfigured agent read as live.
+    expect('status' in result.agent).toBe(false);
     expect(result.agent.lastCallAt).not.toBeNull();
     expect(result.currency).toBe('INR');
   });

@@ -217,6 +217,9 @@ export type SarvamMappingRow = {
   readonly promptVersion: string | null;
   readonly toolSecretSet: boolean;
   readonly toolSecretSetAt: Date | null;
+  /** Read for the agent's status only; neither is part of the mapping a caller is shown. */
+  readonly agentActive: boolean;
+  readonly webhookSecretSet: boolean;
 };
 
 /** Everything about one clinic, which is what the detail page and the renderer both need. */
@@ -330,6 +333,9 @@ export const findClinicConfiguration = async (
           // The HASH is selected only to derive the boolean below. It is never returned.
           toolSecretHash: true,
           toolSecretSetAt: true,
+          // Likewise selected only to derive a boolean, for the agent's status.
+          webhookSecretHash: true,
+          status: true,
           agentNumber: { select: { e164: true } },
         },
         take: 1,
@@ -374,6 +380,8 @@ export const findClinicConfiguration = async (
             promptVersion: agent.promptVersion,
             toolSecretSet: agent.toolSecretHash !== null,
             toolSecretSetAt: agent.toolSecretSetAt,
+            agentActive: agent.status === 'ACTIVE',
+            webhookSecretSet: agent.webhookSecretHash !== null,
           },
   };
 };

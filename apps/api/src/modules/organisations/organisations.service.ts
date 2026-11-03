@@ -1,6 +1,7 @@
 import {
   WEEKDAYS,
   clinicReadiness,
+  voiceAgentStatus,
   type AgentProfileInput,
   type BookingPolicyInput,
   type ClinicFaqsInput,
@@ -14,6 +15,7 @@ import {
   type ServiceInput,
   type TelephonyInput,
   type UpdateOrganisationInput,
+  type VoiceAgentStatus,
   type Weekday,
 } from '@clinicai/shared';
 import { ConflictError, NotFoundError } from '../../common/errors.js';
@@ -70,6 +72,25 @@ export const MAX_PAGE_SIZE = 100;
 
 export type ClinicDetail = repository.ClinicConfiguration & {
   readonly readiness: ClinicReadiness;
+  readonly voiceAgent: VoiceAgentStatus;
+};
+
+/** The one place the agent's state is worked out; every screen reads the result. */
+const agentStatusOf = (configuration: repository.ClinicConfiguration): VoiceAgentStatus => {
+  const mapping = configuration.sarvamMapping;
+
+  return voiceAgentStatus(
+    mapping === null
+      ? null
+      : {
+          active: mapping.agentActive,
+          sarvamAppId: mapping.sarvamAppId,
+          sarvamDeploymentId: mapping.sarvamDeploymentId,
+          agentPhone: mapping.agentPhone,
+          toolSecretSet: mapping.toolSecretSet,
+          webhookSecretSet: mapping.webhookSecretSet,
+        },
+  );
 };
 
 /**
@@ -175,7 +196,11 @@ export const getClinic = async (
       );
     }
 
-    return { ...configuration, readiness: readinessFor(configuration) };
+    return {
+      ...configuration,
+      readiness: readinessFor(configuration),
+      voiceAgent: agentStatusOf(configuration),
+    };
   });
 };
 

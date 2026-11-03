@@ -115,6 +115,8 @@ const configuration = (overrides: Partial<ClinicConfiguration> = {}): ClinicConf
     promptVersion: DEFAULT_PROMPT_VERSION,
     toolSecretSet: true,
     toolSecretSetAt: new Date('2026-10-03T00:00:00.000Z'),
+    agentActive: true,
+    webhookSecretSet: true,
   },
   ...overrides,
 });

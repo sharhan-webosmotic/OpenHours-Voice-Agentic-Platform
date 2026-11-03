@@ -134,6 +134,11 @@ const detail = (overrides: Partial<ClinicDetailView> = {}): ClinicDetailView => 
     toolSecretSet: false,
     toolSecretSetAt: null,
   },
+  // The console's shape: an agent row and nothing in it, which the server calls not configured.
+  voiceAgent: {
+    state: 'NOT_CONFIGURED',
+    missing: ['SARVAM_APP', 'SARVAM_DEPLOYMENT', 'AGENT_NUMBER', 'TOOL_SECRET', 'WEBHOOK_SECRET'],
+  },
   readiness: {
     ready: false,
     satisfiedCount: 3,

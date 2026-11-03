@@ -365,7 +365,6 @@ export type OverviewResult = {
     Record<'BOOKED' | 'RESCHEDULED' | 'CANCELLED' | 'INFORMATION' | 'TRANSFERRED' | 'NONE', number>
   >;
   readonly agent: {
-    readonly status: 'ACTIVE' | 'SUSPENDED' | 'DEACTIVATED' | null;
     readonly lastCallAt: string | null;
   };
 };

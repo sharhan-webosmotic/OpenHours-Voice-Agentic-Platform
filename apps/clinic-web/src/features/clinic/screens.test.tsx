@@ -406,16 +406,41 @@ describe('the overview', () => {
     expect(screen.getByText('ESTIMATE')).toBeInTheDocument();
   });
 
-  it('says the agent is online and never claims call forwarding', async () => {
-    renderWith(<OverviewPage />, signedIn());
+  const withAgent = (voiceAgent: { state: string; missing: string[] }) =>
+    signedIn({
+      ...baseRoutes,
+      [`GET /api/v1/organisations/${ORGANISATION_ID}`]: { body: { ...clinic, voiceAgent } },
+    });
 
-    expect(await screen.findByText('Online')).toBeInTheDocument();
+  it('calls the agent live only when the server says so, and never claims call forwarding', async () => {
+    renderWith(<OverviewPage />, withAgent({ state: 'LIVE', missing: [] }));
+
+    expect(await screen.findByText('Live')).toBeInTheDocument();
     /**
      * The reference has a green "Call Forwarding active" chip. Forwarding is the Android app,
      * which does not exist yet, so asserting it is on would be the most confident claim on
      * the screen and the least true one.
      */
     expect(screen.queryByText(/Call Forwarding/)).not.toBeInTheDocument();
+  });
+
+  it('says what a partly configured agent still needs', async () => {
+    renderWith(
+      <OverviewPage />,
+      withAgent({ state: 'PARTLY_CONFIGURED', missing: ['AGENT_NUMBER', 'WEBHOOK_SECRET'] }),
+    );
+
+    expect(await screen.findByText('Partly configured')).toBeInTheDocument();
+    expect(
+      screen.getByText(/still needs a phone number for the agent and the webhook secret/),
+    ).toBeInTheDocument();
+  });
+
+  it('does not call an unconfigured agent live', async () => {
+    renderWith(<OverviewPage />, signedIn());
+
+    expect(await screen.findByText('Not configured')).toBeInTheDocument();
+    expect(screen.queryByText('Live')).not.toBeInTheDocument();
   });
 
   it('asks the server for the period chosen', async () => {
