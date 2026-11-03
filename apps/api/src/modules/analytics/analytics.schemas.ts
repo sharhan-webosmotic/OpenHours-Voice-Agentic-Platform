@@ -47,13 +47,6 @@ export const overviewResponseSchema = z.object({
     /** Calls that ended without being answered: missed, abandoned or failed. */
     needsAttention: metric,
   }),
-  revenue: z.object({
-    /** The listed price of the services the agent booked, in minor units. An estimate. */
-    valueMinor: z.number().int().nonnegative(),
-    previousMinor: z.number().int().nonnegative(),
-    /** Twelve equal slices of the range, oldest first. */
-    series: z.array(z.number().int().nonnegative()),
-  }),
   daily: z.array(
     z.object({
       day: z.string(),

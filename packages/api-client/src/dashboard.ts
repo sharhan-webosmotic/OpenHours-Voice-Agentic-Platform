@@ -349,11 +349,6 @@ export type OverviewResult = {
     readonly bookingRequests: { readonly value: number; readonly today: number };
     readonly needsAttention: OverviewMetric;
   };
-  readonly revenue: {
-    readonly valueMinor: number;
-    readonly previousMinor: number;
-    readonly series: readonly number[];
-  };
   readonly daily: readonly {
     readonly day: string;
     readonly callsAnswered: number;

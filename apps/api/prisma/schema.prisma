@@ -668,6 +668,10 @@ model Appointment {
   cancellationReason String?           @map("cancellation_reason")
   /// PHI: what the receptionist wrote when booking. Never logged, never in an audit
   /// payload, nulled for a platform role's masked read, and carried across a reschedule.
+  /// The service's listed price when this appointment was booked, in minor units. Kept
+  /// because a service's price changes and a past booking's must not change with it. Null
+  /// for appointments booked before the column existed, which cannot be recovered.
+  priceMinor         Int?              @map("price_minor")
   notes              String?
   createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)

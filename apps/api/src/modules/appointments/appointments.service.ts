@@ -245,7 +245,11 @@ const assertSlotIsOfferable = async (
     readonly excludeAppointmentId?: string;
     readonly now: Date;
   },
-): Promise<{ readonly endAt: Date; readonly timeZone: string }> => {
+): Promise<{
+  readonly endAt: Date;
+  readonly timeZone: string;
+  readonly priceMinor: number | null;
+}> => {
   const inputs = await repository.slotInputs(db, organisationId, input.doctorId, input.serviceId);
 
   if (inputs.service === null) {
@@ -313,7 +317,9 @@ const assertSlotIsOfferable = async (
     );
   }
 
-  return { endAt: offered.endAt, timeZone };
+  // The price is read in the same round trip as the duration, so the one booked is the one
+  // the slot was offered at.
+  return { endAt: offered.endAt, timeZone, priceMinor: inputs.service.priceMinor };
 };
 
 const SLOT_REFUSALS: Readonly<Record<string, string>> = {
@@ -389,7 +395,7 @@ const bookWithin = async (
     );
   }
 
-  const { endAt } = await assertSlotIsOfferable(db, organisationId, {
+  const { endAt, priceMinor } = await assertSlotIsOfferable(db, organisationId, {
     doctorId: input.doctorId,
     serviceId: input.serviceId,
     startAt,
@@ -407,6 +413,7 @@ const bookWithin = async (
       source: options.source,
       ...(options.idempotencyKey === undefined ? {} : { idempotencyKey: options.idempotencyKey }),
       notes: input.notes ?? null,
+      priceMinor,
     });
 
     await record(db, {
@@ -487,7 +494,7 @@ const rescheduleWithin = async (
 
   const startAt = new Date(input.startAt);
 
-  const { endAt } = await assertSlotIsOfferable(db, organisationId, {
+  const offerable = await assertSlotIsOfferable(db, organisationId, {
     doctorId,
     serviceId,
     startAt,
@@ -533,7 +540,7 @@ const rescheduleWithin = async (
         doctorId,
         serviceId,
         startAt,
-        endAt,
+        endAt: offerable.endAt,
         status: existing.status,
         source: existing.source,
         rescheduledFromId: appointmentId,
@@ -543,6 +550,11 @@ const rescheduleWithin = async (
          * appointment, lost without anybody deleting it.
          */
         notes: existing.notes,
+        /**
+         * A move keeps the price it was booked at: it is the same visit at another time. A
+         * change of SERVICE is a different visit, so it takes that service's price now.
+         */
+        priceMinor: serviceId === existing.serviceId ? existing.priceMinor : offerable.priceMinor,
       });
     });
 
@@ -569,7 +581,7 @@ const rescheduleWithin = async (
     return {
       appointmentId: newId,
       startAt: startAt.toISOString(),
-      endAt: endAt.toISOString(),
+      endAt: offerable.endAt.toISOString(),
       replayed: false,
     };
   } catch (error) {

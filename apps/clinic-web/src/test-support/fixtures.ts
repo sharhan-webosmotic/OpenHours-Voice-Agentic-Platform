@@ -233,11 +233,6 @@ export const overviewWeek: OverviewResult = {
     bookingRequests: { value: 2, today: 1 },
     needsAttention: { value: 1, previous: 2 },
   },
-  revenue: {
-    valueMinor: 150_000,
-    previousMinor: 0,
-    series: [0, 0, 0, 0, 0, 0, 0, 50_000, 0, 50_000, 0, 50_000],
-  },
   daily: [
     '2026-10-28',
     '2026-10-29',

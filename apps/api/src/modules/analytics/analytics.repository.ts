@@ -21,7 +21,8 @@ export type AppointmentFact = {
   readonly createdAt: Date;
   readonly source: string;
   readonly status: string;
-  readonly priceMinor: number | null;
+  /** Set when this row is the new half of a reschedule, which is not a new booking. */
+  readonly rescheduledFromId: string | null;
 };
 
 /** Appointments CREATED in `[from, to)`: a booking is counted when it was made. */
@@ -42,7 +43,7 @@ export const appointmentsCreated = async (
       createdAt: true,
       source: true,
       status: true,
-      service: { select: { priceMinor: true } },
+      rescheduledFromId: true,
     },
     take: ROW_CAP,
   });
@@ -51,7 +52,7 @@ export const appointmentsCreated = async (
     createdAt: row.createdAt,
     source: row.source,
     status: row.status,
-    priceMinor: row.service?.priceMinor ?? null,
+    rescheduledFromId: row.rescheduledFromId,
   }));
 };
 

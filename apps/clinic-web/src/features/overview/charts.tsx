@@ -78,29 +78,3 @@ export const Sparkline = ({
     </svg>
   );
 };
-
-/**
- * The revenue card's twelve bars: the earlier eight pale, the latest four strong, as drawn.
- *
- * A slice with nothing in it is a 2px stub rather than a gap, so the row still reads as
- * twelve slices of time instead of a broken chart.
- */
-export const RevenueBars = ({ values }: { readonly values: readonly number[] }) => {
-  const max = Math.max(...values, 0);
-
-  return (
-    <div aria-hidden="true" className="flex h-[37px] items-end gap-[5px]">
-      {values.map((value, index) => (
-        <span
-          // Twelve fixed slices of time that never reorder, so the position IS the identity.
-          key={`slice-${String(index)}`}
-          className="block w-[19px] rounded-t-[2px]"
-          style={{
-            height: max === 0 ? 2 : Math.max(2, Math.round((value / max) * 37)),
-            backgroundColor: index >= values.length - 4 ? '#8b6ae8' : '#d9cefa',
-          }}
-        />
-      ))}
-    </div>
-  );
-};

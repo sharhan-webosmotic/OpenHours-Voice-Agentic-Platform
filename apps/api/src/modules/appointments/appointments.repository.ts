@@ -30,6 +30,8 @@ export type AppointmentRow = {
   readonly rescheduledFromId: string | null;
   /** PHI. See the column's note in the schema. */
   readonly notes: string | null;
+  /** The listed price when booked. Internal: no response carries it yet. */
+  readonly priceMinor: number | null;
   readonly createdAt: Date;
 };
 
@@ -46,6 +48,7 @@ const APPOINTMENT_SELECT = {
   cancellationReason: true,
   rescheduledFromId: true,
   notes: true,
+  priceMinor: true,
   createdAt: true,
 } as const;
 
@@ -212,6 +215,8 @@ export type CreateInput = {
   readonly idempotencyKey?: string;
   readonly rescheduledFromId?: string;
   readonly notes?: string | null;
+  /** Required, so no path can book without deciding what price the booking was made at. */
+  readonly priceMinor: number | null;
 };
 
 export const create = async (
@@ -235,6 +240,7 @@ export const create = async (
         ? {}
         : { rescheduledFromId: input.rescheduledFromId }),
       ...(input.notes === undefined ? {} : { notes: input.notes }),
+      priceMinor: input.priceMinor,
     },
     select: { id: true },
   });
@@ -324,7 +330,11 @@ export const isSlotTakenError = (error: unknown): boolean => {
 
 export type SlotInputs = {
   readonly organisation: { readonly timezone: string; readonly hoursCollected: boolean };
-  readonly service: { readonly id: string; readonly durationMinutes: number } | null;
+  readonly service: {
+    readonly id: string;
+    readonly durationMinutes: number;
+    readonly priceMinor: number | null;
+  } | null;
   readonly doctor: { readonly id: string; readonly bufferMinutes: number } | null;
   readonly policy: {
     readonly slotGranularityMinutes: number | null;
@@ -367,7 +377,7 @@ export const slotInputs = async (
       }),
       db.service.findFirst({
         where: { id: serviceId, organisationId, active: true, deletedAt: null },
-        select: { id: true, durationMinutes: true },
+        select: { id: true, durationMinutes: true, priceMinor: true },
       }),
       db.doctor.findFirst({
         where: { id: doctorId, organisationId, active: true, deletedAt: null },

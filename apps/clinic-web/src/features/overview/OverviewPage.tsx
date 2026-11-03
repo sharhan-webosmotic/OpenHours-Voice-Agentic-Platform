@@ -20,7 +20,7 @@ import {
 } from '../calls/status';
 import { useOverviewQuery } from './api';
 import { CalendarCard } from './CalendarCard';
-import { HeroCard, KpiRow, Panel, RevenueCard } from './cards';
+import { HeroCard, KpiRow, Panel } from './cards';
 
 /**
  * The Overview, as the dashboard design lays it out and as the clinic's reference crops show.
@@ -83,7 +83,6 @@ export const OverviewPage = () => {
               onRangeChange={setRange}
               now={now}
             />
-            <RevenueCard overview={overview.data} />
           </div>
 
           {overview.isError && (

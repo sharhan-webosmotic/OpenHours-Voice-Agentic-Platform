@@ -19,7 +19,7 @@ const AUTHENTICATED: readonly RequestHandler[] = [
 registerRoute({
   method: 'get',
   path: '/api/v1/analytics/overview',
-  summary: 'The overview cards: calls, AI bookings, requests, attention, revenue estimate',
+  summary: 'The overview cards: calls, AI bookings, requests and attention',
   query: schemas.overviewQuerySchema,
   response: schemas.overviewResponseSchema,
   permission: 'analytics:read',

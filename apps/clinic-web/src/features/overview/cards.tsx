@@ -10,9 +10,8 @@ import {
 import type { OverviewRange, OverviewResult } from '@clinicai/api-client';
 import type { VoiceAgentStatus } from '@clinicai/shared';
 import { cn } from '../../components/ui/cn';
-import { formatMoney } from '../../lib/clinicTime';
 import { VOICE_AGENT_BADGE, voiceAgentSentence } from '../../lib/voiceAgentState';
-import { RevenueBars, Sparkline } from './charts';
+import { Sparkline } from './charts';
 
 /**
  * The overview's cards, each measured from the dashboard design's Figma export.
@@ -251,68 +250,6 @@ export const HeroCard = ({
         width={145}
         height={133}
         className="pointer-events-none absolute right-[38px] bottom-[-8px] hidden h-[133px] w-[145px] object-contain @4xl:block"
-      />
-    </Panel>
-  );
-};
-
-/**
- * "Estimated Revenue Impact", from node `1:178`: the listed price of what the agent booked.
- *
- * ESTIMATE IS THE DESIGN'S OWN WORD AND IT IS THE RIGHT ONE. This is the price on the
- * service list for each booking the agent made, not money taken: a booking can be cancelled,
- * a price can be waived, and nothing on this platform records payment.
- */
-export const RevenueCard = ({ overview }: { readonly overview: OverviewResult | undefined }) => {
-  const delta =
-    overview === undefined
-      ? undefined
-      : deltaOf(overview.revenue.valueMinor, overview.revenue.previousMinor);
-
-  return (
-    <Panel
-      className="relative h-[170px] w-full shrink-0 overflow-hidden px-5 py-[19px] @2xl:w-[340px]"
-      style={{
-        backgroundImage:
-          'linear-gradient(139deg, rgb(255, 255, 255) 28.9%, rgb(243, 240, 255) 92.3%)',
-      }}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <h2 className="m-0 font-bold text-default text-md tracking-[-0.25px]">
-          Estimated Revenue Impact
-        </h2>
-        {delta !== undefined && (
-          <span
-            className={cn(
-              'flex h-[22px] shrink-0 items-center rounded-full px-2 font-semibold text-xs',
-              delta.direction === 'down'
-                ? 'bg-danger-surface text-[#ef5350]'
-                : 'bg-success-surface text-[#128461]',
-            )}
-          >
-            {delta.text}
-          </span>
-        )}
-      </div>
-      <p className="m-0 pt-[5px] text-muted text-xs leading-[13px]">
-        AI-booked appointments ·{' '}
-        {overview === undefined ? '' : RANGE_LABELS[overview.range].toLowerCase()}
-      </p>
-
-      <div className="flex items-start gap-2 py-1">
-        <strong className="font-bold text-[2rem] text-default tracking-[-1.2px]">
-          {overview === undefined ? '—' : formatMoney(overview.revenue.valueMinor)}
-        </strong>
-        <span className="mt-2 rounded-sm bg-[#f0ecff] px-1.5 py-0.5 font-bold text-[#8b6ae8] text-xs">
-          ESTIMATE
-        </span>
-      </div>
-
-      <RevenueBars values={overview?.revenue.series ?? Array.from({ length: 12 }, () => 0)} />
-
-      <span
-        aria-hidden="true"
-        className="absolute top-[90px] left-[254px] size-[125px] rounded-full bg-[rgba(139,106,232,0.09)]"
       />
     </Panel>
   );

@@ -560,6 +560,42 @@ can send a custom `Authorization` header is an open question in `docs/sarvam-con
 If it cannot, the fallback is the webhook's arrangement, the secret in the URL path (D-006),
 which is a change in one function.
 
+## D-023 The estimated revenue figure is hidden for the pilot
+
+Decided 2026-11-03, at the Feature 3 review. The Overview's "Estimated Revenue Impact" card is
+removed, and the overview endpoint no longer returns a revenue figure at all, rather than
+returning one that no screen shows.
+
+**Why it is hidden:** no decision in this repository ever agreed its formula. What was built
+summed the listed price of every appointment the AI receptionist booked, and that number
+counts cancelled and no-show bookings, read through to today's service price, and is the
+most disputable figure on the first screen a clinic owner sees. Nothing in the pilot needs it
+to prove anything.
+
+**What must be settled before it returns:**
+
+- **Which statuses count.** Whether a cancelled or no-show booking is revenue, and whether a
+  booking still awaiting confirmation is.
+- **Booking date or visit date.** Whether a figure for "last 7 days" means bookings made in
+  those days or visits that took place in them.
+- **How reschedules are handled.** A reschedule writes a new appointment that inherits the
+  original's source. The figure must count the visit once, at one price, whoever moved it.
+- **Which price.** The price stored on the appointment when it was booked (below), never the
+  service's price today.
+
+**Kept now although the card is hidden: the price at booking time.** `appointments.price_minor`
+(migration `20261103160000_appointment_price`) stores the service's listed price when the
+appointment is booked. A move to another time keeps it, because it is the same visit; a change
+of service takes that service's price at the time. It costs nothing to keep, it cannot be
+recovered later, and without it any future figure silently rewrites history whenever a price
+changes. Appointments booked before the column existed have none, and are not back-filled,
+because back-filling today's price is exactly that rewrite.
+
+**Fixed now although the card is hidden: AI Bookings no longer counts reschedules.** The same
+inheritance made a moved AI booking count twice on the AI Bookings card, which stays visible,
+and credited the agent with reschedules a receptionist made. A row created by a reschedule is
+no longer counted as a booking (`isAiBooking` in `modules/analytics`).
+
 ---
 
 ## What no automated test currently covers

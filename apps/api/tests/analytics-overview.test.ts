@@ -45,7 +45,7 @@ beforeAll(async () => {
       data: { startedAt: new Date('2025-01-01T00:00:00.000Z') },
     });
 
-    // A ₹500 service (50,000 paise), so the revenue arithmetic is checkable by eye.
+    // A ₹500 service (50,000 paise), a realistic price on the rows below.
     await tx.service.update({
       where: { id: clinic.ids.services ?? '' },
       data: { priceMinor: 50_000, durationMinutes: 30 },
@@ -76,12 +76,37 @@ beforeAll(async () => {
     const slot = (index: number): Date => new Date(Date.UTC(2026, 11, 1 + index, 4, 0));
 
     // THIS WEEK: three AI bookings (28 Oct, 1 Nov, 3 Nov) and one dashboard booking.
-    await appointment(at('2026-10-28'), 'VOICE_AGENT', 'CONFIRMED', slot(0));
+    const moved = await appointment(at('2026-10-28'), 'VOICE_AGENT', 'CONFIRMED', slot(0));
     await appointment(at('2026-11-01'), 'VOICE_AGENT', 'SCHEDULED', slot(1));
     await appointment(at('2026-11-03', 9), 'VOICE_AGENT', 'SCHEDULED', slot(2));
     await appointment(at('2026-11-02'), 'DASHBOARD', 'CONFIRMED', slot(3));
     // LAST WEEK: one AI booking (22 Oct).
     await appointment(at('2026-10-22'), 'VOICE_AGENT', 'CONFIRMED', slot(4));
+
+    /**
+     * The 28 Oct AI booking, moved by a receptionist on 2 Nov, as the reschedule path writes it:
+     * the original cancelled, and a new row that inherits the agent as its source and points
+     * back at it. Counting by source alone made this a fourth AI booking.
+     */
+    await tx.appointment.update({
+      where: { id: moved.id },
+      data: { status: 'CANCELLED', cancelledAt: at('2026-11-02') },
+    });
+    await tx.appointment.create({
+      data: {
+        id: uuidV7(),
+        organisationId: clinic.organisationId,
+        patientId: clinic.ids.patients ?? '',
+        doctorId: clinic.ids.doctors ?? '',
+        serviceId: clinic.ids.services ?? '',
+        startAt: slot(5),
+        endAt: new Date(slot(5).getTime() + 30 * 60_000),
+        status: 'CONFIRMED',
+        source: 'VOICE_AGENT',
+        rescheduledFromId: moved.id,
+        createdAt: at('2026-11-02'),
+      },
+    });
 
     const call = (
       startedAt: Date,
@@ -213,14 +238,19 @@ describe('the overview, last 7 days', () => {
     expect(result.kpis.bookingRequests).toEqual({ value: 2, today: 1 });
   });
 
-  it('estimates revenue from the listed price of what the agent booked', async () => {
+  it('returns no revenue figure while one is not agreed (D-023)', async () => {
     const result = await overview(owner, undefined, '7d', NOW);
 
-    // Three AI bookings at ₹500 = ₹1,500 = 150,000 paise. Last week one = 50,000.
-    expect(result.revenue.valueMinor).toBe(150_000);
-    expect(result.revenue.previousMinor).toBe(50_000);
-    expect(result.revenue.series).toHaveLength(12);
-    expect(result.revenue.series.reduce((sum, slice) => sum + slice, 0)).toBe(150_000);
+    expect('revenue' in result).toBe(false);
+  });
+
+  it('does not count a rescheduled AI booking as a second booking, whoever moved it', async () => {
+    const result = await overview(owner, undefined, '7d', NOW);
+
+    // Three AI bookings this week, one of which a receptionist then moved on 2 Nov. The move
+    // wrote a new row carrying the agent as its source; it is not a fourth booking.
+    expect(result.kpis.aiBookings).toEqual({ value: 3, previous: 1 });
+    expect(result.daily.find((row) => row.day === '2026-11-02')?.aiBookings).toBe(0);
   });
 
   it('draws each day in the clinic’s calendar', async () => {

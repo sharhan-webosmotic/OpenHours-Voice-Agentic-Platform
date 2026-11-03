@@ -398,12 +398,12 @@ describe('the overview', () => {
     expect(within(bookings as HTMLElement).getByText('New')).toBeInTheDocument();
   });
 
-  it('estimates revenue in rupees and labels it an estimate', async () => {
-    renderWith(<OverviewPage />, signedIn());
+  it('shows no revenue figure while its formula is not agreed (D-023)', async () => {
+    const { container } = renderWith(<OverviewPage />, signedIn());
+    await screen.findByText('+50%');
 
-    // 150,000 paise is ₹1,500: the listed price of three bookings, not money taken.
-    expect(await screen.findByText('₹1,500')).toBeInTheDocument();
-    expect(screen.getByText('ESTIMATE')).toBeInTheDocument();
+    expect(screen.queryByText(/Revenue/)).not.toBeInTheDocument();
+    expect(container.textContent).not.toContain('₹');
   });
 
   const withAgent = (voiceAgent: { state: string; missing: string[] }) =>
@@ -446,7 +446,7 @@ describe('the overview', () => {
   it('asks the server for the period chosen', async () => {
     const stub = signedIn();
     renderWith(<OverviewPage />, stub);
-    await screen.findByText('₹1,500');
+    await screen.findByText('+50%');
 
     await userEvent.selectOptions(screen.getByLabelText('Period'), 'Last 30 days');
 

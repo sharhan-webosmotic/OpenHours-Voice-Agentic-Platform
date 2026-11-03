@@ -1325,3 +1325,53 @@ describe("a doctor's working week", () => {
     expect(response.status).toBe(400);
   }, 120_000);
 });
+
+describe('the price an appointment was booked at', () => {
+  const storedPrice = async (appointmentId: string): Promise<number | null> =>
+    asPlatform(ownerClient(), async (tx) => {
+      const row = await tx.appointment.findUniqueOrThrow({
+        where: { id: appointmentId },
+        select: { priceMinor: true },
+      });
+      return row.priceMinor;
+    });
+
+  const setServicePrice = (priceMinor: number | null) =>
+    asPlatform(ownerClient(), (tx) =>
+      tx.service.update({ where: { id: clinic.ids.services ?? '' }, data: { priceMinor } }),
+    );
+
+  it('keeps the price it was booked at when the service price changes, and on a move', async () => {
+    const token = await tokenFor(ownerEmail);
+    await setServicePrice(60_000);
+
+    const booked = await book(token);
+    expect(booked.status).toBe(201);
+    const bookedId = (booked.body as Booking).appointmentId;
+    expect(await storedPrice(bookedId)).toBe(60_000);
+
+    // The clinic raises the price. The booking already made does not change with it.
+    await setServicePrice(75_000);
+    expect(await storedPrice(bookedId)).toBe(60_000);
+
+    // Moving it to another time is the same visit, so it keeps the price it was booked at.
+    const moved = await request(app)
+      .post(`/api/v1/appointments/${bookedId}/reschedule`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ startAt: nextBookableStart(), reason: 'Patient asked to move it.' });
+    expect(moved.status).toBe(201);
+    expect(await storedPrice(jsonBody<Booking>(moved).appointmentId)).toBe(60_000);
+
+    // A new booking now is made at the new price.
+    const later = await book(token);
+    expect(await storedPrice((later.body as Booking).appointmentId)).toBe(75_000);
+  }, 120_000);
+
+  it('stores no price for a service that has none', async () => {
+    const token = await tokenFor(ownerEmail);
+    await setServicePrice(null);
+
+    const booked = await book(token);
+    expect(await storedPrice((booked.body as Booking).appointmentId)).toBeNull();
+  }, 120_000);
+});

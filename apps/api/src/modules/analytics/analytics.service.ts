@@ -29,8 +29,8 @@ import type { OverviewRange } from './analytics.schemas.js';
  *                       "awaiting review" can mean on a platform with no review queue
  *   Needs Attention     calls that ended unanswered: missed, abandoned or failed. Each is a
  *                       patient somebody should ring back
- *   Revenue Impact      the LISTED price of the services the agent booked. Not money taken:
- *                       an estimate, which the design itself labels ESTIMATE
+ *
+ * No revenue figure: it is hidden for the pilot until its formula is agreed (D-023).
  *
  * Each has the same measure over the equal period immediately before it, so the design's
  * "+12.4% vs last week" is a comparison of two real numbers rather than a decoration.
@@ -103,27 +103,14 @@ const isAnswered = (call: repository.CallFact): boolean =>
 const needsAttention = (call: repository.CallFact): boolean =>
   call.status === 'MISSED' || call.status === 'ABANDONED' || call.status === 'FAILED';
 
+/**
+ * A booking the agent MADE. A reschedule writes a new row that inherits the original's
+ * source, so counting rows by source alone counted a moved AI booking twice, and credited the
+ * agent with every reschedule a receptionist did. The original row is the booking; the row a
+ * reschedule creates is not a new one, whoever moved it.
+ */
 const isAiBooking = (appointment: repository.AppointmentFact): boolean =>
-  appointment.source === 'VOICE_AGENT';
-
-/** Twelve equal slices of `[from, to)`, each the sum of what fell inside it. */
-const twelveSlices = (
-  from: Date,
-  to: Date,
-  facts: readonly { readonly at: Date; readonly amount: number }[],
-): readonly number[] => {
-  const width = (to.getTime() - from.getTime()) / 12;
-  const slices = Array.from({ length: 12 }, () => 0);
-
-  for (const fact of facts) {
-    const index = Math.min(11, Math.floor((fact.at.getTime() - from.getTime()) / width));
-    if (index >= 0) {
-      slices[index] = (slices[index] ?? 0) + fact.amount;
-    }
-  }
-
-  return slices;
-};
+  appointment.source === 'VOICE_AGENT' && appointment.rescheduledFromId === null;
 
 export type Overview = {
   readonly range: OverviewRange;
@@ -136,11 +123,6 @@ export type Overview = {
     readonly aiBookings: { readonly value: number; readonly previous: number };
     readonly bookingRequests: { readonly value: number; readonly today: number };
     readonly needsAttention: { readonly value: number; readonly previous: number };
-  };
-  readonly revenue: {
-    readonly valueMinor: number;
-    readonly previousMinor: number;
-    readonly series: readonly number[];
   };
   readonly daily: readonly {
     readonly day: string;
@@ -242,8 +224,6 @@ export const overview = async (
       outcomes[key in outcomes ? key : 'NONE'] += 1;
     }
 
-    const price = (row: repository.AppointmentFact): number => row.priceMinor ?? 0;
-
     return {
       range,
       from: window.from.toISOString(),
@@ -264,15 +244,6 @@ export const overview = async (
           value: calls.filter(needsAttention).length,
           previous: previousCalls.filter(needsAttention).length,
         },
-      },
-      revenue: {
-        valueMinor: aiBookings.reduce((sum, row) => sum + price(row), 0),
-        previousMinor: previousAiBookings.reduce((sum, row) => sum + price(row), 0),
-        series: twelveSlices(
-          window.from,
-          window.to,
-          aiBookings.map((row) => ({ at: row.createdAt, amount: price(row) })),
-        ),
       },
       daily,
       outcomes,
