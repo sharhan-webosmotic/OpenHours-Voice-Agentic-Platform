@@ -6,6 +6,7 @@ import {
   type Response,
 } from 'express';
 import { config as appConfig } from '../config.js';
+import { bodyErrorKind } from '../common/body-errors.js';
 import { AppError, UnauthorizedError, ValidationError } from '../common/errors.js';
 import { logger } from '../common/logger.js';
 import { createRateLimiter } from '../common/rate-limit.js';
@@ -234,6 +235,37 @@ const toSpokenError = (error: unknown, req: Request, res: Response, next: NextFu
   res.status(200).json({
     ok: false,
     message: 'I am not able to do that right now. I can have somebody call you back.',
+    data: null,
+  });
+};
+
+/**
+ * A request body the JSON parser refused, turned into something the agent can say.
+ *
+ * Mounted by `app.ts` straight after the parser rather than on this router, because the
+ * parser runs before any router and its failure never reaches `toSpokenError`. Anything that
+ * is not a body-parser failure is passed on untouched.
+ *
+ * The log line names the kind of failure and NOTHING ELSE: the parser's error carries the raw
+ * body, which here is a caller's name and number (see `common/body-errors.ts`).
+ */
+export const spokenBodyError = (
+  error: unknown,
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
+  const kind = bodyErrorKind(error);
+
+  if (kind === undefined || res.headersSent) {
+    next(error);
+    return;
+  }
+
+  (req.log ?? logger).warn({ bodyError: kind }, 'voice tool call body refused');
+  res.status(200).json({
+    ok: false,
+    message: 'Sorry, I did not catch that. Could you say it again?',
     data: null,
   });
 };

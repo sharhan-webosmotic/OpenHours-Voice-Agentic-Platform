@@ -264,3 +264,104 @@ describe('nothing from a call webhook reaches the log', () => {
     expect(log).not.toContain(CALLER_PHONE);
   });
 });
+
+/**
+ * A body the JSON parser refuses (Feature 3 review, C1).
+ *
+ * The parser's error carries the raw text, and V8's message for some malformations quotes
+ * it, so a handler that logged the error by habit wrote the caller's name, number and words
+ * into the log. Two shapes of breakage, because they produce different messages: a body cut
+ * off mid-string, and one with a stray token that V8 quotes back.
+ */
+describe('a body the parser cannot read', () => {
+  const BROKEN_NAME = 'Quillon Marrowdale';
+  const BROKEN_PHONE = '+919812399555';
+  const BROKEN_WORDS = 'the pain in my chest started at breakfast';
+
+  const truncated = `{"phone":"${BROKEN_PHONE}","fullName":"${BROKEN_NAME}","reason":"${BROKEN_WORDS}`;
+  const strayToken = `{"phone":"${BROKEN_PHONE}","fullName":"${BROKEN_NAME}" x "${BROKEN_WORDS}"}`;
+
+  const assertNothingIdentifying = (log: string): void => {
+    expect(log).not.toContain(BROKEN_NAME);
+    expect(log).not.toContain(BROKEN_PHONE);
+    expect(log).not.toContain('9812399555');
+    expect(log).not.toContain(BROKEN_WORDS);
+  };
+
+  it.each([
+    ['cut off mid-string', truncated],
+    ['with a stray token', strayToken],
+  ])('answers a tool call %s with a sentence and logs none of it', async (_label, raw) => {
+    const before = captured.length;
+
+    const response = await request(app)
+      .post('/voice/tools/book')
+      .set('Authorization', `Bearer ${secret}`)
+      .set('Content-Type', 'application/json')
+      .send(raw);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      ok: false,
+      message: 'Sorry, I did not catch that. Could you say it again?',
+      data: null,
+    });
+
+    const log = captured.slice(before).join('\n');
+    assertNothingIdentifying(log);
+    // Not satisfiable by logging nothing: the refusal itself must be visible.
+    expect(log).toContain('malformed-json');
+  });
+
+  it('logs none of a webhook body the parser cannot read', async () => {
+    const before = captured.length;
+
+    await request(app)
+      .post(`/webhooks/sarvam/${webhookSecret}`)
+      .set('Content-Type', 'application/json')
+      .send(
+        `{"interaction_id":"20261103/broken","user_phone_number":"${BROKEN_PHONE}","interaction_transcript":[{"role":"user","en_text":"I am ${BROKEN_NAME} and ${BROKEN_WORDS}"}]`,
+      );
+
+    const log = captured.slice(before).join('\n');
+    assertNothingIdentifying(log);
+    expect(log).toContain('malformed-json');
+  });
+});
+
+/**
+ * The webhook's secret is a path segment (D-006), and the request logger writes the URL of
+ * every request. It wrote the whole secret on every delivery (Feature 3 review, C3).
+ */
+describe('the webhook secret never reaches the log', () => {
+  it('leaves no part of the secret in any line of an ordinary delivery', async () => {
+    const before = captured.length;
+
+    const received = await request(app)
+      .post(`/webhooks/sarvam/${webhookSecret}`)
+      .send({ interaction_id: `20261103/secret_${Date.now()}`, duration: 10 });
+
+    expect(received.status).toBe(200);
+
+    const log = captured.slice(before).join('\n');
+
+    // Every 8-character window of the secret, so a log that kept a prefix, a suffix or a
+    // middle slice of it fails as surely as one that kept all of it.
+    for (let at = 0; at + 8 <= webhookSecret.length; at += 1) {
+      expect(log).not.toContain(webhookSecret.slice(at, at + 8));
+    }
+
+    // Not satisfiable by logging nothing: the request is still identifiable as a webhook.
+    expect(log).toContain('/webhooks/sarvam/[REDACTED]');
+  });
+
+  it('leaves no part of a wrong secret either, which is a guess somebody made', async () => {
+    const before = captured.length;
+    const guess = 'GuessGuessGuessGuessGuessGuessGuess123456';
+
+    await request(app).post(`/webhooks/sarvam/${guess}`).send({});
+
+    const log = captured.slice(before).join('\n');
+    expect(log).not.toContain(guess.slice(-12));
+  });
+});

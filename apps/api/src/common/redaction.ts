@@ -50,6 +50,10 @@ const REDACTED_KEYS: ReadonlySet<string> = new Set([
   'prescription',
   'diagnosis',
   'recordingurl',
+  // A request body as a whole. body-parser attaches the raw text to its SyntaxError as
+  // `body`, so an error logged by habit carried a caller's name and number (review C1).
+  'body',
+  'rawbody',
 ]);
 
 /**
