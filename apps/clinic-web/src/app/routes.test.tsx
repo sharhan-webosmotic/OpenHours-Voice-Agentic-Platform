@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
 import { screen } from '@testing-library/react';
 import { isPermitted, USER_ROLES, type Role } from '@clinicai/shared';
 import { renderWith, stubClient, user } from '../test-support/harness';
@@ -123,8 +124,10 @@ describe('signing out', () => {
     const stub = signedIn('CLINIC_OWNER');
     renderWith(<AppRoutes />, stub, ['/']);
 
-    const button = await screen.findByRole('button', { name: 'Sign out' });
-    button.click();
+    // Sign-out lives in the account menu now, behind the name in the header, which is where
+    // the design's chevron says a menu is.
+    await userEvent.click(await screen.findByRole('button', { name: 'Account menu' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Sign out' }));
 
     expect(await screen.findByRole('button', { name: 'Sign in' })).toBeInTheDocument();
     expect(stub.calls.logout).toBe(1);

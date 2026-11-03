@@ -13,6 +13,11 @@ export type AuthUser = {
   readonly id: string;
   readonly organisationId: string | null;
   readonly email: string;
+  /**
+   * The person's own name, for the dashboard's header. Returned to that person only: it is a
+   * staff member's name, not a patient's, and it goes back to the account it belongs to.
+   */
+  readonly fullName: string;
   readonly passwordHash: string;
   /**
    * The database enum, not a string. Declaring it `string` here is what let the token
@@ -72,6 +77,7 @@ export const findUserByEmail = async (db: TenantDb, email: string): Promise<Auth
       id: true,
       organisationId: true,
       email: true,
+      fullName: true,
       passwordHash: true,
       role: true,
       status: true,
@@ -95,6 +101,7 @@ export const findUserById = async (db: TenantDb, id: string): Promise<AuthUser |
       id: true,
       organisationId: true,
       email: true,
+      fullName: true,
       passwordHash: true,
       role: true,
       status: true,

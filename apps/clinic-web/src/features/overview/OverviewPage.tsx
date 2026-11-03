@@ -78,6 +78,11 @@ export const OverviewPage = () => {
 
   return (
     <>
+      {/*
+       * The page's own heading, visually hidden. The design opens on the greeting card with
+       * no title above it, and a page still needs a landmark heading named after it.
+       */}
+      <h1 className="sr-only">Overview</h1>
       <div className="flex flex-col gap-4">
         <Card className="flex flex-wrap items-center justify-between gap-4 bg-accent-surface">
           <div className="flex flex-col gap-1">

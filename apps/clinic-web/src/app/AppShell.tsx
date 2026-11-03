@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import {
   Activity,
-  Bell,
+  ChevronDown,
+  Plus,
   Search,
   BarChart3,
   BellRing,
@@ -93,34 +94,59 @@ export const AppShell = ({
   role,
   items,
   subtitle,
+  personName,
   onSignOut,
 }: {
   readonly role: Role;
   readonly items: readonly NavItem[];
   /** "Admin" beside the wordmark in the console. Absent in the clinic dashboard. */
   readonly subtitle?: string | undefined;
+  /**
+   * The signed-in person's name, for the header.
+   *
+   * Optional because the session does not carry one yet: `CurrentUser` has an id, an
+   * organisation, a role and the password flag, and nothing else. The design puts a name
+   * above the role in the header, so the prop exists and the fallback is the role on its
+   * own rather than a placeholder name nobody has.
+   */
+  readonly personName?: string | undefined;
   readonly onSignOut: () => void;
 }) => {
   const visible = visibleNavigation(items, role);
-  const [signingOut, setSigningOut] = useState(false);
+  // The sidebar is the design's six; `visible` still names every page, for the page title.
+  const menu = visible.filter((item) => item.inMenu !== false);
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <aside className="flex w-60 shrink-0 flex-col gap-6 border-r border-border bg-surface px-4 py-5">
-        <Logo subtitle={subtitle} />
+    /**
+     * THE SHELL IS THE DASHBOARD DESIGN'S, measurement for measurement.
+     *
+     * From `ClinicFlow Interactive Prototype/src/DashboardDesign.tsx`: a 220px sidebar, a
+     * 72px header, and the page on `#f3f5fd`. The export is a fixed 1920px artboard, so the
+     * widths that are fixed there (the 440px search, the 220px sidebar) are fixed here and
+     * everything between them flexes, which is what makes it survive a laptop.
+     */
+    <div className="grid min-h-screen grid-cols-[220px_minmax(0,1fr)] bg-background">
+      <aside className="sticky top-0 flex h-screen flex-col border-r border-border-chrome bg-surface px-4 pb-5">
+        {/*
+         * The same 72px as the top bar, so the wordmark and the search box sit on one line
+         * across the two columns, which is how the reference draws them.
+         */}
+        <div className="mb-4 flex h-[72px] shrink-0 items-center px-2.5">
+          <Logo subtitle={subtitle} />
+        </div>
 
         {/* `aria-label` because there are two navigation landmarks on some pages. */}
-        <nav aria-label="Main" className="flex flex-col gap-0.5">
-          {visible.map((item) => (
+        <nav aria-label="Main" className="flex flex-col gap-1">
+          {menu.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-2.5 rounded-md px-3 py-2 text-xs font-medium transition-colors',
+                  'flex h-[46px] items-center gap-3 rounded-lg px-[13px] text-[0.9375rem] transition-colors',
                   isActive
-                    ? 'bg-accent text-inverse'
-                    : 'text-muted hover:bg-background hover:text-default',
+                    ? 'bg-accent-surface font-semibold text-accent'
+                    : 'font-medium text-muted hover:bg-background hover:text-default',
                 )
               }
             >
@@ -131,36 +157,149 @@ export const AppShell = ({
         </nav>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 items-center justify-between gap-4 border-b border-border bg-surface px-6">
-          <div className="flex min-w-0 items-center gap-4">
-            <GlobalSearch />
-            <span className="hidden text-muted text-xs lg:inline">
-              Signed in as <strong className="font-semibold text-default">{roleLabel(role)}</strong>
-            </span>
-          </div>
+      <div className="flex min-w-0 flex-col">
+        <header className="sticky top-0 z-30 flex h-[72px] items-center gap-4 border-b border-border-chrome bg-surface/95 px-[22px] backdrop-blur">
+          <GlobalSearch />
 
-          <Notifications />
+          <div className="flex-1" />
 
-          <Button
-            kind="secondary"
-            loading={signingOut}
-            onClick={() => {
-              setSigningOut(true);
-              onSignOut();
-            }}
+          <TodayStamp />
+
+          <Link
+            to="/appointments?book=1"
+            className="flex h-10 items-center gap-2 rounded-control bg-accent px-[15px] font-semibold text-sm text-inverse shadow-accent transition-opacity hover:opacity-95"
           >
-            Sign out
-          </Button>
+            <Plus size={18} aria-hidden="true" />
+            New Appointment
+          </Link>
+
+          <PersonMenu role={role} personName={personName} onSignOut={onSignOut} />
         </header>
 
-        <main className="min-w-0 flex-1 p-6">
+        <main className="min-w-0 flex-1 px-[22px] py-5">
           <PageTitle items={visible} />
           <Outlet />
         </main>
       </div>
     </div>
   );
+};
+
+/**
+ * Today's date, as the header states it.
+ *
+ * THE BROWSER'S DAY, NOT THE CLINIC'S, and that is a deliberate limitation rather than an
+ * oversight. The shell is shared with the admin console, which belongs to no clinic and so
+ * has no time zone, and a header that read the clinic query would make every screen in both
+ * applications wait on it. Everything that MATTERS clinically, every appointment time, every
+ * agenda boundary, is rendered in the clinic's zone by `lib/clinicTime`. This is a greeting.
+ */
+const TodayStamp = () => {
+  const today = new Date();
+
+  return (
+    <div className="hidden flex-col leading-tight xl:flex">
+      <span className="text-muted text-xs">Today</span>
+      <time dateTime={today.toISOString().slice(0, 10)} className="font-bold text-default text-sm">
+        {new Intl.DateTimeFormat('en-IN', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        }).format(today)}
+      </time>
+    </div>
+  );
+};
+
+/**
+ * The signed-in person, and the only way out of the application.
+ *
+ * The design draws a name, a role and a chevron. The chevron implies a menu, and the one
+ * thing that menu has to contain is signing out, which the previous header carried as a
+ * button of its own. So the control is the design's and the function is unchanged.
+ */
+const PersonMenu = ({
+  role,
+  personName,
+  onSignOut,
+}: {
+  readonly role: Role;
+  readonly personName: string | undefined;
+  readonly onSignOut: () => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const label = roleLabel(role);
+
+  return (
+    <div className="relative flex h-12 items-center gap-2.5 border-border-chrome border-l pl-1 pr-2">
+      <span className="grid size-[37px] shrink-0 place-items-center rounded-lg bg-accent-contrast font-bold text-accent text-sm">
+        {initialsOf(personName ?? label)}
+      </span>
+
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Account menu"
+        onClick={() => {
+          setOpen((previous) => !previous);
+        }}
+        className="flex items-center gap-2 text-left"
+      >
+        <span className="hidden flex-col leading-tight lg:flex">
+          <span className="font-black text-default text-sm">{personName ?? label}</span>
+          <span className="font-semibold text-muted text-xs">
+            {personName === undefined ? 'Signed in' : label}
+          </span>
+        </span>
+        <ChevronDown size={16} aria-hidden="true" className="text-muted" />
+      </button>
+
+      {open && (
+        <>
+          <button
+            type="button"
+            aria-label="Close the account menu"
+            className="fixed inset-0 z-40 cursor-default"
+            onClick={() => {
+              setOpen(false);
+            }}
+          />
+          <div
+            role="menu"
+            aria-label="Account"
+            className="absolute top-[52px] right-0 z-50 w-56 rounded-xl border border-border bg-surface p-2 shadow-popover"
+          >
+            <p className="m-0 px-2 py-1.5 text-muted text-xs">
+              Signed in as <strong className="font-semibold text-default">{label}</strong>
+            </p>
+            <Button
+              kind="secondary"
+              fullWidth
+              loading={signingOut}
+              onClick={() => {
+                setSigningOut(true);
+                onSignOut();
+              }}
+            >
+              Sign out
+            </Button>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+/** `Priya Shah` to `PS`, and a single word to its first two letters. */
+const initialsOf = (name: string): string => {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  const first = words[0] ?? '';
+  const last = words.length > 1 ? (words.at(-1) ?? '') : '';
+
+  return (last === '' ? first.slice(0, 2) : `${first[0] ?? ''}${last[0] ?? ''}`).toUpperCase();
 };
 
 /**
@@ -179,14 +318,14 @@ export const AppShell = ({
  * the field and its state instead of skipping it.
  */
 const GlobalSearch = () => (
-  <div className="relative hidden min-w-0 sm:block">
+  <div className="relative hidden w-[440px] min-w-0 max-w-full md:block">
     <label htmlFor="global-search" className="sr-only">
       Search patients, appointments or calls
     </label>
     <Search
-      size={14}
+      size={18}
       aria-hidden="true"
-      className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3 text-subtle"
+      className="-translate-y-1/2 pointer-events-none absolute top-1/2 left-3.5 text-subtle"
     />
     <input
       id="global-search"
@@ -194,77 +333,26 @@ const GlobalSearch = () => (
       disabled
       aria-disabled="true"
       aria-describedby="global-search-soon"
+      title="Searching everything at once is coming soon."
       placeholder="Search patients, appointments or calls…"
-      className="h-10 w-72 max-w-full cursor-not-allowed rounded-md border border-border bg-background pr-16 pl-9 text-default text-xs placeholder:text-subtle"
+      className="h-[42px] w-full cursor-not-allowed rounded-lg border border-border-chrome bg-surface-sunken pr-12 pl-[42px] text-[0.9375rem] text-default placeholder:text-subtle"
     />
+    {/*
+     * The reference's ⌘K chip, drawn as it is drawn. It is decoration on a disabled field,
+     * so it is hidden from assistive technology, and the sentence that IS announced says
+     * what is true: this search is not available yet.
+     */}
     <span
-      id="global-search-soon"
-      className="-translate-y-1/2 absolute top-1/2 right-3 rounded-full bg-surface px-2 py-0.5 font-semibold text-[0.625rem] text-muted uppercase"
+      aria-hidden="true"
+      className="-translate-y-1/2 absolute top-1/2 right-2.5 grid h-6 min-w-[27px] place-items-center rounded-[7px] border border-border-chrome px-1 text-subtle text-xs"
     >
-      Soon
+      ⌘K
+    </span>
+    <span id="global-search-soon" className="sr-only">
+      Not available yet.
     </span>
   </div>
 );
-
-/**
- * The prototype's notifications bell and its popover.
- *
- * The popover is rendered as captured, and what is inside it is the truth: there is no
- * notification endpoint, so it says so rather than listing invented alerts. The bell carries
- * no unread dot for the same reason, since a red dot over nothing is the most misleading
- * element the capture contains.
- */
-const Notifications = () => {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <div className="relative">
-      <button
-        type="button"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-label="Notifications"
-        onClick={() => {
-          setOpen((previous) => !previous);
-        }}
-        className="rounded-md border border-border p-2 text-muted hover:bg-background"
-      >
-        <Bell size={16} aria-hidden="true" />
-      </button>
-
-      {open && (
-        <>
-          {/* A click anywhere else closes it, as the prototype's popover does. */}
-          <button
-            type="button"
-            aria-label="Close notifications"
-            className="fixed inset-0 z-40 cursor-default"
-            onClick={() => {
-              setOpen(false);
-            }}
-          />
-          <div
-            role="dialog"
-            aria-label="Notifications"
-            className="absolute right-0 z-50 mt-2 w-80 rounded-xl border border-border bg-surface p-4 shadow-card"
-          >
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <strong className="font-semibold text-default text-xs">Notifications</strong>
-              <span className="rounded-full bg-background px-2 py-0.5 font-semibold text-[0.625rem] text-muted uppercase">
-                Soon
-              </span>
-            </div>
-            <p className="m-0 text-muted text-xs">
-              Notifications are not available yet. There is no endpoint behind them, so nothing is
-              listed here rather than alerts that were never raised. They arrive with the voice
-              integration, which is what will have something to report.
-            </p>
-          </div>
-        </>
-      )}
-    </div>
-  );
-};
 
 /**
  * The breadcrumb and heading every page carries, rendered ONCE by the shell.
@@ -287,22 +375,23 @@ const PageTitle = ({ items }: { readonly items: readonly NavItem[] }) => {
     .filter((item) => pathname === item.path || pathname.startsWith(`${item.path}/`))
     .sort((a, b) => b.path.length - a.path.length)[0];
 
-  if (active === undefined) {
+  /**
+   * NO TITLE ON THE OVERVIEW. The design opens that page on its greeting card, with no
+   * breadcrumb and no heading above it; the page carries its own `h1`, visually hidden, so
+   * it still has a landmark heading named after it.
+   */
+  if (active === undefined || active.path === '/overview') {
     return null;
   }
 
-  const isOverview = active.path === '/overview';
-
   return (
     <div className="mb-5 flex flex-col gap-1">
-      {!isOverview && (
-        <p className="m-0 text-muted text-xs">
-          <Link to="/overview" className="text-accent hover:underline">
-            Overview
-          </Link>{' '}
-          / {active.label}
-        </p>
-      )}
+      <p className="m-0 text-muted text-xs">
+        <Link to="/overview" className="text-accent hover:underline">
+          Overview
+        </Link>{' '}
+        / {active.label}
+      </p>
       <h1 className="m-0 font-bold text-default text-xl">{active.label}</h1>
     </div>
   );

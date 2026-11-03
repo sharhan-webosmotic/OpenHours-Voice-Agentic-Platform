@@ -59,6 +59,29 @@
   --ca-slate-050: #f3f5fd;
   --ca-white: #ffffff;
 
+  /**
+   * The four tints the dashboard design uses and the palette above did not have.
+   *
+   * Taken from `ClinicFlow Interactive Prototype/src/DashboardDesign.tsx`, which is the
+   * high-fidelity Figma export rather than the interactive prototype's simpler shell. Each
+   * is a distinct value in that file, not a rounding of one of the others, and the
+   * difference is visible: the selected navigation item and the support card are two
+   * different blues sitting next to each other in the same sidebar.
+   */
+  --ca-blue-050: #eaf1ff; /* Selected navigation item, highlighted card. */
+  --ca-blue-025: #eef3ff; /* The support card at the foot of the sidebar. */
+  --ca-blue-100: #dce6ff; /* The avatar disc behind the signed-in person's initials. */
+  --ca-white-025: #f8faff; /* The search field, which is sunken rather than raised. */
+
+  /**
+   * The chrome border, which is NOT the card border.
+   *
+   * `#e9edf5` edges the sidebar, the header and the controls in them; `#e6eaf4` edges a
+   * card. Two values a shade apart, and the export uses them consistently, so they are kept
+   * apart rather than collapsed into one.
+   */
+  --ca-slate-150: #e9edf5;
+
   --ca-green-500: #20b486;
   --ca-green-050: #e7f8f2;
   --ca-orange-500: #bd7218;
@@ -88,6 +111,23 @@
   --ca-color-accent: var(--ca-blue-500);
   --ca-color-accent-strong: var(--ca-blue-600);
   --ca-color-accent-ring: rgba(53, 106, 230, 0.2);
+
+  /**
+   * `accent-surface` WAS USED BY FIVE COMPONENTS AND DEFINED BY NONE.
+   *
+   * `bg-accent-surface` appears in the appointment drawer, the call drawer, the booking
+   * form, the calendar and the overview, and Tailwind generated nothing for any of them,
+   * because an undefined colour utility is silently dropped rather than being an error. So
+   * the highlighted card at the top of a drawer and the selected day in the calendar have
+   * been rendering flat white since they were written. Defining it is the fix.
+   */
+  --ca-color-accent-surface: var(--ca-blue-050);
+  --ca-color-accent-surface-soft: var(--ca-blue-025);
+  --ca-color-accent-contrast: var(--ca-blue-100);
+
+  /** The chrome: sidebar, header, and the sunken field inside them. */
+  --ca-color-border-chrome: var(--ca-slate-150);
+  --ca-color-surface-sunken: var(--ca-white-025);
 
   /* Status, each a foreground and the wash it sits on. */
   --ca-color-success: var(--ca-green-500);
@@ -140,8 +180,27 @@
   --ca-radius-xl: 1rem; /* 16px */
   --ca-radius-full: 999px;
 
+  /**
+   * Two steps the dashboard design needs that the snapped scale does not have.
+   *
+   * Named for what they are rather than added as `2xl` and `3xl`, because they are not a
+   * continuation of the scale: they are the two radii the export uses everywhere, 11px on
+   * every control and 18px on every card, and a component reading `--ca-radius-card` says
+   * why it chose one.
+   */
+  --ca-radius-control: 0.6875rem; /* 11px: buttons, icon buttons, the logo tile. */
+  --ca-radius-card: 1.125rem; /* 18px: every panel on the dashboard. */
+
   /* ---- Elevation. The prototype's card shadow, and two it uses for overlays. ---- */
-  --ca-shadow-card: 0 8px 26px rgba(31, 48, 89, 0.06);
+  --ca-shadow-card: 0 8px 30px rgba(37, 55, 103, 0.06);
+
+  /**
+   * The lift under an accent control, which the design applies to the primary button and the
+   * logo tile. It is a COLOURED shadow, tinted with the accent rather than with black, which
+   * is what makes the button look lit rather than stuck on.
+   */
+  --ca-shadow-accent: 0 7px 9px rgba(53, 106, 230, 0.2);
+  --ca-shadow-accent-strong: 0 8px 9px rgba(53, 106, 230, 0.25);
   --ca-shadow-popover: 0 2px 8px rgba(30, 49, 90, 0.08);
   --ca-shadow-modal: 0 24px 70px rgba(20, 34, 68, 0.2);
 

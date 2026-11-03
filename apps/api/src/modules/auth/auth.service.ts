@@ -35,6 +35,8 @@ export type LoginResult = {
     readonly id: string;
     readonly organisationId: string | null;
     readonly role: Role;
+    /** The signed-in person's name, which the dashboard's header shows above their role. */
+    readonly fullName: string;
   };
 };
 
@@ -204,7 +206,12 @@ export const login = async (
         refreshToken: tokens.refreshToken,
         refreshTokenExpiresAt: tokens.expiresAt,
         mustChangePassword: user.mustChangePassword,
-        user: { id: user.id, organisationId: user.organisationId, role: user.role },
+        user: {
+          id: user.id,
+          organisationId: user.organisationId,
+          role: user.role,
+          fullName: user.fullName,
+        },
       },
     };
   });
@@ -310,7 +317,12 @@ export const refresh = async (presentedToken: string): Promise<LoginResult> => {
         refreshToken: tokens.refreshToken,
         refreshTokenExpiresAt: tokens.expiresAt,
         mustChangePassword: user.mustChangePassword,
-        user: { id: user.id, organisationId: user.organisationId, role: user.role },
+        user: {
+          id: user.id,
+          organisationId: user.organisationId,
+          role: user.role,
+          fullName: user.fullName,
+        },
       },
     };
   });
@@ -427,6 +439,7 @@ export const currentUser = async (userId: string) =>
       id: user.id,
       organisationId: user.organisationId,
       role: user.role,
+      fullName: user.fullName,
       mustChangePassword: user.mustChangePassword,
     };
   });

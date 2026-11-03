@@ -38,12 +38,14 @@ type LoginBody = {
     readonly id: string;
     readonly organisationId: string | null;
     readonly role: string;
+    readonly fullName: string;
   };
 };
 type MeBody = {
   readonly id: string;
   readonly organisationId: string | null;
   readonly role: string;
+  readonly fullName: string;
 };
 type PairingBody = { readonly code: string; readonly expiresAt: string };
 type PairedBody = { readonly deviceToken: string; readonly deviceId: string };
@@ -752,6 +754,22 @@ describe('access tokens', () => {
 
     expect(response.status).toBe(200);
     expect(jsonBody<MeBody>(response).organisationId).toBe(org.organisationId);
+  });
+
+  it('returns the person their own name, on sign-in and on /me', async () => {
+    /**
+     * The dashboard's header shows the signed-in person's name above their role, and both
+     * paths into a session must carry it: sign-in, and /me, which is what a reload uses to
+     * restore one. A field present on one and missing on the other is a header that shows a
+     * name until somebody presses F5.
+     */
+    const session = await login(ownerEmail, PASSWORD);
+    const me = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${jsonBody<LoginBody>(session).accessToken}`);
+
+    expect(jsonBody<LoginBody>(session).user.fullName).toBe('Auth Owner');
+    expect(jsonBody<MeBody>(me).fullName).toBe('Auth Owner');
   });
 
   it('rejects a TAMPERED token', async () => {

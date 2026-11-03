@@ -119,6 +119,7 @@ const Shell = () => {
       <AppShell
         role={user.role}
         items={CLINIC_NAV}
+        personName={user.fullName}
         onSignOut={() => {
           void signOut();
         }}

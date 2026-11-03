@@ -83,7 +83,12 @@ export const stubClient = (options: StubOptions = {}): Stub => {
   const session = (user: CurrentUser): Session => ({
     accessToken: 'access-token',
     mustChangePassword: user.mustChangePassword,
-    user: { id: user.id, organisationId: user.organisationId, role: user.role },
+    user: {
+      id: user.id,
+      organisationId: user.organisationId,
+      role: user.role,
+      fullName: user.fullName,
+    },
   });
 
   const expired = () =>
@@ -172,6 +177,8 @@ export const user = (role: Role, mustChangePassword = false): CurrentUser => ({
   id: 'user-1',
   organisationId: role === 'SUPER_ADMIN' || role === 'INTERNAL_ADMIN' ? null : 'org-1',
   role,
+  // Synthetic, like every name in these fixtures: obviously a test account, nobody real.
+  fullName: 'Test Person',
   mustChangePassword,
 });
 

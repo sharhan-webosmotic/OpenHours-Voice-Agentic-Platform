@@ -33,6 +33,8 @@ export type CurrentUser = {
   readonly id: string;
   readonly organisationId: string | null;
   readonly role: Role;
+  /** The person's own name, shown in the dashboard's header above their role. */
+  readonly fullName: string;
   readonly mustChangePassword: boolean;
 };
 
@@ -43,6 +45,7 @@ export type Session = {
     readonly id: string;
     readonly organisationId: string | null;
     readonly role: Role;
+    readonly fullName: string;
   };
 };
 

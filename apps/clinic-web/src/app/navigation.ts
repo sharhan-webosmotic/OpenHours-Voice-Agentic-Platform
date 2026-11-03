@@ -28,6 +28,15 @@ export type NavItem = {
   readonly action: Action;
   /** lucide-react icon name, resolved by the shell. */
   readonly icon: string;
+  /**
+   * `false` to keep a page routable but out of the sidebar.
+   *
+   * The dashboard design's sidebar has six items, and three of the pages it leaves out still
+   * do something: Doctors & Staff is the only place a doctor is managed, and Reminders and
+   * Reports say honestly what is missing. Deleting their routes to match the menu would
+   * delete doctor management, so they stay reachable by link and leave the menu instead.
+   */
+  readonly inMenu?: false;
 };
 
 /**
@@ -56,6 +65,7 @@ export const CLINIC_NAV = [
   { path: '/patients', label: 'Patients', resource: 'patients', action: 'read', icon: 'Users' },
   {
     path: '/staff',
+    inMenu: false,
     label: 'Doctors & Staff',
     resource: 'doctors_services_hours',
     action: 'read',
@@ -77,12 +87,20 @@ export const CLINIC_NAV = [
   },
   {
     path: '/reminders',
+    inMenu: false,
     label: 'Reminders',
     resource: 'reminder_settings',
     action: 'read',
     icon: 'BellRing',
   },
-  { path: '/reports', label: 'Reports', resource: 'analytics', action: 'read', icon: 'BarChart3' },
+  {
+    path: '/reports',
+    label: 'Reports',
+    resource: 'analytics',
+    action: 'read',
+    icon: 'BarChart3',
+    inMenu: false,
+  },
   {
     path: '/settings',
     label: 'Clinic Settings',
