@@ -647,3 +647,81 @@ describe('the caller is identified by their own line', () => {
     expect(response.message).toMatch(/number the clinic can reach you on/i);
   });
 });
+
+/**
+ * A new caller's record and their booking commit or roll back together (Feature 3 review,
+ * I4). They used to be two transactions, so every refused booking left a patient behind.
+ */
+describe('ten callers racing for one slot', () => {
+  it('ten NEW callers: one booking, nine spoken refusals, and exactly one new record', async () => {
+    const when = nextBookableLocal();
+    const lines = Array.from({ length: 10 }, (_, index) => `+9198123007${String(10 + index)}`);
+
+    const responses = await Promise.all(
+      lines.map((line, index) =>
+        tool('book', secret).send({
+          callerNumber: line,
+          fullName: `Racing Caller ${String(index)}`,
+          ...when,
+        }),
+      ),
+    );
+
+    expect(responses.map((response) => response.status)).toEqual(Array(10).fill(200));
+    expect(responses.filter((response) => envelopeOf(response).ok)).toHaveLength(1);
+
+    const rows = await asPlatform(ownerClient(), async (tx) => ({
+      patients: await tx.patient.count({
+        where: { organisationId: clinic.organisationId, phone: { in: lines } },
+      }),
+      appointments: await tx.appointment.count({
+        where: { organisationId: clinic.organisationId, patient: { phone: { in: lines } } },
+      }),
+    }));
+
+    expect(rows).toEqual({ patients: 1, appointments: 1 });
+  });
+
+  it('one NEW caller whose booking is retried ten times without a key: one record', async () => {
+    const when = nextBookableLocal();
+    const line = '+919812300799';
+
+    const responses = await Promise.all(
+      Array.from({ length: 10 }, () =>
+        tool('book', secret).send({ callerNumber: line, fullName: 'Retried Caller', ...when }),
+      ),
+    );
+
+    expect(responses.map((response) => response.status)).toEqual(Array(10).fill(200));
+    expect(responses.filter((response) => envelopeOf(response).ok)).toHaveLength(1);
+    expect(
+      await asPlatform(ownerClient(), (tx) =>
+        tx.patient.count({ where: { organisationId: clinic.organisationId, phone: line } }),
+      ),
+    ).toBe(1);
+  });
+
+  it('a replayed booking from a withheld line creates no second record', async () => {
+    const when = nextBookableLocal();
+    const body = {
+      phone: '+919812300798',
+      fullName: 'Withheld Replay',
+      ...when,
+      callId: `call-${uuidV7()}`,
+      toolCallId: 'book-replay',
+    };
+
+    const first = envelopeOf(await tool('book', secret).send(body));
+    const second = envelopeOf(await tool('book', secret).send(body));
+
+    expect(second.data?.['appointmentId']).toBe(first.data?.['appointmentId']);
+    expect(second.data?.['replayed']).toBe(true);
+    expect(
+      await asPlatform(ownerClient(), (tx) =>
+        tx.patient.count({
+          where: { organisationId: clinic.organisationId, phone: '+919812300798' },
+        }),
+      ),
+    ).toBe(1);
+  });
+});

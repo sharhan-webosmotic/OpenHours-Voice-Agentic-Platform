@@ -332,6 +332,47 @@ export const summary = async (
   });
 };
 
+/**
+ * Creates a patient inside a transaction the caller already holds.
+ *
+ * Exported for the one caller that must create a record and book in the SAME transaction: the
+ * voice agent's booking for a new caller. Created in a transaction of its own, a record whose
+ * booking was then refused stayed behind, and ten callers racing for one slot left nine
+ * patients with no appointment (Feature 3 review, I4). The permission check is here as well
+ * as in `create`, so no caller can reach the write without it.
+ */
+export const createWithin = async (
+  db: TenantDb,
+  principal: Principal,
+  organisationId: string,
+  input: PatientInput,
+): Promise<{ readonly patientId: string }> => {
+  requirePermission('patients', 'write', principal);
+
+  const patientId = await repository.create(db, organisationId, {
+    fullName: input.fullName,
+    phone: input.phone,
+    dateOfBirth: input.dateOfBirth === null ? null : new Date(`${input.dateOfBirth}T00:00:00.000Z`),
+    sex: input.sex ?? null,
+    email: input.email ?? null,
+    notes: input.notes,
+  });
+
+  await record(db, {
+    action: 'patient.created',
+    entityType: 'patient',
+    entityId: patientId,
+    // No name, no number: the id is the record and the audit row points at it.
+    metadata: {
+      hasDateOfBirth: input.dateOfBirth !== null,
+      hasSex: input.sex != null,
+      hasEmail: input.email != null,
+    },
+  });
+
+  return { patientId };
+};
+
 export const create = async (
   principal: Principal,
   requestedOrganisationId: string | undefined,
@@ -340,31 +381,9 @@ export const create = async (
   requirePermission('patients', 'write', principal);
   const organisationId = organisationInScope(principal, requestedOrganisationId);
 
-  return withOrganisationScope(principal, organisationId, 'patients.create', async (db) => {
-    const patientId = await repository.create(db, organisationId, {
-      fullName: input.fullName,
-      phone: input.phone,
-      dateOfBirth:
-        input.dateOfBirth === null ? null : new Date(`${input.dateOfBirth}T00:00:00.000Z`),
-      sex: input.sex ?? null,
-      email: input.email ?? null,
-      notes: input.notes,
-    });
-
-    await record(db, {
-      action: 'patient.created',
-      entityType: 'patient',
-      entityId: patientId,
-      // No name, no number: the id is the record and the audit row points at it.
-      metadata: {
-        hasDateOfBirth: input.dateOfBirth !== null,
-        hasSex: input.sex != null,
-        hasEmail: input.email != null,
-      },
-    });
-
-    return { patientId };
-  });
+  return withOrganisationScope(principal, organisationId, 'patients.create', (db) =>
+    createWithin(db, principal, organisationId, input),
+  );
 };
 
 export const update = async (

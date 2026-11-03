@@ -339,7 +339,15 @@ export type BookingResult = {
   readonly replayed: boolean;
 };
 
-const bookWithin = async (
+/**
+ * Books inside a transaction the caller already holds.
+ *
+ * Exported for the voice agent's booking of a NEW caller, whose patient record must be created
+ * in the same transaction so that a refused booking takes the record with it (Feature 3
+ * review, I4). A slot taken concurrently raises the exclusion constraint, which aborts the
+ * whole transaction, so nothing written before it in that transaction survives.
+ */
+export const bookWithin = async (
   db: TenantDb,
   principal: Principal,
   organisationId: string,

@@ -448,104 +448,135 @@ export const book = async (
     );
   }
 
-  const resolved = await withOrganisationScope(
-    principal,
-    organisationId,
-    'voice.resolve-booking',
-    async (db) => {
-      const targets = await repository.resolvableTargets(db, organisationId);
-
-      return {
-        patient:
-          line === null
-            ? ({ kind: 'none' } as const)
-            : await matchPatient(db, organisationId, line, body.fullName),
-        doctor: resolveTarget(
-          targets.doctors,
-          (row) => row.fullName,
-          { id: body.doctorId, name: body.doctorName },
-          {
-            none: 'I could not find that doctor. Which doctor would you like to see?',
-            many: 'Which doctor would you like to see?',
-          },
-        ),
-        service: resolveTarget(
-          targets.services,
-          (row) => row.name,
-          { id: body.serviceId, name: body.serviceName },
-          {
-            none: 'I could not find that treatment. What would you like to come in for?',
-            many: 'What would you like to come in for?',
-          },
-        ),
-      };
-    },
-  );
-
-  if (!resolved.doctor.ok) {
-    return refusal(resolved.doctor.ask);
-  }
-
-  if (!resolved.service.ok) {
-    return refusal(resolved.service.ask);
-  }
-
-  if (resolved.patient.kind === 'several') {
-    return refusal('Could I take the full name of the patient, please?');
-  }
-
-  if (resolved.patient.kind === 'none' && body.fullName === undefined) {
-    return refusal('Could I take the patient’s full name, please?');
-  }
+  const key = idempotencyKey(body, header);
 
   /**
-   * A new caller gets a record before the booking, which is a write the agent is granted
-   * (`patients: rw` in the matrix) because the alternative is an agent that cannot book for
-   * anybody new. It is a CREATE only: there is no tool that edits an existing record.
+   * ONE TRANSACTION, from resolving the caller to the booking (Feature 3 review, I4).
+   *
+   * A new caller's record used to be created in a transaction of its own and the booking in
+   * another, so a booking the slot engine or the exclusion constraint refused left the record
+   * behind: ten new callers racing for one slot left nine patients with no appointment, and
+   * one caller retried ten times became nine records. Here a refused booking throws, the
+   * transaction rolls back, and the record goes with it.
    */
-  const patientId =
-    resolved.patient.kind === 'one'
-      ? resolved.patient.id
-      : (
-          await patients.create(principal, undefined, {
-            fullName: body.fullName ?? '',
-            phone: contact,
-            dateOfBirth: null,
-            notes: null,
-          })
-        ).patientId;
-
-  const timeZone = await withOrganisationScope(
+  const outcome = await withOrganisationScope(
     principal,
     organisationId,
-    'voice.clinic-zone',
-    (db) => appointmentRepository.organisationTimeZone(db, organisationId),
-  );
+    'voice.book',
+    async (db) => {
+      /**
+       * A replay is answered before anything is created. Without this a retried booking from a
+       * line we cannot see would make a new record and only then discover the booking exists.
+       */
+      if (key !== undefined) {
+        const replay = await appointmentRepository.findByIdempotencyKey(db, organisationId, key);
 
-  const startAt = zonedTimeToUtc(body.date, minuteOfDay(body.time), timeZone);
+        if (replay !== null) {
+          return {
+            ok: true as const,
+            booking: {
+              appointmentId: replay.id,
+              startAt: replay.startAt.toISOString(),
+              endAt: replay.endAt.toISOString(),
+              replayed: true,
+            },
+          };
+        }
+      }
 
-  const result = await appointments.book(
-    principal,
-    undefined,
-    {
-      patientId,
-      doctorId: resolved.doctor.value.id,
-      serviceId: resolved.service.value.id,
-      startAt: startAt.toISOString(),
+      const targets = await repository.resolvableTargets(db, organisationId);
+      const doctor = resolveTarget(
+        targets.doctors,
+        (row) => row.fullName,
+        { id: body.doctorId, name: body.doctorName },
+        {
+          none: 'I could not find that doctor. Which doctor would you like to see?',
+          many: 'Which doctor would you like to see?',
+        },
+      );
+      const service = resolveTarget(
+        targets.services,
+        (row) => row.name,
+        { id: body.serviceId, name: body.serviceName },
+        {
+          none: 'I could not find that treatment. What would you like to come in for?',
+          many: 'What would you like to come in for?',
+        },
+      );
+
+      if (!doctor.ok) {
+        return { ok: false as const, ask: doctor.ask };
+      }
+
+      if (!service.ok) {
+        return { ok: false as const, ask: service.ask };
+      }
+
+      const patient =
+        line === null
+          ? ({ kind: 'none' } as const)
+          : await matchPatient(db, organisationId, line, body.fullName);
+
+      if (patient.kind === 'several') {
+        return { ok: false as const, ask: 'Could I take the full name of the patient, please?' };
+      }
+
+      if (patient.kind === 'none' && body.fullName === undefined) {
+        return { ok: false as const, ask: 'Could I take the patient’s full name, please?' };
+      }
+
+      /**
+       * A new caller gets a record before the booking, which is a write the agent is granted
+       * (`patients: rw` in the matrix) because the alternative is an agent that cannot book for
+       * anybody new. It is a CREATE only: there is no tool that edits an existing record.
+       */
+      const patientId =
+        patient.kind === 'one'
+          ? patient.id
+          : (
+              await patients.createWithin(db, principal, organisationId, {
+                fullName: body.fullName ?? '',
+                phone: contact,
+                dateOfBirth: null,
+                notes: null,
+              })
+            ).patientId;
+
+      const timeZone = await appointmentRepository.organisationTimeZone(db, organisationId);
+      const startAt = zonedTimeToUtc(body.date, minuteOfDay(body.time), timeZone);
+
+      const booking = await appointments.bookWithin(
+        db,
+        principal,
+        organisationId,
+        {
+          patientId,
+          doctorId: doctor.value.id,
+          serviceId: service.value.id,
+          startAt: startAt.toISOString(),
+        },
+        { source: SOURCE, idempotencyKey: key },
+      );
+
+      return { ok: true as const, booking };
     },
-    { source: SOURCE, idempotencyKey: idempotencyKey(body, header) },
   );
+
+  if (!outcome.ok) {
+    return refusal(outcome.ask);
+  }
+
+  const { booking } = outcome;
 
   return success(
     `That is booked for ${body.time} on ${body.date}. ${
-      result.replayed ? 'That was already booked, so nothing has changed.' : ''
+      booking.replayed ? 'That was already booked, so nothing has changed.' : ''
     }`.trim(),
     {
-      appointmentId: result.appointmentId,
-      startAt: result.startAt,
-      endAt: result.endAt,
-      patientId,
-      replayed: result.replayed,
+      appointmentId: booking.appointmentId,
+      startAt: booking.startAt,
+      endAt: booking.endAt,
+      replayed: booking.replayed,
     },
   );
 };
