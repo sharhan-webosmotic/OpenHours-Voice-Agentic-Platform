@@ -214,6 +214,27 @@ registerRoute({
 });
 
 registerRoute({
+  method: 'get',
+  path: `${BASE}/:organisationId/doctors/:doctorId/hours`,
+  summary: "A doctor's working week, all seven weekdays",
+  params: schemas.doctorParamsSchema,
+  response: schemas.doctorHoursResponseSchema,
+  permission: 'doctors_services_hours:read',
+  phiSensitive: false,
+});
+
+registerRoute({
+  method: 'put',
+  path: `${BASE}/:organisationId/doctors/:doctorId/hours`,
+  summary: "Replace a doctor's whole working week, including the days off",
+  params: schemas.doctorParamsSchema,
+  body: schemas.clinicHoursSchema,
+  permission: 'doctors_services_hours:write',
+  phiSensitive: false,
+  auditAction: 'doctor.hours.replaced',
+});
+
+registerRoute({
   method: 'patch',
   path: `${BASE}/:organisationId/doctors/:doctorId`,
   summary: 'Change a doctor, including switching them off',
@@ -451,6 +472,43 @@ export const organisationsRouter = (): Router => {
       >(req);
 
       await service.updateDoctor(currentPrincipal(), params.organisationId, params.doctorId, body);
+
+      res.status(204).end();
+    },
+  );
+
+  router.get(
+    '/:organisationId/doctors/:doctorId/hours',
+    ...AUTHENTICATED,
+    validate({ params: schemas.doctorParamsSchema }),
+    async (req: Request, res: Response) => {
+      const { params } = validatedData<{ organisationId: string; doctorId: string }>(req);
+
+      res
+        .status(200)
+        .json(
+          await service.getDoctorHours(currentPrincipal(), params.organisationId, params.doctorId),
+        );
+    },
+  );
+
+  router.put(
+    '/:organisationId/doctors/:doctorId/hours',
+    ...AUTHENTICATED,
+    validate({ params: schemas.doctorParamsSchema, body: schemas.clinicHoursSchema }),
+    async (req: Request, res: Response) => {
+      const { params, body } = validatedData<
+        { organisationId: string; doctorId: string },
+        unknown,
+        ClinicHoursInput
+      >(req);
+
+      await service.replaceDoctorHours(
+        currentPrincipal(),
+        params.organisationId,
+        params.doctorId,
+        body,
+      );
 
       res.status(204).end();
     },

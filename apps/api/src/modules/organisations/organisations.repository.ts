@@ -637,6 +637,77 @@ export const updateDoctor = async (
   return result.count === 1;
 };
 
+/**
+ * A doctor's working hours as segments, the same shape as the clinic's, or null when the
+ * doctor is not in this clinic (or not at all).
+ *
+ * The doctor is looked up first so an unknown id and an empty week are different answers:
+ * a doctor with no hours is a real state, and a missing doctor is a 404.
+ */
+export const findDoctorHours = async (
+  db: TenantDb,
+  organisationId: string,
+  doctorId: string,
+): Promise<readonly HoursRow[] | null> => {
+  const doctor = await db.doctor.findFirst({
+    where: { id: doctorId, organisationId, deletedAt: null },
+    select: { id: true },
+  });
+
+  if (doctor === null) {
+    return null;
+  }
+
+  const rows = await db.doctorWorkingHours.findMany({
+    where: { organisationId, doctorId },
+    select: { weekday: true, startAtMinute: true, endAtMinute: true },
+    orderBy: [{ weekday: 'asc' }, { startAtMinute: 'asc' }],
+  });
+
+  return rows.map((row) => ({
+    weekday: row.weekday,
+    opensAtMinute: row.startAtMinute,
+    closesAtMinute: row.endAtMinute,
+  }));
+};
+
+/**
+ * Replaces a doctor's whole week, as the clinic's hours are replaced: delete and insert in
+ * the one transaction the service opened. False when the doctor is not in this clinic.
+ */
+export const replaceDoctorHours = async (
+  db: TenantDb,
+  organisationId: string,
+  doctorId: string,
+  segments: readonly HoursRow[],
+): Promise<boolean> => {
+  const doctor = await db.doctor.findFirst({
+    where: { id: doctorId, organisationId, deletedAt: null },
+    select: { id: true },
+  });
+
+  if (doctor === null) {
+    return false;
+  }
+
+  await db.doctorWorkingHours.deleteMany({ where: { organisationId, doctorId } });
+
+  if (segments.length > 0) {
+    await db.doctorWorkingHours.createMany({
+      data: segments.map((segment) => ({
+        id: uuidV7(),
+        organisationId,
+        doctorId,
+        weekday: segment.weekday,
+        startAtMinute: segment.opensAtMinute,
+        endAtMinute: segment.closesAtMinute,
+      })),
+    });
+  }
+
+  return true;
+};
+
 export type SarvamMappingWrite = {
   readonly sarvamAppId: string | null;
   readonly sarvamAppVersion: string | null;

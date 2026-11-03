@@ -1,4 +1,5 @@
 import {
+  WEEKDAYS,
   clinicReadiness,
   type AgentProfileInput,
   type BookingPolicyInput,
@@ -13,6 +14,7 @@ import {
   type ServiceInput,
   type TelephonyInput,
   type UpdateOrganisationInput,
+  type Weekday,
 } from '@clinicai/shared';
 import { ConflictError, NotFoundError } from '../../common/errors.js';
 import { uuidV7 } from '../../common/uuid.js';
@@ -513,6 +515,84 @@ export const updateDoctor = async (
           `doctor ${doctorId} not found in organisation ${organisationId}`,
           'That doctor was not found.',
         );
+      }
+    },
+  });
+};
+
+export type WeekView = {
+  readonly days: readonly {
+    readonly weekday: Weekday;
+    readonly segments: readonly {
+      readonly opensAtMinute: number;
+      readonly closesAtMinute: number;
+    }[];
+  }[];
+};
+
+/** All seven weekdays, a day with no segments being a day off, as the clinic's hours read. */
+const toWeek = (rows: readonly repository.HoursRow[]): WeekView => ({
+  days: WEEKDAYS.map((weekday) => ({
+    weekday,
+    segments: rows
+      .filter((row) => row.weekday === weekday)
+      .map((row) => ({ opensAtMinute: row.opensAtMinute, closesAtMinute: row.closesAtMinute })),
+  })),
+});
+
+const doctorNotFound = (doctorId: string, organisationId: string): NotFoundError =>
+  new NotFoundError(
+    `doctor ${doctorId} not found in organisation ${organisationId}`,
+    'That doctor was not found.',
+  );
+
+/**
+ * One doctor's working week, inside which the slot engine offers that doctor's times.
+ *
+ * Read under `doctors_services_hours`, the resource the doctors themselves are read under.
+ * Not audited: a schedule names nobody, as the clinic's own hours do not.
+ */
+export const getDoctorHours = async (
+  principal: Principal,
+  organisationId: string,
+  doctorId: string,
+): Promise<WeekView> => {
+  requirePermission('doctors_services_hours', 'read', principal);
+
+  return withPrincipalScope(principal, 'doctors_services_hours.read', async (db) => {
+    await reachableOrganisation(db, organisationId);
+    const rows = await repository.findDoctorHours(db, organisationId, doctorId);
+
+    if (rows === null) {
+      throw doctorNotFound(doctorId, organisationId);
+    }
+
+    return toWeek(rows);
+  });
+};
+
+export const replaceDoctorHours = async (
+  principal: Principal,
+  organisationId: string,
+  doctorId: string,
+  input: ClinicHoursInput,
+): Promise<void> => {
+  const segments = input.days.flatMap((day) =>
+    day.segments.map((segment) => ({
+      weekday: day.weekday,
+      opensAtMinute: segment.opensAtMinute,
+      closesAtMinute: segment.closesAtMinute,
+    })),
+  );
+
+  await writeSection(principal, organisationId, {
+    resource: 'doctors_services_hours',
+    auditAction: 'doctor.hours.replaced',
+    // The doctor and a count, as the clinic's hours record a count: never the schedule.
+    changedFields: [`doctor:${doctorId}`, `segments:${String(segments.length)}`],
+    apply: async (db) => {
+      if (!(await repository.replaceDoctorHours(db, organisationId, doctorId, segments))) {
+        throw doctorNotFound(doctorId, organisationId);
       }
     },
   });

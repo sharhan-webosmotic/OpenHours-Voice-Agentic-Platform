@@ -289,6 +289,35 @@ const RECIPES = new Map<string, (token: string) => Promise<number>>([
     },
   ],
   [
+    'GET /api/v1/organisations/:organisationId/doctors/:doctorId/hours',
+    async (token) => {
+      const response = await request(app)
+        .get(`/api/v1/organisations/${org.organisationId}/doctors/${org.ids.doctors ?? ''}/hours`)
+        .set('Authorization', `Bearer ${token}`);
+      return response.status;
+    },
+  ],
+  [
+    'PUT /api/v1/organisations/:organisationId/doctors/:doctorId/hours',
+    async (token) => {
+      const response = await request(app)
+        .put(`/api/v1/organisations/${org.organisationId}/doctors/${org.ids.doctors ?? ''}/hours`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({
+          days: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'].map(
+            (weekday) => ({
+              weekday,
+              segments:
+                weekday === 'SATURDAY' || weekday === 'SUNDAY'
+                  ? []
+                  : [{ opensAtMinute: 540, closesAtMinute: 1020 }],
+            }),
+          ),
+        });
+      return response.status;
+    },
+  ],
+  [
     'POST /api/v1/organisations/:organisationId/doctors',
     async (token) => {
       const response = await request(app)

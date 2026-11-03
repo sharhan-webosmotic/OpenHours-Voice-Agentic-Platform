@@ -193,6 +193,18 @@ export const savedSarvamMappingResponseSchema = z.object({
   webhookSecret: z.string().optional(),
 });
 
+/** A doctor's week: all seven weekdays, a day with no segments being a day off. */
+export const doctorHoursResponseSchema = z.object({
+  days: z.array(
+    z.object({
+      weekday: z.enum(WEEKDAYS),
+      segments: z.array(
+        z.object({ opensAtMinute: z.number().int(), closesAtMinute: z.number().int() }),
+      ),
+    }),
+  ),
+});
+
 export {
   agentProfileSchema,
   bookingPolicySchema,

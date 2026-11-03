@@ -174,10 +174,43 @@ const clinicEndpoints = api.injectEndpoints({
         { type: 'Availability', id: 'DAY' },
       ],
     }),
+
+    /** One doctor's working week, all seven weekdays. */
+    doctorHours: build.query<
+      { readonly days: ClinicHoursInput['days'] },
+      { readonly organisationId: string; readonly doctorId: string }
+    >({
+      query: ({ organisationId, doctorId }) => ({
+        path: `/api/v1/organisations/${organisationId}/doctors/${doctorId}/hours`,
+      }),
+      providesTags: (_r, _e, { doctorId }) => [{ type: 'DoctorHours', id: doctorId }],
+    }),
+
+    replaceDoctorHours: build.mutation<
+      void,
+      {
+        readonly organisationId: string;
+        readonly doctorId: string;
+        readonly input: ClinicHoursInput;
+      }
+    >({
+      query: ({ organisationId, doctorId, input }) => ({
+        path: `/api/v1/organisations/${organisationId}/doctors/${doctorId}/hours`,
+        method: 'PUT',
+        body: input,
+      }),
+      // A doctor's hours decide which of their slots exist, as the clinic's do.
+      invalidatesTags: (_r, _e, { doctorId }) => [
+        { type: 'DoctorHours', id: doctorId },
+        { type: 'Availability', id: 'DAY' },
+      ],
+    }),
   }),
 });
 
 export const {
+  useDoctorHoursQuery,
+  useReplaceDoctorHoursMutation,
   useUpdateProfileMutation,
   useReplaceHoursMutation,
   useUpdateBookingPolicyMutation,

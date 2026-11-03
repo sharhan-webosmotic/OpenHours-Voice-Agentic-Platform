@@ -399,6 +399,16 @@ function clinicConfigurationRecipes(): readonly [string, (token: string) => Prom
       registered: `${base}/:organisationId/doctors/:doctorId`,
       path: () => `${base}/${id()}/doctors/${org.ids.doctors ?? ''}`,
     },
+    {
+      method: 'get',
+      registered: `${base}/:organisationId/doctors/:doctorId/hours`,
+      path: () => `${base}/${id()}/doctors/${org.ids.doctors ?? ''}/hours`,
+    },
+    {
+      method: 'put',
+      registered: `${base}/:organisationId/doctors/:doctorId/hours`,
+      path: () => `${base}/${id()}/doctors/${org.ids.doctors ?? ''}/hours`,
+    },
   ];
 
   return routes.map(

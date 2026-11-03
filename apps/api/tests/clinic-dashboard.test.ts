@@ -1234,3 +1234,94 @@ describe('a patient sex and email', () => {
     expect(jsonBody<Stored>(read)).toMatchObject({ sex: null, email: null });
   }, 120_000);
 });
+
+describe("a doctor's working week", () => {
+  const week = (monday: readonly { opensAtMinute: number; closesAtMinute: number }[]) => ({
+    days: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'].map(
+      (weekday) => ({ weekday, segments: weekday === 'MONDAY' ? monday : [] }),
+    ),
+  });
+  const hoursPath = (organisationId: string, doctorId: string) =>
+    `/api/v1/organisations/${organisationId}/doctors/${doctorId}/hours`;
+
+  it('reads all seven weekdays, a day off being a day with no hours', async () => {
+    const token = await tokenFor(ownerEmail);
+
+    const response = await request(app)
+      .get(hoursPath(clinic.organisationId, quietDoctorId))
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(response.status).toBe(200);
+    const { days } = jsonBody<{ days: readonly { weekday: string; segments: unknown[] }[] }>(
+      response,
+    );
+    expect(days).toHaveLength(7);
+    // The fixture gives this doctor Monday 09:00 to 17:00 and nothing else.
+    expect(days.find((day) => day.weekday === 'MONDAY')?.segments).toEqual([
+      { opensAtMinute: 540, closesAtMinute: 1020 },
+    ]);
+    expect(days.find((day) => day.weekday === 'TUESDAY')?.segments).toEqual([]);
+  }, 120_000);
+
+  it('replaces the week, and the slot engine offers only inside it', async () => {
+    const token = await tokenFor(ownerEmail);
+
+    const saved = await request(app)
+      .put(hoursPath(clinic.organisationId, quietDoctorId))
+      .set('Authorization', `Bearer ${token}`)
+      .send(week([{ opensAtMinute: 540, closesAtMinute: 600 }]));
+    expect(saved.status).toBe(204);
+
+    const read = await request(app)
+      .get(hoursPath(clinic.organisationId, quietDoctorId))
+      .set('Authorization', `Bearer ${token}`);
+    expect(
+      jsonBody<{ days: readonly { weekday: string; segments: unknown[] }[] }>(read).days.find(
+        (day) => day.weekday === 'MONDAY',
+      )?.segments,
+    ).toEqual([{ opensAtMinute: 540, closesAtMinute: 600 }]);
+
+    // A Monday the quiet doctor works: every slot offered now ends by 10:00 clinic time.
+    const date = nextBookableStart().slice(0, 10);
+    const offered = await request(app)
+      .get(
+        `/api/v1/appointments/availability?doctorId=${quietDoctorId}&serviceId=${clinic.ids.services ?? ''}&date=${date}`,
+      )
+      .set('Authorization', `Bearer ${token}`);
+
+    expect(offered.status).toBe(200);
+    const ends = jsonBody<{ slots: readonly { endAt: string }[] }>(offered).slots.map((slot) =>
+      new Date(slot.endAt).getTime(),
+    );
+    const tenInKolkata = new Date(`${date}T04:30:00.000Z`).getTime();
+    // Some, so the check below cannot pass on an empty list.
+    expect(ends.length).toBeGreaterThan(0);
+    expect(ends.every((end) => end <= tenInKolkata)).toBe(true);
+  }, 120_000);
+
+  it('answers 404 for another clinic doctor, and for a doctor that does not exist', async () => {
+    const token = await tokenFor(ownerEmail);
+
+    const foreign = await request(app)
+      .get(hoursPath(clinic.organisationId, other.ids.doctors ?? ''))
+      .set('Authorization', `Bearer ${token}`);
+    const missing = await request(app)
+      .put(hoursPath(clinic.organisationId, uuidV7()))
+      .set('Authorization', `Bearer ${token}`)
+      .send(week([]));
+
+    expect(foreign.status).toBe(404);
+    expect(missing.status).toBe(404);
+  }, 120_000);
+
+  it('refuses a week the shared schema refuses', async () => {
+    const token = await tokenFor(ownerEmail);
+
+    const response = await request(app)
+      .put(hoursPath(clinic.organisationId, quietDoctorId))
+      .set('Authorization', `Bearer ${token}`)
+      .send(week([{ opensAtMinute: 600, closesAtMinute: 540 }]));
+
+    expect(response.status).toBe(400);
+  }, 120_000);
+});

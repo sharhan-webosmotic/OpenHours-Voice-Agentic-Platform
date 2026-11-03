@@ -39,6 +39,8 @@ export const api = createApi({
      * two ways to invalidate one document.
      */
     'Clinic',
+    /** One doctor's working week, keyed by doctor, read and replaced on its own endpoint. */
+    'DoctorHours',
   ],
 
   endpoints: () => ({}),

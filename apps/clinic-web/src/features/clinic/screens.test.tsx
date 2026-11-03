@@ -2,7 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWith, stubClient, user } from '../../test-support/harness';
-import { baseRoutes, clinic, ORGANISATION_ID, SERVICE_ID } from '../../test-support/fixtures';
+import {
+  baseRoutes,
+  clinic,
+  DOCTOR_ID,
+  ORGANISATION_ID,
+  SERVICE_ID,
+} from '../../test-support/fixtures';
 import { ServicesPage } from '../services/ServicesPage';
 import { StaffPage } from '../staff/StaffPage';
 import { SettingsPage } from '../settings/SettingsPage';
@@ -270,6 +276,62 @@ describe('clinic settings', () => {
     expect(await screen.findByLabelText('Starts')).toBeDisabled();
     expect(screen.getByRole('switch', { name: 'Monday open' })).toBeDisabled();
     expect(screen.queryByRole('button', { name: 'Save weekly schedule' })).not.toBeInTheDocument();
+  });
+
+  describe('doctor availability', () => {
+    const doctorWeek = {
+      days: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'].map(
+        (weekday) => ({
+          weekday,
+          segments:
+            weekday === 'MONDAY'
+              ? [
+                  { opensAtMinute: 600, closesAtMinute: 750 },
+                  { opensAtMinute: 810, closesAtMinute: 960 },
+                ]
+              : [],
+        }),
+      ),
+    };
+    const hoursPath = `/api/v1/organisations/${ORGANISATION_ID}/doctors/${DOCTOR_ID}/hours`;
+    const routes = {
+      ...baseRoutes,
+      [`GET ${hoursPath}`]: { body: doctorWeek },
+      [`PUT ${hoursPath}`]: { status: 204 },
+    };
+
+    it("edits the chosen doctor's own week, not the clinic's", async () => {
+      const stub = signedIn(routes);
+      renderWith(<SettingsPage />, stub, ['/settings?section=doctors']);
+
+      // The doctor's Monday, 10:00 to 16:00 with a break, not the clinic's 09:00 to 17:00.
+      expect(await screen.findByLabelText('Starts')).toHaveValue('10:00');
+      expect(screen.getByLabelText('Break starts')).toHaveValue('12:30');
+      expect(screen.getByLabelText('Doctor')).toHaveValue(DOCTOR_ID);
+
+      await userEvent.click(screen.getByRole('switch', { name: 'Tuesday open' }));
+      await userEvent.click(screen.getByRole('button', { name: 'Save weekly schedule' }));
+
+      await waitFor(() => {
+        const sent = stub.calls.requests.find((request) => request.method === 'PUT');
+        expect(sent?.path).toBe(hoursPath);
+        const days = (sent?.body as { days: readonly { weekday: string; segments: unknown[] }[] })
+          .days;
+        expect(days.find((day) => day.weekday === 'TUESDAY')?.segments).toEqual([
+          { opensAtMinute: 540, closesAtMinute: 1020 },
+        ]);
+        expect(days.find((day) => day.weekday === 'MONDAY')?.segments).toHaveLength(2);
+      });
+    });
+
+    it('lets a role that may not change it read it', async () => {
+      renderWith(<SettingsPage />, signedIn(routes, 'STAFF'), ['/settings?section=doctors']);
+
+      expect(await screen.findByLabelText('Starts')).toBeDisabled();
+      expect(
+        screen.queryByRole('button', { name: 'Save weekly schedule' }),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it('opens on the section the address names', async () => {

@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router';
-import { Bot, Building2, CalendarClock, Clock } from 'lucide-react';
+import { Bot, Building2, CalendarClock, Clock, Stethoscope } from 'lucide-react';
 import {
   AGENT_TONES,
   agentProfileSchema,
@@ -27,6 +27,7 @@ import {
   useUpdateBookingPolicyMutation,
   useUpdateProfileMutation,
 } from '../clinic/api';
+import { DoctorAvailability } from './DoctorAvailability';
 import { WeeklyHoursEditor, type WeekHours } from './WeeklyHoursEditor';
 
 /**
@@ -99,6 +100,12 @@ const FieldGroup = ({
 const SECTIONS = [
   { id: 'profile', label: 'Clinic profile', hint: 'Name, contact and address', Icon: Building2 },
   { id: 'hours', label: 'Opening hours', hint: 'When patients can book', Icon: Clock },
+  {
+    id: 'doctors',
+    label: 'Doctor availability',
+    hint: "Each doctor's working week",
+    Icon: Stethoscope,
+  },
   {
     id: 'booking',
     label: 'Booking preferences',
@@ -458,6 +465,15 @@ export const SettingsPage = () => {
                 }
               }}
             />
+          </SectionCard>
+        )}
+
+        {section === 'doctors' && (
+          <SectionCard
+            title="Doctor availability"
+            description="Each doctor's working week and breaks. Patients are offered a doctor's times only inside these hours and the clinic's opening hours."
+          >
+            <DoctorAvailability organisationId={organisationId} doctors={clinic.doctors} />
           </SectionCard>
         )}
 
