@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CALL_STATUSES, type CallView } from '@clinicai/api-client';
+import { CALL_STATUSES, type CallView, type OverviewRange } from '@clinicai/api-client';
 import { Alert } from '../../components/ui/Alert';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -9,7 +9,11 @@ import { Badge, Cell, Row, Table } from '../../components/ui/Table';
 import { DateInput, FilterSelect, Pager, SearchInput, Toolbar } from '../../components/ui/Toolbar';
 import { errorMessage } from '../../lib/problem';
 import { formatDate, formatTime } from '../../lib/clinicTime';
+import { useCan } from '../../lib/useCan';
 import { useClinic } from '../clinic/api';
+import { useOverviewQuery } from '../overview/api';
+import { ActivityCard, OutcomesCard } from '../overview/cards';
+import { AgentCard, VoiceMetrics } from './dashboard';
 import { useCallsQuery } from './api';
 import { CallDetail } from './CallDetail';
 import {
@@ -71,6 +75,14 @@ export const CallsPage = () => {
   const [status, setStatus] = useState('');
   const [cursors, setCursors] = useState<readonly (string | undefined)[]>([undefined]);
   const [selected, setSelected] = useState<CallView | undefined>(undefined);
+  const [range, setRange] = useState<OverviewRange>('7d');
+
+  /**
+   * The dashboard needs `analytics:read`, which STAFF does not hold. They still get the call
+   * log and the agent's identity; the counts are not requested, so there is no 403 to show.
+   */
+  const canAnalyse = useCan('analytics', 'read');
+  const overview = useOverviewQuery({ range }, { skip: clinicLoading || !canAnalyse });
 
   /**
    * Debounced, and the search goes to the SERVER.
@@ -107,6 +119,34 @@ export const CallsPage = () => {
 
   return (
     <>
+      {clinic !== undefined && (
+        <AgentCard
+          mapping={clinic.sarvamMapping}
+          status={canAnalyse ? (overview.data?.agent.status ?? null) : undefined}
+          lastCallAt={overview.data?.agent.lastCallAt}
+          timeZone={timeZone}
+          range={canAnalyse ? range : undefined}
+          onRangeChange={setRange}
+        />
+      )}
+
+      {canAnalyse && (
+        <div className="@container">
+          <VoiceMetrics overview={overview.data} />
+          <div className="mb-6 grid gap-4 @4xl:grid-cols-[minmax(0,1fr)_420px]">
+            <ActivityCard overview={overview.data} />
+            <OutcomesCard overview={overview.data} />
+          </div>
+        </div>
+      )}
+
+      <div className="mb-3 flex flex-col gap-0.5">
+        <h2 className="m-0 font-bold text-default text-lg">Call log</h2>
+        <p className="m-0 text-muted text-xs">
+          Every call the agent handled, with its transcript and recording.
+        </p>
+      </div>
+
       <Card padded={false} className="mb-4 p-4">
         <Toolbar>
           <SearchInput

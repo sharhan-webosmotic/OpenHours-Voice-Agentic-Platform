@@ -2,7 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWith, stubClient, user } from '../../test-support/harness';
-import { baseRoutes, call, CALL_ID, callDetail } from '../../test-support/fixtures';
+import {
+  baseRoutes,
+  call,
+  CALL_ID,
+  callDetail,
+  clinic,
+  ORGANISATION_ID,
+} from '../../test-support/fixtures';
 import { CallsPage } from './CallsPage';
 
 /**
@@ -18,7 +25,7 @@ import { CallsPage } from './CallsPage';
 
 const signedIn = (
   routes = baseRoutes,
-  role: 'CLINIC_OWNER' | 'DOCTOR' | 'SUPER_ADMIN' = 'CLINIC_OWNER',
+  role: 'CLINIC_OWNER' | 'DOCTOR' | 'SUPER_ADMIN' | 'STAFF' = 'CLINIC_OWNER',
 ) => stubClient({ user: user(role), bootSucceeds: true, routes });
 
 const openDetails = async (): Promise<void> => {
@@ -265,5 +272,59 @@ describe('the call drawer', () => {
     const dialog = await screen.findByRole('dialog');
 
     expect(await within(dialog).findByText(/No transcript was stored/)).toBeInTheDocument();
+  });
+});
+
+describe('the voice agent dashboard', () => {
+  const mapped = {
+    ...baseRoutes,
+    [`GET /api/v1/organisations/${ORGANISATION_ID}`]: {
+      body: {
+        ...clinic,
+        sarvamMapping: {
+          sarvamAppId: 'app_fixture',
+          sarvamAppVersion: '3',
+          sarvamDeploymentId: 'dep_fixture',
+          sarvamConnectionId: 'conn_fixture',
+          agentPhone: '+918000012345',
+          promptVersion: 'v1',
+          toolSecretSet: true,
+          toolSecretSetAt: '2026-11-01T00:00:00.000Z',
+        },
+      },
+    },
+  };
+
+  it('says the agent is not connected when the clinic has no Sarvam mapping', async () => {
+    renderWith(<CallsPage />, signedIn());
+
+    // The fixture's overview reports ACTIVE, and that is the point: with no mapping the agent
+    // cannot be answering, and "Live" would tell the desk to stop picking up.
+    expect(await screen.findByText('Not connected')).toBeInTheDocument();
+    expect(screen.queryByText('Live')).not.toBeInTheDocument();
+  });
+
+  it('shows a mapped agent as live, with its number and versions', async () => {
+    renderWith(<CallsPage />, signedIn(mapped));
+
+    expect(await screen.findByText('Live')).toBeInTheDocument();
+    expect(screen.getByText('+91 80000 12345')).toBeInTheDocument();
+    expect(screen.getByText('Sarvam app version').nextSibling).toHaveTextContent('3');
+  });
+
+  it('works out the booking rate from the same counts the overview shows', async () => {
+    renderWith(<CallsPage />, signedIn(mapped));
+
+    // 3 bookings from 6 answered calls.
+    expect(await screen.findByText('50%')).toBeInTheDocument();
+  });
+
+  it('does not ask for analytics on behalf of a role that may not read them', async () => {
+    const stub = signedIn(mapped, 'STAFF');
+    renderWith(<CallsPage />, stub);
+
+    expect(await screen.findByText('Call log')).toBeInTheDocument();
+    expect(screen.queryByText('Booking rate')).not.toBeInTheDocument();
+    expect(stub.calls.requests.some((request) => request.path.includes('/analytics/'))).toBe(false);
   });
 });

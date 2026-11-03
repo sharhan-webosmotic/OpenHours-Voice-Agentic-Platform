@@ -17,7 +17,7 @@ export const Toolbar = ({
   /** The primary action, pinned right. */
   readonly action?: ReactNode | undefined;
 }) => (
-  <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+  <div className="flex flex-wrap items-end justify-between gap-3">
     <div className="flex flex-wrap items-end gap-3">{children}</div>
     {action !== undefined && <div className="flex items-center gap-3">{action}</div>}
   </div>
