@@ -365,3 +365,72 @@ describe('the webhook secret never reaches the log', () => {
     expect(log).not.toContain(guess.slice(-12));
   });
 });
+
+/**
+ * THE POSITIVE CONTROL: a path where patient data really does reach the logger, so that
+ * redaction is the only thing between it and the output (Feature 3 review, I8).
+ *
+ * Every other case in this file passed with redaction switched off, because none of today's
+ * paths hand the logger anything identifying. That proves the paths are clean today and says
+ * nothing about the day one is not. This one drives real application code, the ingestion
+ * job's "transcript fetch failed" warning, with a provider error that carries what the
+ * provider sent back, as SDK errors commonly do. With redaction off it leaks and fails.
+ */
+describe('redaction is what keeps an error carrying patient data out of the log', () => {
+  const LEAKED_NAME = 'Perpetua Wolfsbane';
+  const LEAKED_PHONE = '+919812399444';
+  const LEAKED_WORDS = 'the lump on my neck has grown since last month';
+
+  it('logs the failure with every identifying field replaced', async () => {
+    const interactionId = `20261104/redaction_${Date.now()}`;
+
+    await request(app)
+      .post(`/webhooks/sarvam/${webhookSecret}`)
+      .send({ interaction_id: interactionId, duration: 30 });
+
+    const stored = await asPlatform(ownerClient(), (tx) =>
+      tx.webhookEvent.findFirstOrThrow({
+        where: { externalEventId: interactionId },
+        select: { id: true },
+      }),
+    );
+
+    // What a provider SDK attaches to the error it throws: the response it was given.
+    const providerError = Object.assign(new Error('transcript request failed'), {
+      transcript: [{ role: 'user', content: LEAKED_WORDS }],
+      patient: { name: LEAKED_NAME, phone: LEAKED_PHONE },
+    });
+
+    const before = captured.length;
+
+    await processWebhookEvent(stored.id, {
+      provider: {
+        ...sarvamProvider,
+        getInteraction: () =>
+          Promise.resolve({
+            externalCallId: interactionId,
+            startedAt: null,
+            endedAt: null,
+            durationSeconds: 30,
+            direction: 'INBOUND',
+            fromE164: null,
+            toE164: null,
+            endedBy: null,
+            failureReason: null,
+          }),
+        fetchTranscript: () => Promise.reject(providerError),
+      },
+    });
+
+    const log = captured.slice(before).join('\n');
+
+    // The line was written, so the absence below is redaction working rather than silence.
+    expect(log).toContain('transcript fetch failed');
+    expect(log).toContain('[REDACTED]');
+
+    expect(log).not.toContain(LEAKED_NAME);
+    expect(log).not.toContain(LEAKED_PHONE);
+    expect(log).not.toContain('9812399444');
+    expect(log).not.toContain(LEAKED_WORDS);
+  });
+});
