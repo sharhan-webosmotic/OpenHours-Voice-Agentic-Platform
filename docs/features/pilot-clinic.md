@@ -266,11 +266,17 @@ because the agent quotes prices aloud and books by duration.
 | BP and cholesterol management      | 15 min   | Rs 400   | **Placeholder**         |
 | Heart check-up                     | 45 min   | Rs 3,000 | **Placeholder**         |
 
+**Recording is enabled, but no announcement is made to the caller.** The `v1` prompt has no
+recording line. Before a real patient dials, either add an announcement to the greeting or turn
+recording off. Every test call until then is Sharhan's own.
+
 Also not yet stored, because the clinic has not said or the platform has no field for it:
 
-- **No slot length.** Nothing can be booked until it is set.
-- **No greeting, and no recording consent decision.** Both are readiness items. The `v1` prompt
-  carries its own greeting, so the stored one is for readiness and the console only.
+- **No recording consent mode.** Calls are recorded and nothing announces it, and none of the
+  three modes says that: `NOT_RECORDED` would deny the recording, and `ANNOUNCEMENT` or
+  `EXPLICIT_OPT_IN` would claim a notice that is not played. So the mode is left unset, which
+  readiness reports, rather than stored as something untrue. The confirmation is unset with it,
+  because there is no arrangement on record for anyone to have confirmed.
 - **No public holiday calendar.** The platform has none. Closure on public holidays is an FAQ
   answer, so the agent can still offer a free slot on a holiday.
 - **The doctor's experience and languages, payment modes, walk-ins and the landmark** are stored
