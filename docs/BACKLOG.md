@@ -12,6 +12,9 @@ the work lands, not marked done.
 
 | Entry                                                                                    | What                                                           | Due                                                               |
 | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------------------------- |
+| [V3](#v3-a-tool-body-that-fails-validation-is-spoken-as-the-request-is-invalid)          | Tool validation failures speak "The request is invalid."       | **Before a real patient call**                                    |
+| [V4](#v4-a-caller-with-several-upcoming-appointments-cannot-move-or-cancel-one)          | No way to say which appointment to move or cancel              | **Before a real patient call**                                    |
+| [V5](#v5-a-retried-voice-booking-can-make-a-second-appointment)                          | Booking idempotency rests on a client-supplied key             | Before a second clinic                                            |
 | [M1-03](#m1-03-openapi-document-and-generated-client)                                    | OpenAPI document, drift check and generated client             | With M1-14, right after the first real call. Slipped twice        |
 | [M1-14](#m1-14-replace-the-appplatform-guc-with-a-separate-platform-database-role)       | The platform database role replacing `app.platform`            | After the first real call, before a load test or a second clinic  |
 | [V2](#v2-a-racing-voice-booking-can-answer-call-you-back-instead-of-slot-taken)          | Racing voice bookings occasionally answer "call you back"      | **Must be understood before a second clinic**                     |
@@ -219,6 +222,87 @@ D-017 exists to replace.
 a unique index on `(organisation_id, id)` per parent table. Additive, and checked against
 existing rows first, because a row already linked across clinics would make the constraint fail
 to apply, which is itself worth knowing.
+
+---
+
+## V3 A tool body that fails validation is spoken as "The request is invalid."
+
+**Due: before a real patient call.** A test call from a number that is not a patient record may
+go ahead without it, and is in fact where this message is useful: it is the sign that a tool's
+body template in Sarvam is wrong.
+
+The voice tool router turns every 4xx into a 200 whose `message` is the error's `detail`
+(`toSpokenError`, `apps/api/src/voice/tools.routes.ts`). That works for the service's own
+refusals, which are written to be spoken. It does not work for the validator's, because
+`validate()` (`apps/api/src/common/validate.ts`) is shared with the dashboard and its `detail` is
+"The request is invalid." So a misnamed field, a date the model formatted wrongly or a time
+outside `HH:MM` reaches the patient as a sentence that tells them nothing and offers nothing.
+
+**Why it matters:** the bodies are filled by a language model from speech, so a malformed body
+is an expected event on a live line, not only a configuration mistake. D-022 promises the caller
+a sentence they can act on.
+
+**What is owed:** a validation failure on `/voice/tools/*` answers with a human sentence that
+offers a call back, the same shape as the router's other fallbacks. The failing field paths (never
+values) stay in the log line so a broken template can still be diagnosed. A test sends an invalid
+body to each of the six tools and asserts the sentence, and asserts the dashboard's own 400
+problem document is unchanged.
+
+---
+
+## V4 A caller with several upcoming appointments cannot move or cancel one
+
+**Due: before a real patient call.** A patient with a check-up and a follow-up already booked is
+an ordinary patient, not an edge case.
+
+`reschedule` and `cancel` act only on the caller's own line's upcoming appointments
+(`locateAppointment`, `apps/api/src/voice/tools.service.ts`). With exactly one, it is used. With
+several, the tool answers "Which day were you calling about?", but neither body has a field for
+the answer, and the only other selector, `appointmentId`, is known to the agent only for an
+appointment it booked earlier in the same call. So the question is asked and the answer can
+never be used: in practice the caller is offered a call back.
+
+**What is owed:** an optional `date` (`YYYY-MM-DD`, clinic-local, the same format as `book`) on
+both bodies, naming the day of the appointment the caller means. The service matches it against
+the caller's own upcoming appointments, converted to the clinic's zone. One match is acted on.
+None is the existing call-back answer. Two on the same day asks for the time, or offers a call
+back, rather than guessing. The new day of a reschedule keeps its own fields, so the two dates
+must be named so that neither the model nor a reader can confuse them. The prompt and
+`docs/operations/sarvam-configuration.md` are updated with the field, and tests cover one, none
+and several appointments on the named day, and a date belonging to another line's appointment.
+
+---
+
+## V5 A retried voice booking can make a second appointment
+
+**Due: before a second clinic.**
+
+`book` recognises a retry only when the body carries both `callId` and `toolCallId`, or when an
+`Idempotency-Key` header is sent (`idempotencyKey`, `apps/api/src/voice/tools.service.ts`). Both
+are supplied by the client, and Sarvam is not known to supply either: whether a tool receives a
+per-invocation id is UNKNOWN, and so is whether Sarvam retries a tool call at all (`docs/sarvam-contract.md`,
+question 3). The configuration sheet therefore tells the operator to send neither,
+because a fixed value would make every later booking a replay of the first. So today a retried
+tool call books a second appointment if the slot allows it.
+
+**What is owed:** the key is derived on the server from what identifies the booking: the clinic,
+the caller's number, the service and the slot's start instant. It does not rely on a key the
+client sends, and it does not depend on learning whether Sarvam retries: a retry and a repeated
+request become the same thing, answered with the existing appointment and `replayed: true`.
+
+**To settle when it is built:**
+
+- Which number, when the caller's line is withheld: the spoken contact number the record is made
+  with, or no derived key at all.
+- Whether a deliberate second booking on one line, for the same service at the same start, must
+  still be possible (two members of one family with two doctors). If it must, the doctor or the
+  patient belongs in the key. The current code comment rejected a body-derived key for this
+  reason, so the choice should be written down, not made silently.
+- How long a derived key binds. An appointment that was cancelled must not make a later genuine
+  booking of the same slot answer as a replay.
+
+Tests: the same booking sent twice in sequence and ten times concurrently makes one appointment
+and one patient record, with no header and no call identifiers.
 
 ---
 
