@@ -41,17 +41,28 @@ const out = (line: string): void => {
  */
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', 'postgres', 'host.docker.internal']);
 
-export const assertLocalDatabase = (connectionString: string): void => {
-  let host: string;
-
+/** The database's host, without IPv6 brackets, or undefined when the URL cannot be read. */
+const databaseHost = (connectionString: string): string | undefined => {
   try {
-    host = new URL(connectionString).hostname;
+    // A bracketed IPv6 literal arrives as `[::1]`.
+    return new URL(connectionString).hostname.replace(/^\[|\]$/g, '');
   } catch {
+    return undefined;
+  }
+};
+
+/** Whether a connection string points at a local development database. Unreadable is not local. */
+export const isLocalDatabase = (connectionString: string): boolean => {
+  const host = databaseHost(connectionString);
+  return host !== undefined && LOCAL_HOSTS.has(host);
+};
+
+export const assertLocalDatabase = (connectionString: string): void => {
+  const bare = databaseHost(connectionString);
+
+  if (bare === undefined) {
     throw new Error('DATABASE_URL is not a valid URL, so it cannot be confirmed as local');
   }
-
-  // A bracketed IPv6 literal arrives as `[::1]`.
-  const bare = host.replace(/^\[|\]$/g, '');
 
   if (!LOCAL_HOSTS.has(bare)) {
     throw new Error(

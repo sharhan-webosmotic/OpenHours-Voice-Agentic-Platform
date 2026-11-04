@@ -25,6 +25,7 @@
     "db:restore-check": "pnpm --filter @clinicai/api db:restore-check",
     "provision:clinic": "pnpm --filter @clinicai/api provision:clinic",
     "bootstrap:super-admin": "pnpm --filter @clinicai/api bootstrap:super-admin",
+    "reset-password": "pnpm --filter @clinicai/api reset-password",
     "prompt:render": "pnpm --filter @clinicai/api prompt:render",
     "check": "pnpm build && pnpm typecheck && pnpm lint && pnpm test",
     "prepare": "husky",
