@@ -108,6 +108,10 @@ Workable mitigations until Sarvam answers (use all):
 3. Never trust payload fields for authorisation: look up clinic by `deployment_id`/`agent_phone_number` in our DB; ignore unknown ones.
 4. Re-fetch the interaction from the analytics API (authenticated by our key) before acting on anything sensitive. Cheap, and it makes a forged webhook harmless.
 
+**As built (D-006, amended 2026-11-04):** measures 1 and 2 guard the webhook, and the payload is used as it arrives. Measure 4 now runs after the fact: the recording job looks the interaction up in the interactions list (section 5) and marks the call `VERIFIED` or `NOT_FOUND`.
+
+**UNCONFIRMED: whether the interactions list distinguishes an unknown id cleanly.** The design assumes an id Sarvam does not have is simply absent from a list window that should contain it, and that a known one is present once the 60-second cache has passed. Nothing has been run against the real API to show that: not how an unknown id behaves, not whether `filter_conditions` could look one up directly, and not whether a just-finished call can stay out of the list for longer than the cache. Deferred to the first Sarvam session, which has credentials, as a step in `docs/operations/first-real-call.md`. Until then a `NOT_FOUND` is a reason to look, not proof of forgery.
+
 ## 8. Mapping to our tables
 
 | Sarvam                                                   | Ours                                                 |

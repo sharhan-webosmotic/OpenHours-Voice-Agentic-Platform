@@ -75,7 +75,25 @@ Dial the agent number from a phone whose number is **not** a patient record, the
 5. Ring again and cancel it. (`cancel`)
 6. Deliberately ask for a time that is already taken, and one on a day the clinic is closed.
 
-### 12. Verify, in this order
+### 12. Confirm the interactions lookup, and write down what it does (EXTERNAL, read only)
+
+Call verification rests on an assumption the contract marks **UNCONFIRMED** (section 7): that
+Sarvam's interactions list holds a known interaction and simply lacks an unknown one. Nothing
+has checked it against the real API. Do it now, with the credentials this session has.
+
+1. Wait at least five minutes after the test call, past the list's 60-second cache.
+2. List the clinic's interactions for a window around the call (the same request the recording
+   job makes, `GET .../interactions?start_datetime&end_datetime&limit=1000`) and confirm the test
+   call's `interaction_id` is in it.
+3. Make the same request and look for a made-up id in the same `<YYYYMMDD>/<id>` shape.
+4. Record in `docs/sarvam-contract.md` section 7 exactly what came back for each: the status, the
+   envelope, whether an unknown id is simply absent or produces something else, and how long the
+   real call took to appear. Then replace UNCONFIRMED with what was observed.
+5. Check the call in Call History. After the recording job has run it should be `VERIFIED` and
+   carry no warning. If it says "Sarvam has no record of this call", the lookup does not behave as
+   designed, and the verification step needs changing before a second clinic.
+
+### 13. Verify, in this order
 
 | What                       | Where                | What good looks like                                                                                                                             |
 | -------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |

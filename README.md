@@ -55,6 +55,10 @@ pnpm dev                   # API on http://localhost:3000
 If PostgreSQL 5432 is already in use on your machine, change `POSTGRES_PORT` in `.env`
 and the port in `DATABASE_URL` in `apps/api/.env` to match.
 
+The API will not start until its environment sets `SARVAM_WEBHOOK_SOURCE_IPS` or
+`SARVAM_WEBHOOK_IP_CHECK_DISABLED=true` (D-006). `apps/api/.env.example` sets the second for
+local development; an existing `.env` written before 2026-11-04 has neither and needs one added.
+
 Verify the API is up:
 
 ```sh
