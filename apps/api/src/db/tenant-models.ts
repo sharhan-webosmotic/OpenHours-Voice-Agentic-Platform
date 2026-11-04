@@ -40,6 +40,23 @@ export const TENANT_MODELS: ReadonlySet<string> = new Set([
 ]);
 
 /**
+ * Every field the schema types `Json`, on any model.
+ *
+ * The extension refuses nested relation writes (`connect`, `create` and the rest inside
+ * `data`), and it tells a relation field from a value by these names: a JSON column may hold
+ * an object with any keys at all, including `create`, because a provider's webhook payload is
+ * stored as it arrived. Hard-coded for the same reason as TENANT_MODELS, and
+ * `tenant-extension.test.ts` asserts it equals the schema's Json fields and that no relation
+ * field anywhere shares one of these names.
+ */
+export const JSON_FIELDS: ReadonlySet<string> = new Set([
+  'config',
+  'metadata',
+  'payload',
+  'settings',
+]);
+
+/**
  * Organisation is scoped by its PRIMARY KEY, not by an organisation_id column, so it
  * needs a different injection rule from every other model.
  */

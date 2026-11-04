@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { buildTenantExtension } from './tenant-extension.js';
+import { buildTenantExtension, CONFINED_OPERATIONS } from './tenant-extension.js';
+import { JSON_FIELDS } from './tenant-models.js';
 import { CrossTenantWriteError, TenantScopeMissingError } from './errors.js';
 import { runInScope } from './tenant-scope.js';
 
@@ -314,5 +316,147 @@ describe('Organisation is scoped by primary key', () => {
 
     // Organisation has no organisationId column; its primary key IS the tenant id.
     expect(args.data).toEqual({ name: 'New Clinic' });
+  });
+});
+
+/**
+ * A new query shape cannot slip past the extension unnoticed (Feature 3 review, I2 and I3).
+ *
+ * `updateManyAndReturn` was missing from the operation lists and so was passed on with no
+ * injection, and a nested `connect` was never looked at. Both are refused now, and the two
+ * lists these rules depend on are checked against what Prisma actually generates.
+ */
+describe('nothing reaches the database unclassified', () => {
+  const generated = readFileSync(
+    new URL('../generated/prisma/internal/prismaNamespace.ts', import.meta.url),
+    'utf8',
+  );
+  const schema = readFileSync(new URL('../../prisma/schema.prisma', import.meta.url), 'utf8');
+
+  /** The operations the generated client declares for one model, read from its type map. */
+  const declaredOperations = (model: string): readonly string[] => {
+    const start = generated.indexOf(`\n    ${model}: {\n`);
+    const block = generated.slice(start, generated.indexOf('\n    }\n', start));
+    const operations = block.slice(block.indexOf('operations: {'));
+    return [...operations.matchAll(/^ {8}(\w+): \{$/gm)].map((match) => match[1] ?? '');
+  };
+
+  it('confines every operation the generated client declares', () => {
+    const operations = declaredOperations('Patient');
+
+    // A floor, so a parse that found nothing cannot pass vacuously.
+    expect(operations.length).toBeGreaterThanOrEqual(17);
+    expect(operations).toContain('updateManyAndReturn');
+
+    for (const operation of operations) {
+      expect(CONFINED_OPERATIONS, operation).toContain(operation);
+    }
+  });
+
+  it('refuses an operation it does not know, on every confined scope', async () => {
+    for (const scope of [inTenant, inPlatformOrganisation]) {
+      await expect(
+        scope(() => run({ model: 'Patient', operation: 'somethingNewFromPrisma', args: {} })),
+      ).rejects.toThrow(/not an operation the tenant extension confines/);
+    }
+  });
+
+  it('injects the scope into updateManyAndReturn', async () => {
+    const seen = await inPlatformOrganisation(() =>
+      run({
+        model: 'Patient',
+        operation: 'updateManyAndReturn',
+        args: { where: { id: 'patient-of-another-clinic' }, data: { notes: null } },
+      }),
+    );
+
+    expect(seen.where).toEqual({ id: 'patient-of-another-clinic', organisationId: ORG });
+  });
+
+  it.each([
+    ['connect', { patient: { connect: { id: 'x' } } }],
+    ['connectOrCreate', { patient: { connectOrCreate: { where: { id: 'x' }, create: {} } } }],
+    ['a nested create', { items: { create: [{ name: 'x' }] } }],
+    ['a nested update', { patient: { update: { fullName: 'x' } } }],
+    ['a relation set', { items: { set: [{ id: 'x' }] } }],
+  ])('refuses %s inside data, on every confined scope', async (_label, data) => {
+    for (const scope of [inTenant, inPlatformOrganisation]) {
+      await expect(
+        scope(() => run({ model: 'Appointment', operation: 'update', args: { where: {}, data } })),
+      ).rejects.toThrow(CrossTenantWriteError);
+    }
+  });
+
+  it('refuses a nested write in either half of an upsert', async () => {
+    const nested = { patient: { connect: { id: 'x' } } };
+
+    for (const args of [
+      { where: { id: 'a' }, create: { organisationId: ORG, ...nested }, update: {} },
+      { where: { id: 'a' }, create: { organisationId: ORG }, update: nested },
+    ]) {
+      await expect(
+        inPlatformOrganisation(() => run({ model: 'Appointment', operation: 'upsert', args })),
+      ).rejects.toThrow(CrossTenantWriteError);
+    }
+  });
+
+  it('still allows scalar operators, dates and JSON that happens to use the same words', async () => {
+    const seen = await inTenant(() =>
+      run({
+        model: 'WebhookEvent',
+        operation: 'update',
+        args: {
+          where: { id: 'e' },
+          data: {
+            attempts: { increment: 1 },
+            status: { set: 'PROCESSED' },
+            processedAt: new Date('2026-11-03T00:00:00.000Z'),
+            // A provider payload stored as it arrived may contain any key at all.
+            payload: { update: { anything: true }, create: [{ x: 1 }] },
+          },
+        },
+      }),
+    );
+
+    expect(seen.data).toMatchObject({ attempts: { increment: 1 } });
+  });
+
+  it('leaves the unbounded platform scope alone, which row-level security does not confine either', async () => {
+    const seen = await inPlatform(() =>
+      run({
+        model: 'Appointment',
+        operation: 'update',
+        args: { where: { id: 'a' }, data: { patient: { connect: { id: 'x' } } } },
+      }),
+    );
+
+    expect(seen.data).toEqual({ patient: { connect: { id: 'x' } } });
+  });
+
+  it('knows exactly the schema’s Json fields, and no relation shares one of their names', () => {
+    const models = [...schema.matchAll(/^model (\w+) \{([\s\S]*?)^\}/gm)];
+    const modelNames = new Set(models.map((match) => match[1]));
+    const jsonFields = new Set<string>();
+    const relationFields = new Set<string>();
+
+    for (const [, , body] of models) {
+      for (const line of (body ?? '').split('\n')) {
+        const field = /^\s+(\w+)\s+(\w+)(\[\])?\??(\s|$)/.exec(line);
+        if (field?.[1] === undefined || field[2] === undefined) {
+          continue;
+        }
+        if (field[2] === 'Json') {
+          jsonFields.add(field[1]);
+        }
+        if (modelNames.has(field[2])) {
+          relationFields.add(field[1]);
+        }
+      }
+    }
+
+    expect(models.length).toBeGreaterThan(20);
+    expect(relationFields.size).toBeGreaterThan(20);
+    expect([...jsonFields].sort()).toEqual([...JSON_FIELDS].sort());
+    expect([...relationFields].filter((name) => JSON_FIELDS.has(name))).toEqual([]);
   });
 });

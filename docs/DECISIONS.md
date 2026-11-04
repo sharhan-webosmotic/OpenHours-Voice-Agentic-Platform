@@ -403,6 +403,25 @@ zone and settings. The extension now appends the scoped id to `where.AND`, which
 instead: still the "not found" rule 7 asks for, with no error that would itself disclose
 whether the row exists.
 
+**CORRECTION, 2026-11-03 (Feature 3 review, I2 and I3): two query shapes were outside it, and
+are now refused or confined.** `updateManyAndReturn` was in neither operation list, so it was
+passed on with nothing injected, and under this scope it changed and returned another clinic's
+row. A nested relation write (`data: { patient: { connect: { id } } } }`) was never looked at,
+because the extension sees only the top-level operation, and it linked one clinic's appointment
+to another clinic's patient. Now every operation must be in `CONFINED_OPERATIONS` or it is
+refused, and a test reads the generated client's operation list so a shape Prisma adds later
+fails in the gate rather than in production. Nested relation writes are refused on every
+confined scope; write the child row with its own top-level call. The sabotage count quoted
+above is also out of date: removing the `platform-organisation` branch now fails sixteen named
+cases, not six.
+
+**What the extension still cannot confine: a scalar foreign key.** `data: { patientId: <another
+clinic's patient> }` is an ordinary column write, and PostgreSQL checks a foreign key without
+row-level security, so it links across clinics on ANY scope. The control today is that every
+service resolves such an id inside its own scope first (booking checks the patient is
+reachable). The structural fix is composite foreign keys that include `organisation_id`, and it
+is owed in `docs/BACKLOG.md`.
+
 **Raw SQL is outside this extension and cannot be made safe by it.** `$queryRaw` and
 `$executeRaw` bypass every injection above. There is none on this path, and a test asserts that
 by scanning `src/modules`: the only raw statements in the application are the `set_config` calls

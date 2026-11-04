@@ -502,6 +502,48 @@ describe('the operations that need special handling', () => {
     ).rejects.toThrow();
   }, 120_000);
 
+  it('touches and returns nothing when updateManyAndReturn targets another clinic by id', async () => {
+    // Missing from the extension until the Feature 3 review (I2): it returned the other
+    // clinic's row and changed it. The check that it changed nothing is the test below.
+    const returned = await asOrganisationSystem(
+      'platform-scope-isolation updateManyAndReturn',
+      own.organisationId,
+      (db) =>
+        db.patient.updateManyAndReturn({
+          where: { id: other.ids.patients ?? '' },
+          data: { notes: 'probe' },
+          select: { id: true },
+        }),
+    );
+
+    expect(returned).toEqual([]);
+  }, 120_000);
+
+  it('refuses a nested connect, and links nothing to the other clinic', async () => {
+    // Review I3: the extension sees the top-level operation only, so a nested `connect`
+    // linked this clinic's appointment to the other clinic's patient.
+    const appointmentId = own.ids.appointments ?? '';
+
+    await expect(
+      asOrganisationSystem('platform-scope-isolation nested connect', own.organisationId, (db) =>
+        db.appointment.update({
+          where: { id: appointmentId },
+          data: { patient: { connect: { id: other.ids.patients ?? '' } } },
+          select: { id: true },
+        }),
+      ),
+    ).rejects.toThrow(CrossTenantWriteError);
+
+    const after = await asOrganisationSystem(
+      'platform-scope-isolation verify not linked',
+      own.organisationId,
+      (db) =>
+        db.appointment.findUnique({ where: { id: appointmentId }, select: { patientId: true } }),
+    );
+
+    expect(after?.patientId).toBe(own.ids.patients);
+  }, 120_000);
+
   it('leaves the other clinic patient exactly as it was', async () => {
     // The assertions above are about return values. This one checks the database, because a
     // write that reported nothing and still happened is the failure that matters.

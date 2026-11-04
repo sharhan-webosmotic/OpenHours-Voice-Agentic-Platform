@@ -198,3 +198,25 @@ once its app id is set, so a genuine call that arrived early is not lost. The ca
 does not cover it, because it only walks agents that already have an app id and only the
 last few hours. Worth deciding at the same time whether the settings save should refuse to
 mint a webhook secret until an app id exists, which removes the state at the source.
+
+---
+
+## T1 Foreign keys do not carry the organisation, so a scalar id can link two clinics
+
+**Due: before a second clinic, the same point as M1-14 (D-016).**
+
+Every foreign key is single-column (`appointments.patient_id` references `patients(id)` alone).
+PostgreSQL checks a foreign key without row-level security, so `appointment.update({ data: {
+patientId: <another clinic's patient> } })` succeeds on any scope, including an ordinary clinic
+user's. The tenant extension cannot see it: it is a scalar column write, not the nested
+`connect` the extension now refuses (Feature 3 review, I3, recorded in D-017).
+
+**The control today** is that every service resolves such an id inside its own scope before
+writing it, so a foreign id is "not found" first. That is a convention, which is the thing
+D-017 exists to replace.
+
+**What is owed:** composite foreign keys, `(organisation_id, patient_id)` referencing
+`patients (organisation_id, id)` and the same for every tenant-to-tenant reference, which needs
+a unique index on `(organisation_id, id)` per parent table. Additive, and checked against
+existing rows first, because a row already linked across clinics would make the constraint fail
+to apply, which is itself worth knowing.

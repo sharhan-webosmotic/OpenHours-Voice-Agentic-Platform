@@ -1,5 +1,5 @@
 import { CrossTenantWriteError, TenantScopeMissingError } from './errors.js';
-import { ORGANISATION_MODEL, TENANT_MODELS } from './tenant-models.js';
+import { JSON_FIELDS, ORGANISATION_MODEL, TENANT_MODELS } from './tenant-models.js';
 import { currentScope } from './tenant-scope.js';
 
 /**
@@ -27,6 +27,9 @@ const WHERE_OPERATIONS = new Set([
   'groupBy',
   'update',
   'updateMany',
+  // Missing until the Feature 3 review (I2): under the platform-organisation scope it updated
+  // and returned another clinic's rows, because nothing injected its `where`.
+  'updateManyAndReturn',
   'delete',
   'deleteMany',
   'upsert',
@@ -34,6 +37,51 @@ const WHERE_OPERATIONS = new Set([
 
 /** Operations that write new rows and therefore need organisation_id in `data`. */
 const CREATE_OPERATIONS = new Set(['create', 'createMany', 'createManyAndReturn', 'upsert']);
+
+/**
+ * EVERY OPERATION THIS EXTENSION KNOWS HOW TO CONFINE, and nothing else is let through.
+ *
+ * The list used to be consulted only to decide what to inject, so an operation missing from it
+ * was simply passed on unscoped: `updateManyAndReturn` was, and changed another clinic's rows
+ * (review I2). Now an operation that is not here is REFUSED on a confined scope, so the next
+ * query shape Prisma adds fails loudly in the first test that uses it instead of quietly
+ * crossing a tenant. `tenant-extension.test.ts` asserts this covers every operation the
+ * generated client declares.
+ */
+export const CONFINED_OPERATIONS: ReadonlySet<string> = new Set([
+  ...WHERE_OPERATIONS,
+  ...CREATE_OPERATIONS,
+]);
+
+/** Operations whose `data` (or an upsert's `create` and `update`) is written to rows. */
+const DATA_OPERATIONS = new Set([
+  'create',
+  'createMany',
+  'createManyAndReturn',
+  'update',
+  'updateMany',
+  'updateManyAndReturn',
+  'upsert',
+]);
+
+/**
+ * The operators that write THROUGH a relation, inside `data`.
+ *
+ * `set` is not in this list because it is also the scalar update operator; it is handled
+ * below by the shape of its value.
+ */
+const RELATION_WRITE_KEYS = new Set([
+  'connect',
+  'connectOrCreate',
+  'create',
+  'createMany',
+  'delete',
+  'deleteMany',
+  'disconnect',
+  'update',
+  'updateMany',
+  'upsert',
+]);
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -62,6 +110,56 @@ const toConditionList = (value: unknown): readonly unknown[] => {
 const assertSameOrganisation = (value: unknown, organisationId: string, what: string): void => {
   if (value !== undefined && value !== organisationId) {
     throw new CrossTenantWriteError(`${what} names another organisation`);
+  }
+};
+
+/** A literal object, as opposed to a Date, a Decimal, an array or null. */
+const isPlainObject = (value: unknown): value is UnknownRecord =>
+  typeof value === 'object' &&
+  value !== null &&
+  !Array.isArray(value) &&
+  Object.getPrototypeOf(value) === Object.prototype;
+
+/**
+ * Whether a field's value in `data` writes through a relation.
+ *
+ * A relation `set` takes unique-where objects, while a scalar `set` takes a plain value, a
+ * Date or a list of plain values, so the shape tells them apart.
+ */
+const isRelationWrite = (value: unknown): boolean =>
+  isPlainObject(value) &&
+  Object.entries(value).some(
+    ([key, inner]) =>
+      RELATION_WRITE_KEYS.has(key) ||
+      (key === 'set' &&
+        (isPlainObject(inner) || (Array.isArray(inner) && inner.some(isPlainObject)))),
+  );
+
+/**
+ * REFUSES A NESTED RELATION WRITE, because nothing here can confine it (review I3).
+ *
+ * This extension sees the top-level operation only. `appointment.update({ data: { patient: {
+ * connect: { id } } } })` names a patient the injection never looks at, and under the
+ * platform-organisation scope, where row-level security is off, it linked one clinic's
+ * appointment to another clinic's patient. No repository uses a nested write, so refusing them
+ * costs nothing today and keeps a later one from becoming a hole. Write the child row with its
+ * own top-level call, which this extension does scope.
+ */
+const assertNoNestedWrites = (data: unknown, where: string): void => {
+  const rows = Array.isArray(data) ? data : [data];
+
+  for (const row of rows) {
+    if (!isPlainObject(row)) {
+      continue;
+    }
+
+    for (const [field, value] of Object.entries(row)) {
+      if (!JSON_FIELDS.has(field) && isRelationWrite(value)) {
+        throw new CrossTenantWriteError(
+          `${where}.${field} is a nested relation write, which the tenant scope cannot confine`,
+        );
+      }
+    }
   }
 };
 
@@ -197,6 +295,18 @@ export const buildTenantExtension = () => ({
           throw new TenantScopeMissingError(
             `${modelName} is not a known tenant model; add it to TENANT_MODELS`,
           );
+        }
+
+        if (!CONFINED_OPERATIONS.has(operationName)) {
+          throw new TenantScopeMissingError(
+            `${modelName}.${operationName} is not an operation the tenant extension confines`,
+          );
+        }
+
+        if (DATA_OPERATIONS.has(operationName)) {
+          assertNoNestedWrites(next.data, `${modelName}.data`);
+          assertNoNestedWrites(next.create, `${modelName}.create`);
+          assertNoNestedWrites(next.update, `${modelName}.update`);
         }
 
         if (WHERE_OPERATIONS.has(operationName)) {
