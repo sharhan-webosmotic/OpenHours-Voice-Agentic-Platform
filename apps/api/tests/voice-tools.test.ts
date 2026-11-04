@@ -653,6 +653,35 @@ describe('the caller is identified by their own line', () => {
  * I4). They used to be two transactions, so every refused booking left a patient behind.
  */
 describe('ten callers racing for one slot', () => {
+  type RaceResponse = { readonly status: number; readonly body: unknown };
+
+  const raceOutcome = (
+    responses: readonly RaceResponse[],
+    rows: { readonly patients: number; readonly appointments: number },
+  ) => ({
+    statuses: [...new Set(responses.map((response) => response.status))],
+    booked: responses.filter((response) => envelopeOf(response).ok).length,
+    refusals: [
+      ...new Set(
+        responses
+          .filter((response) => !envelopeOf(response).ok)
+          .map((response) => envelopeOf(response).message)
+          // Both wordings of a taken slot are one outcome. Anything else, such as the neutral
+          // sentence a server error becomes, appears verbatim and fails the comparison.
+          .map((message) => (/taken|no longer available/i.test(message) ? 'slot taken' : message)),
+      ),
+    ].sort(),
+    ...rows,
+  });
+
+  const ONE_WINNER = {
+    statuses: [200],
+    booked: 1,
+    refusals: ['slot taken'],
+    patients: 1,
+    appointments: 1,
+  };
+
   it('ten NEW callers: one booking, nine spoken refusals, and exactly one new record', async () => {
     const when = nextBookableLocal();
     const lines = Array.from({ length: 10 }, (_, index) => `+9198123007${String(10 + index)}`);
@@ -667,9 +696,6 @@ describe('ten callers racing for one slot', () => {
       ),
     );
 
-    expect(responses.map((response) => response.status)).toEqual(Array(10).fill(200));
-    expect(responses.filter((response) => envelopeOf(response).ok)).toHaveLength(1);
-
     const rows = await asPlatform(ownerClient(), async (tx) => ({
       patients: await tx.patient.count({
         where: { organisationId: clinic.organisationId, phone: { in: lines } },
@@ -679,7 +705,8 @@ describe('ten callers racing for one slot', () => {
       }),
     }));
 
-    expect(rows).toEqual({ patients: 1, appointments: 1 });
+    // One comparison of the whole picture, so a failure says what every caller was told.
+    expect(raceOutcome(responses, rows)).toEqual(ONE_WINNER);
   });
 
   it('one NEW caller whose booking is retried ten times without a key: one record', async () => {
@@ -692,13 +719,16 @@ describe('ten callers racing for one slot', () => {
       ),
     );
 
-    expect(responses.map((response) => response.status)).toEqual(Array(10).fill(200));
-    expect(responses.filter((response) => envelopeOf(response).ok)).toHaveLength(1);
-    expect(
-      await asPlatform(ownerClient(), (tx) =>
-        tx.patient.count({ where: { organisationId: clinic.organisationId, phone: line } }),
-      ),
-    ).toBe(1);
+    const rows = await asPlatform(ownerClient(), async (tx) => ({
+      patients: await tx.patient.count({
+        where: { organisationId: clinic.organisationId, phone: line },
+      }),
+      appointments: await tx.appointment.count({
+        where: { organisationId: clinic.organisationId, patient: { phone: line } },
+      }),
+    }));
+
+    expect(raceOutcome(responses, rows)).toEqual(ONE_WINNER);
   });
 
   it('a replayed booking from a withheld line creates no second record', async () => {
