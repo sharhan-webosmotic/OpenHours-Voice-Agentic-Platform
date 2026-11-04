@@ -279,7 +279,7 @@ export type InboxEventRow = {
   readonly id: string;
   readonly organisationId: string | null;
   readonly externalEventId: string;
-  readonly status: 'RECEIVED' | 'PROCESSED' | 'FAILED' | 'UNVERIFIED';
+  readonly status: 'RECEIVED' | 'PROCESSED' | 'FAILED';
   readonly payload: unknown;
   readonly attempts: number;
 };
@@ -316,7 +316,7 @@ export const findInboxEvent = async (db: TenantDb, id: string): Promise<InboxEve
 export const markInboxEvent = async (
   db: TenantDb,
   id: string,
-  status: 'PROCESSED' | 'FAILED' | 'UNVERIFIED',
+  status: 'PROCESSED' | 'FAILED',
   lastError: string | null,
   processedAt?: Date,
 ): Promise<void> => {

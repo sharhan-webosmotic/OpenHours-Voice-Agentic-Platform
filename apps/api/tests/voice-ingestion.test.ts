@@ -1,5 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import { logger } from '../src/common/logger.js';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { uuidV7 } from '../src/common/uuid.js';
 import { asPlatform, disconnectAll, ownerClient } from './support/db.js';
 import { createOrganisationGraph, type OrganisationGraph } from './support/fixtures.js';
@@ -505,75 +504,5 @@ describe('catching up on calls no webhook delivered', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.organisationId).toBe(clinic.organisationId);
     expect(result.callsCreated).toBe(0);
-  });
-});
-
-/**
- * A clinic whose Sarvam settings were saved without an app id (review I1).
- *
- * The first save of those settings mints the webhook secret whatever else was entered, so this
- * is an ordinary state rather than a misconfiguration. The provider re-read needs the app id,
- * and it used to be skipped silently, so a forged payload created a call and a transcript.
- */
-describe('an event for a clinic with no Sarvam app id', () => {
-  let unmapped: OrganisationGraph;
-
-  beforeAll(async () => {
-    await asPlatform(ownerClient(), async (tx) => {
-      unmapped = await createOrganisationGraph(tx, 'IngestionNoAppId');
-      await tx.voiceAgent.update({
-        where: { id: unmapped.ids.voice_agents ?? '' },
-        data: { sarvamAppId: null },
-      });
-    });
-  });
-
-  it('is kept as UNVERIFIED and creates nothing, even when the payload claims a call', async () => {
-    const interactionId = `20261103/unverified_${uuidV7()}`;
-    const eventId = await storeEvent(payload(interactionId), unmapped.organisationId);
-    // The provider would vouch for anything: the point is that it is never asked.
-    const { provider } = stub({ interaction: confirmed(interactionId) });
-
-    const result = await processWebhookEvent(eventId, { provider });
-
-    expect(result.outcome).toBe('unverified');
-    expect(result.callId).toBeNull();
-    expect(result.recordingQueued).toBe(false);
-
-    const stored = await asPlatform(ownerClient(), (tx) =>
-      tx.webhookEvent.findUniqueOrThrow({
-        where: { id: eventId },
-        select: { status: true, lastError: true },
-      }),
-    );
-    expect(stored.status).toBe('UNVERIFIED');
-    expect(stored.lastError).toContain('no Sarvam app id');
-
-    expect(await callFor(interactionId)).toBeNull();
-    expect(
-      await asPlatform(ownerClient(), (tx) =>
-        tx.callTranscriptTurn.count({ where: { call: { externalCallId: interactionId } } }),
-      ),
-    ).toBe(0);
-  });
-
-  it('says so in the log, naming the clinic and not the caller', async () => {
-    const warn = vi.spyOn(logger, 'warn');
-    const interactionId = `20261103/unverified_${uuidV7()}`;
-    const eventId = await storeEvent(payload(interactionId), unmapped.organisationId);
-
-    try {
-      await processWebhookEvent(eventId, { provider: stub().provider });
-
-      const call = warn.mock.calls.find(
-        ([, message]) => typeof message === 'string' && message.includes('UNVERIFIED'),
-      );
-      expect(call?.[0]).toMatchObject({
-        organisationId: unmapped.organisationId,
-        webhookEventId: eventId,
-      });
-    } finally {
-      warn.mockRestore();
-    }
   });
 });

@@ -182,25 +182,6 @@ test that has to change is the one that documents the gap.
 
 ---
 
-## V2 Webhook events stored as UNVERIFIED are never replayed
-
-**Due: before a clinic is switched to taking real calls with its Sarvam app id entered after
-its webhook secret was issued.**
-
-A webhook for a clinic whose agent has no `sarvam_app_id` is now stored with status
-`UNVERIFIED` and nothing is created from it, because the provider re-read that D-006 depends
-on cannot run (Feature 3 review, I1). That state is ordinary rather than rare: the first save
-of a clinic's Sarvam settings mints the webhook secret whether or not an app id was entered,
-so a clinic can be receiving deliveries before it can verify them.
-
-**What is owed:** a way to re-run `processWebhookEvent` over a clinic's `UNVERIFIED` events
-once its app id is set, so a genuine call that arrived early is not lost. The catch-up job
-does not cover it, because it only walks agents that already have an app id and only the
-last few hours. Worth deciding at the same time whether the settings save should refuse to
-mint a webhook secret until an app id exists, which removes the state at the source.
-
----
-
 ## T1 Foreign keys do not carry the organisation, so a scalar id can link two clinics
 
 **Due: before a second clinic, the same point as M1-14 (D-016).**

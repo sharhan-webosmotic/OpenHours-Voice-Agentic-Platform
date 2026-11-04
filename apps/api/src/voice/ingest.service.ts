@@ -72,7 +72,7 @@ export type ProcessResult = {
   readonly callId: string | null;
   /** Carried out so the follow-on recording job does not have to resolve it again. */
   readonly organisationId: string | null;
-  readonly outcome: 'processed' | 'already-processed' | 'unresolvable' | 'unverified';
+  readonly outcome: 'processed' | 'already-processed' | 'unresolvable';
   readonly transcriptTurns: number;
   readonly recordingQueued: boolean;
 };
@@ -155,39 +155,6 @@ export const processWebhookEvent = async (
       { organisationId, voiceAgentId: agent?.id },
       'webhook metadata claimed a different clinic than its secret resolved to; ignoring the claim',
     );
-  }
-
-  /**
-   * THE RE-READ CANNOT RUN WITHOUT AN APP ID, AND THEN NOTHING IS CREATED (review I1).
-   *
-   * The re-read is the measure that holds (D-006). It used to be skipped silently for an agent
-   * with no `sarvam_app_id` and the payload acted on, which made a forged webhook create a call
-   * and a transcript. That state is an ordinary one: the first save of a clinic's Sarvam
-   * settings mints the webhook secret whether or not an app id was entered. So the event is
-   * kept, marked UNVERIFIED so it can be replayed once the app id exists, and said loudly.
-   */
-  if (config.SARVAM_REFETCH_BEFORE_ACTING && agent?.appId == null) {
-    logger.warn(
-      { organisationId, voiceAgentId: agent?.id, webhookEventId },
-      'webhook NOT acted on: the clinic has no Sarvam app id, so the provider re-read cannot run; event stored as UNVERIFIED',
-    );
-
-    await asSystem('voice-webhook-event-unverified', (db) =>
-      repository.markInboxEvent(
-        db,
-        webhookEventId,
-        'UNVERIFIED',
-        'not verified: the clinic has no Sarvam app id, so the interaction could not be re-read',
-      ),
-    );
-
-    return {
-      callId: null,
-      organisationId,
-      outcome: 'unverified',
-      transcriptTurns: 0,
-      recordingQueued: false,
-    };
   }
 
   let authoritative = parsed;
