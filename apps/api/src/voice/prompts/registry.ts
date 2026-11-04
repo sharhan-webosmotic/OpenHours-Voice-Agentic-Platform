@@ -1,5 +1,6 @@
 import { MASTER_PROMPT_V0_PLACEHOLDER } from './master-v0-placeholder.js';
 import { MASTER_PROMPT_V0_CALLER_IDENTITY } from './master-v0-caller-identity.js';
+import { MASTER_PROMPT_V1 } from './master-v1.js';
 
 /**
  * Every master prompt version the platform knows, keyed by the string a clinic stores.
@@ -71,6 +72,15 @@ const VERSIONS: readonly PromptVersion[] = [
     version: 'v0-caller-identity',
     template: MASTER_PROMPT_V0_CALLER_IDENTITY,
     approved: false,
+  },
+  /**
+   * Approved because its wording was tested on real calls before it was landed. Written for
+   * Sudhir Heart Care Clinic alone, so it is chosen per clinic and is not the default below.
+   */
+  {
+    version: 'v1',
+    template: MASTER_PROMPT_V1,
+    approved: true,
   },
 ];
 

@@ -64,6 +64,25 @@ Manager. Capture stdout: the password is shown once and is unrecoverable, becaus
 argon2 hash is stored. Hand it over out of band and let the first sign-in replace it. If it
 is lost, the account has to be removed in SQL and the command run again.
 
+## Resetting a lost password
+
+Also a one-off command and never an HTTP route, for the same reason.
+
+```
+pnpm reset-password someone@clinicai.health
+```
+
+It refuses an email no user has. Against a local database it runs as it is. Against any other
+host it refuses unless `RESET_PASSWORD_CONFIRM=i-am-resetting-a-password-on-a-shared-database`
+is set, so a `DATABASE_URL` left pointing at production cannot reset a real account by
+accident. "Local" is the same allow-list `pnpm provision:clinic` uses.
+
+In one transaction it stores the argon2 hash of a new random password, sets
+`mustChangePassword`, clears any lockout, revokes every live refresh token, and writes a
+`user.password_reset` audit row whose actor is the command. The password is printed once to
+stdout and never logged. An access token issued before the reset still works until it expires
+(15 minutes by default), because access tokens cannot be revoked (D-002). It cannot be renewed.
+
 ## Creating and configuring a clinic
 
 1. Sign in to the admin console and open **Clinics**.
@@ -129,10 +148,13 @@ It needs the API's environment, not just `DATABASE_URL`, because it goes through
 `asSystem` scope the API uses. That is deliberate: reading a clinic's whole configuration from
 a terminal leaves the same audit trail as reading it through the console.
 
-**The wording is a placeholder.** `v0-placeholder` is marked unapproved and the command warns
-on every render. What is finished and reviewable is the template format, the substitution set,
-the versioning and the renderer. The approved text lands as `v1` in
-`apps/api/src/voice/prompts/`, and adopting it means adding that file and the registry entry.
+**`v1` is the approved wording, and it is written for one clinic.** It is the Hindi-first
+prompt for Sudhir Heart Care Clinic, tested on real calls and landed character for character in
+`apps/api/src/voice/prompts/master-v1.ts`. Only the clinic name and the address are templated.
+The persona, the doctor, the Devanagari name and the KNOWLEDGE block are that clinic's, so `v1`
+is not the default: a clinic renders it only when its Sarvam mapping records `v1`. Every other
+clinic still renders the unapproved `v0-caller-identity`, and the command warns on every render
+of it. A second clinic needs its own version or a `v1` generalised into a new file.
 
 ### Clinics created before 2026-11-03 carry a version nobody recorded
 
@@ -226,9 +248,38 @@ SHA-256 hash: no endpoint can read it back.
 **Regenerating it breaks the live agent** until the new value is pasted into Sarvam, so the
 console asks for confirmation first and an ordinary save never mints a new one.
 
+## The pilot clinic: values to confirm before a real patient call
+
+Sudhir Heart Care Clinic was provisioned on 2026-11-04 from details the clinic gave. Two
+consultation prices and durations were confirmed by the clinic. **Every other service's duration
+and price is a placeholder** and must be confirmed with the clinic before a real patient call,
+because the agent quotes prices aloud and books by duration.
+
+| Service                            | Duration | Price    | Status                  |
+| ---------------------------------- | -------- | -------- | ----------------------- |
+| Cardiac consultation (first visit) | 15 min   | Rs 700   | Confirmed by the clinic |
+| Cardiac consultation (follow-up)   | 15 min   | Rs 400   | Confirmed by the clinic |
+| ECG                                | 15 min   | Rs 300   | **Placeholder**         |
+| 2D Echo                            | 30 min   | Rs 1,500 | **Placeholder**         |
+| TMT (stress test)                  | 45 min   | Rs 2,000 | **Placeholder**         |
+| Holter monitoring                  | 15 min   | Rs 2,500 | **Placeholder**         |
+| BP and cholesterol management      | 15 min   | Rs 400   | **Placeholder**         |
+| Heart check-up                     | 45 min   | Rs 3,000 | **Placeholder**         |
+
+Also not yet stored, because the clinic has not said or the platform has no field for it:
+
+- **No slot length.** Nothing can be booked until it is set.
+- **No greeting, and no recording consent decision.** Both are readiness items. The `v1` prompt
+  carries its own greeting, so the stored one is for readiness and the console only.
+- **No public holiday calendar.** The platform has none. Closure on public holidays is an FAQ
+  answer, so the agent can still offer a free slot on a holiday.
+- **The doctor's experience and languages, payment modes, walk-ins and the landmark** are stored
+  as FAQ answers, because there are no fields for them. `v1` states the experience and payment
+  modes itself, in its KNOWLEDGE block.
+
 ## Known gaps
 
-- **The master prompt wording is a placeholder.** The mechanism is finished; the words are not.
+- **Only one clinic has approved prompt wording.** `v1` is Sudhir Heart Care Clinic's. The default for any other clinic is still the placeholder.
 - **Overnight opening hours are refused.** A clinic open 22:00 to 02:00 cannot be expressed.
   Refused in the schema and by a CHECK constraint rather than stored wrongly.
 - ~~**Availability is not fetched.**~~ **CLOSED.** The six tool endpoints exist
