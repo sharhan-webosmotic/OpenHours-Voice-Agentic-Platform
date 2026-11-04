@@ -157,33 +157,85 @@ describe('a repeat delivery changes nothing', () => {
   });
 });
 
-describe('a body it cannot read is still kept', () => {
-  it('stores an event with no interaction id under a digest of itself', async () => {
-    const response = await post(secret, { something: 'that is not a sarvam webhook' });
+/**
+ * Validated on the way in (D-006 as amended on 2026-11-04). With no provider re-read in front
+ * of it, the adapter's schema is all that stands between an unauthenticated body and the
+ * database, so a body that fails it is answered 200 and stored nowhere.
+ */
+describe('a body that fails validation is refused, not stored', () => {
+  const eventsFor = async (organisationId: string): Promise<number> =>
+    asPlatform(ownerClient(), (tx) => tx.webhookEvent.count({ where: { organisationId } }));
 
+  it.each([
+    ['no interaction id', { something: 'that is not a sarvam webhook' }],
+    ['an interaction id of the wrong type', { interaction_id: 12345 }],
+    ['an interaction id with spaces in it', { interaction_id: '2026 1104 / x' }],
+    ['an interaction id over its bound', { interaction_id: 'x'.repeat(201) }],
+    [
+      'a phone number over its bound',
+      { interaction_id: 'ok/1', user_phone_number: '9'.repeat(33) },
+    ],
+    ['a negative duration', { interaction_id: 'ok/2', duration: -5 }],
+    ['a duration longer than a day', { interaction_id: 'ok/3', duration: 90_000 }],
+    ['a transcript that is not a list', { interaction_id: 'ok/4', interaction_transcript: 'hi' }],
+    [
+      'a transcript turn over its bound',
+      {
+        interaction_id: 'ok/5',
+        interaction_transcript: [{ role: 'user', en_text: 'a'.repeat(20_001) }],
+      },
+    ],
+    [
+      'more transcript turns than any call has',
+      {
+        interaction_id: 'ok/6',
+        interaction_transcript: Array.from({ length: 2_001 }, () => ({
+          role: 'user',
+          en_text: 'a',
+        })),
+      },
+    ],
+  ])('refuses %s with a 200 and stores nothing', async (_label, body) => {
+    const before = await eventsFor(clinic.organisationId);
+
+    const response = await post(secret, body);
+
+    // 200 so Sarvam does not re-send something that will fail again; the body says so.
     expect(response.status).toBe(200);
-
-    const event = await asPlatform(ownerClient(), (tx) =>
-      tx.webhookEvent.findFirst({
-        where: {
-          organisationId: clinic.organisationId,
-          externalEventId: { startsWith: 'unparsed:' },
-        },
-        select: { payload: true, status: true },
-      }),
-    );
-
-    /**
-     * 200 AND STORED, because the alternative is a provider retrying something we cannot
-     * read and nobody ever seeing it. The digest gives a repeat of the same unreadable body
-     * one row rather than many, and the row is the evidence for whoever has to work out what
-     * Sarvam sent.
-     */
-    expect(event).not.toBeNull();
-    expect(event?.status).toBe('RECEIVED');
-    expect(event?.payload).toMatchObject({ something: 'that is not a sarvam webhook' });
+    expect(jsonBody(response)).toEqual({ ok: false, received: false });
+    expect(await eventsFor(clinic.organisationId)).toBe(before);
   });
 
+  it('refuses a body the JSON parser cannot read the same way, and stores nothing', async () => {
+    const before = await eventsFor(clinic.organisationId);
+
+    const response = await request(app)
+      .post(`/webhooks/sarvam/${secret}`)
+      .set('Content-Type', 'application/json')
+      .send('{"interaction_id":"20261104/cut","interaction_transcript":[{"en_text":"cut off');
+
+    expect(response.status).toBe(200);
+    expect(jsonBody(response)).toEqual({ ok: false, received: false });
+    expect(await eventsFor(clinic.organisationId)).toBe(before);
+  });
+
+  it('accepts a long call whose transcript is over the general 100 kb body limit', async () => {
+    const id = `20261104/long_${Date.now()}`;
+    // About 300 kb of speech: a long conversation in two languages.
+    const turns = Array.from({ length: 600 }, (_, index) => ({
+      role: index % 2 === 0 ? 'assistant' : 'user',
+      en_text: 'a sentence of ordinary speech, repeated. '.repeat(12),
+    }));
+
+    const response = await post(secret, { ...payload(id), interaction_transcript: turns });
+
+    expect(response.status).toBe(200);
+    expect(jsonBody<{ received: boolean }>(response).received).toBe(true);
+    expect(await storedEvent(id)).not.toBeNull();
+  });
+});
+
+describe('a valid body is kept as it arrived', () => {
   it('keeps the raw body byte for byte, which is what the adapter is checked against', async () => {
     const id = `20261102/raw_${Date.now()}`;
     const body = { ...payload(id), an_undocumented_field: { nested: [1, 2, 3] } };

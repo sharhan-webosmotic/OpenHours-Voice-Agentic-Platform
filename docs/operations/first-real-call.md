@@ -54,13 +54,15 @@ In the deployment's `webhook_config`:
 ### 10. Turn on the source-address allow-list — EXTERNAL (configuration)
 
 Set `SARVAM_WEBHOOK_SOURCE_IPS=4.213.167.70,35.154.84.150`, the two addresses the contract
-publishes (section 2). It is empty by default, which is right for development and wrong for
-production.
+publishes (section 2). The API will not start without a choice here (D-006): either this list,
+or `SARVAM_WEBHOOK_IP_CHECK_DISABLED=true`, which runs without the check and should be a
+deliberate decision for this deployment, not a default.
 
 **UNKNOWN, and worth confirming before relying on it:** whether those addresses apply to
 webhooks as well as to tool calls. The contract marks it so. If a test call's webhook is
 refused with a 404 and the log says the source address is not allow-listed, that is the answer:
-clear the setting, record what was observed, and lean on measures one and three.
+replace the list with `SARVAM_WEBHOOK_IP_CHECK_DISABLED=true`, record what was observed, and
+rely on the URL secret and the after-the-fact verification until the right addresses are known.
 
 ### 11. Place the call — EXTERNAL
 
@@ -87,13 +89,14 @@ Dial the agent number from a phone whose number is **not** a patient record, the
 
 ## What to do when it does not work
 
-| Symptom                                                                                  | First thing to check                                                                                                                                           |
-| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The agent says it cannot do that, every time                                             | The tool secret. A 401 from `/voice/tools/*` is in the API log as "voice tool call refused"                                                                    |
-| The agent books but the call history stays empty                                         | The webhook URL's secret, and the IP allow-list. A refused webhook is a 404 and logs "webhook refused"                                                         |
-| A call row appears with no transcript                                                    | Expected for a few minutes: the contract says an unknown id answers 200 with no messages and should be retried. The job retries six times with backoff         |
-| A call row appears and the event says FAILED with "the provider has no such interaction" | The re-read could not confirm the call. Check `SARVAM_ORG_ID` and `SARVAM_WORKSPACE_ID` before suspecting a forgery: a wrong workspace looks exactly like this |
-| Everything works and no recording arrives                                                | `RECORDINGS_BUCKET` and the storage credentials. The job logs its failure with the status Sarvam answered                                                      |
+| Symptom                                                                        | First thing to check                                                                                                                                            |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The agent says it cannot do that, every time                                   | The tool secret. A 401 from `/voice/tools/*` is in the API log as "voice tool call refused"                                                                     |
+| The agent books but the call history stays empty                               | The webhook URL's secret, and the IP allow-list. A refused webhook is a 404 and logs "webhook refused"                                                          |
+| A call row appears with no transcript                                          | The webhook carried none: the transcript is taken from the payload as it arrived, with no separate fetch. Look at the stored event's `interaction_transcript`   |
+| A webhook is answered `{ "ok": false, "received": false }` and no call appears | The body failed validation. The log line "webhook refused: body failed validation" names the failing field paths                                                |
+| The Call History drawer says "Sarvam has no record of this call"               | The interactions lookup did not find it. Check `SARVAM_ORG_ID` and `SARVAM_WORKSPACE_ID` before suspecting a forgery: a wrong workspace looks exactly like this |
+| Everything works and no recording arrives                                      | `RECORDINGS_BUCKET` and the storage credentials. The job logs its failure with the status Sarvam answered                                                       |
 
 ## Rolling back — EXTERNAL
 

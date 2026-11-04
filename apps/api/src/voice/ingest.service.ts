@@ -25,13 +25,14 @@ import * as repository from './voice.repository.js';
  * `(call_id, turn_index)`, and the recording key is written once and overwritten with the
  * same value.
  *
- * ─── THE PAYLOAD IS NEVER THE AUTHORITY (D-006) ─────────────────────────────────
+ * ─── THE PAYLOAD IS USED AS IT ARRIVED, AND VERIFIED AFTER (D-006) ──────────────
  *
- * Sarvam documents no webhook signature, so the body is a hint that something happened. The
- * clinic comes from the URL secret, and with `SARVAM_REFETCH_BEFORE_ACTING` on, the
- * interaction is re-read from the authenticated analytics API and the provider's own figures
- * are preferred over the payload's. A forged webhook then cannot create a call that does not
- * exist in the clinic's workspace.
+ * The clinic comes from the URL secret and the body was validated at the route. The call and
+ * its transcript are created from the payload with no provider call in front of them, so a
+ * call appears as soon as its event is processed. Verification is a side effect of the
+ * recording job, which talks to Sarvam about the interaction anyway: it looks the interaction
+ * up in Sarvam's interactions list and marks the call VERIFIED or NOT_FOUND. The dashboard
+ * flags NOT_FOUND, which is what a forged webhook becomes.
  */
 
 export type IngestDependencies = {
@@ -132,97 +133,25 @@ export const processWebhookEvent = async (
     };
   }
 
-  /**
-   * Parsing happens HERE and not in the route, so a payload we cannot read is a stored row
-   * with a recorded failure rather than a delivery the provider keeps retrying.
-   */
-  const parsed = provider.parseWebhook(event.payload);
-
-  const agent = await asSystem('voice-webhook-agent-read', (db) =>
-    repository.findAgentByOrganisation(db, organisationId),
-  );
+  // Validated at the route (webhook.routes.ts); parsed again here for its normalised shape.
+  const authoritative = provider.parseWebhook(event.payload);
 
   /**
-   * The cross-check the contract asks for (section 7, measure 3) and D-006 calls the measure
-   * that holds. A mismatch is logged and the payload's claim is ignored: the clinic is the
-   * one the URL secret resolved to, always.
+   * `metadata.clinic_id` is echoed back to us unauthenticated, so it is never used to route.
+   * A mismatch is worth a line in the log, and the clinic is the one the URL secret named.
    */
   if (
-    parsed.routing.claimedClinicId !== null &&
-    parsed.routing.claimedClinicId !== organisationId
+    authoritative.routing.claimedClinicId !== null &&
+    authoritative.routing.claimedClinicId !== organisationId
   ) {
     logger.warn(
-      { organisationId, voiceAgentId: agent?.id },
+      { organisationId, webhookEventId },
       'webhook metadata claimed a different clinic than its secret resolved to; ignoring the claim',
     );
   }
 
-  let authoritative = parsed;
-
-  if (config.SARVAM_REFETCH_BEFORE_ACTING && agent?.appId != null) {
-    const fromProvider = await provider.getInteraction(
-      { appId: agent.appId },
-      parsed.externalCallId,
-    );
-
-    if (fromProvider === null) {
-      /**
-       * The payload named an interaction the provider does not have. With the re-fetch on,
-       * that is the end of it: this is the forged-webhook case, and the whole point of the
-       * measure is that we do not act on it.
-       */
-      await asSystem('voice-webhook-event-unverified', (db) =>
-        repository.markInboxEvent(
-          db,
-          webhookEventId,
-          'FAILED',
-          'the provider has no such interaction',
-        ),
-      );
-
-      return {
-        callId: null,
-        organisationId,
-        outcome: 'unresolvable',
-        transcriptTurns: 0,
-        recordingQueued: false,
-      };
-    }
-
-    // The provider's own figures win over the payload's, field by field, keeping the
-    // payload's value only where the provider's record has none.
-    authoritative = {
-      ...parsed,
-      direction: fromProvider.direction,
-      fromE164: fromProvider.fromE164 ?? parsed.fromE164,
-      toE164: fromProvider.toE164 ?? parsed.toE164,
-      startedAt: fromProvider.startedAt ?? parsed.startedAt,
-      endedAt: fromProvider.endedAt ?? parsed.endedAt,
-      durationSeconds: fromProvider.durationSeconds ?? parsed.durationSeconds,
-    };
-  }
-
-  /**
-   * The transcript from the authenticated endpoint, preferred over the webhook's copy.
-   *
-   * The contract says an unknown id answers 200 with no messages and should be retried
-   * (section 5), so an empty answer falls back to what the webhook carried rather than
-   * storing nothing. Between the two, a clinician sees the conversation either way.
-   */
-  let turns = authoritative.transcript;
-
-  if (agent?.appId != null) {
-    try {
-      const fetched = await provider.fetchTranscript({ appId: agent.appId }, parsed.externalCallId);
-      if (fetched.length > 0) {
-        turns = fetched;
-      }
-    } catch (error) {
-      // Not fatal: the call row matters more than its transcript, and the job will retry.
-      // The message, never the body.
-      logger.warn({ err: error }, 'transcript fetch failed; keeping the webhook copy');
-    }
-  }
+  // The payload's own transcript, stored as it arrived: no separate re-fetch (D-006).
+  const turns = authoritative.transcript;
 
   const result = await withTenant({ organisationId }, async (db) => {
     const patientId = await calls.solePatientByPhone(db, organisationId, authoritative.fromE164);
@@ -292,22 +221,52 @@ export const processWebhookEvent = async (
 };
 
 /**
- * Copies one call's recording from the provider into our own object storage.
+ * How long after we received a call its absence from Sarvam's interactions list is taken as
+ * an answer. The contract says the list is cached for 60 seconds (section 5), so a call looked
+ * up just after it ended can be missing although it is real. Five minutes is well past that.
+ */
+export const VERIFICATION_SETTLE_MS = 5 * 60_000;
+
+/**
+ * Thrown when a call is not in Sarvam's list YET, inside the settle window, so the job is
+ * retried later rather than the call being marked NOT_FOUND on a stale cache.
+ */
+export class VerificationPendingError extends Error {
+  constructor(callId: string) {
+    super(`call ${callId} is not in the provider's interactions list yet; retrying later`);
+    this.name = 'VerificationPendingError';
+  }
+}
+
+export type RecordingResult = {
+  readonly stored: boolean;
+  readonly key: string | null;
+  readonly verification: 'UNCHECKED' | 'VERIFIED' | 'NOT_FOUND';
+};
+
+/**
+ * Copies one call's recording into our own storage, and verifies the call while it is there.
  *
- * ─── WHY IT IS COPIED AT ALL ────────────────────────────────────────────────────
+ * ─── WHY THE RECORDING IS COPIED AT ALL ─────────────────────────────────────────
  *
  * The contract says the recording endpoint returns the bytes with no signed URL and no
- * documented expiry, and that Sarvam's retention is UNKNOWN (section 5). So a dashboard that
- * played the provider's URL would be a feature that stops working on a date nobody knows. It
- * is fetched once, written under a tenant-prefixed key, and served to staff as a short-lived
- * presigned URL, which is also what D-007 requires since no route may stream.
+ * documented expiry, and that Sarvam's retention is UNKNOWN (section 5). So it is fetched
+ * once, written under a tenant-prefixed key, and served to staff as a short-lived presigned
+ * URL, which is also what D-007 requires since no route may stream.
+ *
+ * ─── TWO QUESTIONS, TWO ANSWERS, NEVER MIXED ────────────────────────────────────
+ *
+ * "Is there audio?" is `has_recording`, from the recording endpoint. "Did Sarvam have this
+ * call?" is `verification`, from the interactions list. A recording 404 answers the first
+ * only: it is what a forged call AND a clinic that does not record both get, so it can never
+ * stand in for the second. Each is asked once; a retry skips whatever already has an answer.
  */
 export const downloadRecording = async (
   callId: string,
   organisationId: string,
   dependencies: Partial<IngestDependencies> = {},
-): Promise<{ readonly stored: boolean; readonly key: string | null }> => {
-  const { provider, storage } = { ...defaults(), ...dependencies };
+): Promise<RecordingResult> => {
+  const { provider, storage, now } = { ...defaults(), ...dependencies };
 
   const agent = await asSystem('voice-recording-agent-read', (db) =>
     repository.findAgentByOrganisation(db, organisationId),
@@ -324,19 +283,46 @@ export const downloadRecording = async (
   );
 
   if (call === null) {
-    return { stored: false, key: null };
+    return { stored: false, key: null, verification: 'UNCHECKED' };
   }
 
-  if (call.recordingKey !== null) {
-    // Already copied. A retry after the key was written must not fetch and upload again.
-    return { stored: false, key: call.recordingKey };
-  }
+  const stored =
+    call.hasRecording === null && call.recordingKey === null
+      ? await copyRecording(
+          provider,
+          storage,
+          agent.appId,
+          organisationId,
+          callId,
+          call.externalCallId,
+        )
+      : { stored: false, key: call.recordingKey };
 
-  const recording = await provider.fetchRecording({ appId: agent.appId }, call.externalCallId);
+  const verification =
+    call.verification === 'UNCHECKED'
+      ? await verifyCall(provider, agent.appId, organisationId, call, now())
+      : call.verification;
+
+  return { ...stored, verification };
+};
+
+/** Asks for the audio once and records the answer, with the key when there was audio. */
+const copyRecording = async (
+  provider: VoiceProvider,
+  storage: StorageClient,
+  appId: string,
+  organisationId: string,
+  callId: string,
+  externalCallId: string,
+): Promise<{ readonly stored: boolean; readonly key: string | null }> => {
+  const recording = await provider.fetchRecording({ appId }, externalCallId);
 
   if (recording === null) {
-    // No recording exists for this call, which is a real answer: consent may have been
-    // declined, or the call may have ended before anything was recorded.
+    // No audio, which is a real answer: consent may have been declined, or the clinic may not
+    // record. It says nothing about whether the call happened.
+    await withTenant({ organisationId }, (db) =>
+      calls.setRecordingResult(db, organisationId, callId, { hasRecording: false }),
+    );
     return { stored: false, key: null };
   }
 
@@ -350,7 +336,10 @@ export const downloadRecording = async (
   });
 
   await withTenant({ organisationId }, async (db: TenantDb) => {
-    await calls.setRecordingKey(db, organisationId, callId, key);
+    await calls.setRecordingResult(db, organisationId, callId, {
+      hasRecording: true,
+      recordingKey: key,
+    });
 
     await record(db, {
       action: 'call.recording_stored',
@@ -363,6 +352,62 @@ export const downloadRecording = async (
   });
 
   return { stored: true, key };
+};
+
+/**
+ * Looks the call up in Sarvam's interactions list and records whether it is there.
+ *
+ * The window is anchored on OUR receive time (`created_at`), never on a time the payload
+ * claims, so a forged body cannot steer the lookup away from where the real call would be.
+ */
+const verifyCall = async (
+  provider: VoiceProvider,
+  appId: string,
+  organisationId: string,
+  call: { readonly id: string; readonly externalCallId: string; readonly createdAt: Date },
+  at: Date,
+): Promise<'VERIFIED' | 'NOT_FOUND'> => {
+  let found: boolean;
+
+  try {
+    found =
+      (await provider.getInteraction({ appId }, call.externalCallId, call.createdAt)) !== null;
+  } catch (error) {
+    // The lookup failed, which says nothing about the call. It stays UNCHECKED and the job
+    // retries. The error's message, never a body: a provider error may quote the caller.
+    logger.warn(
+      { err: error, organisationId, callId: call.id },
+      'call verification lookup failed; the call stays UNCHECKED',
+    );
+    throw error;
+  }
+
+  if (!found && at.getTime() - call.createdAt.getTime() < VERIFICATION_SETTLE_MS) {
+    throw new VerificationPendingError(call.id);
+  }
+
+  const verification = found ? 'VERIFIED' : 'NOT_FOUND';
+
+  await withTenant({ organisationId }, async (db) => {
+    await calls.setVerification(db, organisationId, call.id, verification, at);
+
+    await record(db, {
+      action: 'call.verified',
+      entityType: 'call',
+      entityId: call.id,
+      organisationId,
+      metadata: { verification, actorSource: 'VOICE_AGENT' },
+    });
+  });
+
+  if (!found) {
+    logger.warn(
+      { organisationId, callId: call.id },
+      'call NOT FOUND in the provider interactions list; flagged as unverified',
+    );
+  }
+
+  return verification;
 };
 
 export type CatchUpResult = {
@@ -425,6 +470,8 @@ export const catchUpInteractions = async (
           endedAt: interaction.endedAt,
           durationSeconds: interaction.durationSeconds,
           patientId,
+          // Built from Sarvam's own interactions list, so verified by construction.
+          verification: 'VERIFIED',
         });
 
         if (call.claimedElsewhere === true) {

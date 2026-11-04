@@ -17,6 +17,9 @@ process.env.JWT_SECRET = 'database-test-jwt-secret-at-least-32-bytes';
 // Plain HTTP in tests, so Secure would stop supertest from ever sending the cookie back.
 process.env.COOKIE_SECURE = 'false';
 process.env.CORS_ALLOWED_ORIGINS = 'https://clinic.test';
+// Webhooks are replayed from 127.0.0.1, so the address check is off on purpose (D-006).
+// The one suite that tests the check sets its own allow-list.
+process.env.SARVAM_WEBHOOK_IP_CHECK_DISABLED ??= 'true';
 
 /**
  * Login throttling is raised for the suite. The limiters are module singletons with an

@@ -6,6 +6,7 @@ import {
   catchUpInteractions,
   downloadRecording,
   processWebhookEvent,
+  VerificationPendingError,
 } from '../voice/ingest.service.js';
 import {
   enqueue,
@@ -32,6 +33,9 @@ import {
  * payload that cannot be parsed will not parse better in four minutes.
  */
 
+/** How long after a call is processed its recording and verification are first attempted. */
+const RECORDING_JOB_DELAY_SECONDS = 120;
+
 const withJobContext = async <T>(name: string, run: () => Promise<T>): Promise<T> =>
   runWithContext({ requestId: uuidV7() }, async () => {
     const started = Date.now();
@@ -41,6 +45,16 @@ const withJobContext = async <T>(name: string, run: () => Promise<T>): Promise<T
       logger.info({ job: name, ms: Date.now() - started }, 'job finished');
       return result;
     } catch (error) {
+      if (error instanceof VerificationPendingError) {
+        // Expected while Sarvam's interactions list catches up (it is cached for 60 seconds).
+        // Re-thrown so pg-boss retries it later, but not an error, or real ones get buried.
+        logger.info(
+          { job: name, ms: Date.now() - started },
+          'job deferred: call not verifiable yet',
+        );
+        throw error;
+      }
+
       // Logged here as well as re-thrown, because pg-boss stores the message on the job row
       // and not the stack, and this is the only place the cause is visible.
       logger.error({ job: name, err: error, ms: Date.now() - started }, 'job failed');
@@ -66,10 +80,16 @@ export const registerVoiceHandlers = async (boss: PgBoss): Promise<void> => {
           const { callId, organisationId } = result;
 
           if (callId !== null && organisationId !== null && result.recordingQueued) {
-            await enqueue(VOICE_QUEUES.downloadRecording, {
-              callId,
-              organisationId,
-            } satisfies DownloadRecordingJob);
+            /**
+             * Two minutes later, not now. The same job verifies the call against Sarvam's
+             * interactions list, which is cached for 60 seconds, so an immediate first try
+             * would usually be deferred and retried for nothing.
+             */
+            await enqueue(
+              VOICE_QUEUES.downloadRecording,
+              { callId, organisationId } satisfies DownloadRecordingJob,
+              { startAfterSeconds: RECORDING_JOB_DELAY_SECONDS },
+            );
           }
         });
       }

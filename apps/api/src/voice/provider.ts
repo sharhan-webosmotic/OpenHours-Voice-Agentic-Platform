@@ -73,21 +73,20 @@ export type VoiceProvider = {
    * of a field we read must not be absorbed silently.
    */
   readonly parseWebhook: (raw: unknown) => CallEvent;
-  /** The provider's own record of one interaction, or null if it does not have one. */
+  /**
+   * The provider's own record of one interaction, or null if it does not have one. `around` is
+   * when WE received the call, which anchors the window the lookup searches.
+   */
   readonly getInteraction: (
     agent: ProviderAgentRef,
     externalCallId: string,
+    around?: Date,
   ) => Promise<ProviderInteraction | null>;
   /** Interactions in a window, for the catch-up job. */
   readonly listInteractions: (
     agent: ProviderAgentRef,
     window: { readonly from: Date; readonly to: Date },
   ) => Promise<readonly ProviderInteraction[]>;
-  /** The transcript, which may legitimately be empty for a while after a call. */
-  readonly fetchTranscript: (
-    agent: ProviderAgentRef,
-    externalCallId: string,
-  ) => Promise<readonly CallTranscriptTurn[]>;
   /** The recording as bytes. Never a URL for a browser: see D-007 and D-018. */
   readonly fetchRecording: (
     agent: ProviderAgentRef,

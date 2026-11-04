@@ -35,7 +35,7 @@ import { analyticsRouter } from './modules/analytics/analytics.routes.js';
 import { bodyErrorKind } from './common/body-errors.js';
 import { redactRequestUrl } from './common/url-redaction.js';
 import { spokenBodyError, voiceToolsRouter } from './voice/tools.routes.js';
-import { sarvamWebhookRouter } from './voice/webhook.routes.js';
+import { refusedWebhookBody, sarvamWebhookRouter } from './voice/webhook.routes.js';
 
 export type AppDependencies = {
   readonly readiness: ReadinessProbe;
@@ -142,6 +142,20 @@ export const createApp = ({ readiness, config = appConfig }: AppDependencies): E
     }),
   );
 
+  /**
+   * The webhook's own parser, AHEAD of the general one, with a larger bound.
+   *
+   * The body is a call's whole transcript, in English and the original language side by side,
+   * and a long call passes the general 100 kb limit. The webhook stores what it is given and
+   * refuses an invalid body without storing it (D-006), so a real call over the general limit
+   * would simply be lost. body-parser marks a request it has read, so the general parser
+   * below skips this one.
+   */
+  app.use(
+    '/webhooks/sarvam',
+    express.json({ limit: config.WEBHOOK_BODY_LIMIT }),
+    refusedWebhookBody,
+  );
   app.use(express.json({ limit: config.BODY_LIMIT }));
 
   /**

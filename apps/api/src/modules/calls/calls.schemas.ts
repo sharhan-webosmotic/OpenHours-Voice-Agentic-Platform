@@ -58,6 +58,8 @@ const callViewSchema = z.object({
   appointmentId: z.string().nullable(),
   /** Whether a recording exists, never the key: the key is not a thing a client may hold. */
   hasRecording: z.boolean(),
+  /** Whether Sarvam's interactions list holds the call. NOT_FOUND is the one to flag. */
+  verification: z.enum(['UNCHECKED', 'VERIFIED', 'NOT_FOUND']),
   createdAt: z.string(),
 });
 

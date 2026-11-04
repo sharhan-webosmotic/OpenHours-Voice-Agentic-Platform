@@ -43,10 +43,30 @@ import {
  * reach our code either. `.strict()` would reject the first field they add; `.passthrough()`
  * would carry unvalidated values deeper in.
  */
+/**
+ * BOUNDS ON EVERYTHING, because the webhook payload is now stored and used as it arrives
+ * (D-006): there is no provider re-read in front of it, so this schema is the whole of what
+ * stands between an unauthenticated body and the database. The limits are generous for a
+ * real call and refuse a body built to fill a table. A turn is a sentence or a paragraph of
+ * speech; 2,000 of them is hours of conversation.
+ */
+const LIMITS = {
+  identifier: 200,
+  phone: 32,
+  datetime: 64,
+  role: 32,
+  turnText: 20_000,
+  turns: 2_000,
+  /** A day, in seconds. A duration beyond it is not a telephone call. */
+  durationSeconds: 86_400,
+} as const;
+
+const bounded = (max: number) => z.string().max(max);
+
 const transcriptTurnSchema = z.object({
-  role: z.string().optional(),
-  en_text: z.string().optional(),
-  indic_text: z.string().optional(),
+  role: bounded(LIMITS.role).optional(),
+  en_text: bounded(LIMITS.turnText).optional(),
+  indic_text: bounded(LIMITS.turnText).optional(),
 });
 
 /**
@@ -58,24 +78,32 @@ const transcriptTurnSchema = z.object({
  * its identifier is not an event we can reason about at all.
  */
 const inboundWebhookSchema = z.object({
-  interaction_id: z.string().min(1),
-  app_id: z.string().optional(),
-  app_version: z.union([z.number(), z.string()]).optional(),
-  deployment_id: z.string().optional(),
-  user_phone_number: z.string().optional(),
-  agent_phone_number: z.string().optional(),
-  duration: z.union([z.number(), z.string()]).optional(),
-  start_datetime: z.string().optional(),
-  end_datetime: z.string().optional(),
-  interaction_transcript: z.array(transcriptTurnSchema).optional(),
+  interaction_id: z
+    .string()
+    .trim()
+    .min(1)
+    .max(LIMITS.identifier)
+    // Printable ASCII: it becomes part of a unique index key and of a provider URL path.
+    .regex(/^[\x21-\x7E]+$/),
+  app_id: bounded(LIMITS.identifier).optional(),
+  app_version: z.union([z.number().int().nonnegative(), bounded(LIMITS.identifier)]).optional(),
+  deployment_id: bounded(LIMITS.identifier).optional(),
+  user_phone_number: bounded(LIMITS.phone).optional(),
+  agent_phone_number: bounded(LIMITS.phone).optional(),
+  duration: z
+    .union([z.number().nonnegative().max(LIMITS.durationSeconds), bounded(LIMITS.phone)])
+    .optional(),
+  start_datetime: bounded(LIMITS.datetime).optional(),
+  end_datetime: bounded(LIMITS.datetime).optional(),
+  interaction_transcript: z.array(transcriptTurnSchema).max(LIMITS.turns).optional(),
   /** Echoed back from `webhook_config.metadata`. OUR data, returning unauthenticated. */
   metadata: z.record(z.string(), z.unknown()).optional(),
   final_agent_variables: z.record(z.string(), z.unknown()).optional(),
   output_agent_variables: z.record(z.string(), z.unknown()).optional(),
   /** Present on an outbound attempt's completion webhook (contract section 4). */
-  attempt_id: z.string().optional(),
-  status: z.string().optional(),
-  failure_reason: z.string().optional(),
+  attempt_id: bounded(LIMITS.identifier).optional(),
+  status: bounded(LIMITS.identifier).optional(),
+  failure_reason: bounded(LIMITS.identifier).optional(),
 });
 
 /** An instant Sarvam sent as a string, or null. Never a wrong date: unparseable is null. */
@@ -173,8 +201,8 @@ const parseWebhook = (raw: unknown): CallEvent => {
      * patient data, and this error is logged.
      */
     throw new ProviderContractError(
-      `sarvam webhook did not carry a usable interaction_id: ${result.error.issues
-        .map((issue) => issue.path.join('.'))
+      `sarvam webhook failed validation at: ${result.error.issues
+        .map((issue) => issue.path.join('.') || '(root)')
         .join(', ')}`,
     );
   }
@@ -349,42 +377,6 @@ const getInteraction = async (
   return interactions.find((row) => row.externalCallId === externalCallId) ?? null;
 };
 
-const transcriptSchema = z.object({
-  interaction_id: z.string().optional(),
-  messages: z
-    .array(
-      z.object({
-        turn_id: z.union([z.number(), z.string()]).optional(),
-        role: z.string().optional(),
-        content: z.string().optional(),
-        language_name: z.string().optional(),
-      }),
-    )
-    .optional(),
-});
-
-const fetchTranscript = async (
-  agent: ProviderAgentRef,
-  externalCallId: string,
-): Promise<readonly CallTranscriptTurn[]> => {
-  const parsed = transcriptSchema.safeParse(
-    await getJson(analyticsUrl(agent, `transcripts/${idForPath(externalCallId)}`)),
-  );
-
-  if (!parsed.success) {
-    throw new ProviderContractError('sarvam transcript response did not match the contract');
-  }
-
-  /**
-   * AN EMPTY LIST IS NOT AN ERROR. The contract is explicit: an unknown id answers 200 with
-   * no messages, and the caller should retry later rather than treat it as a failure
-   * (section 5). The job's retry is what turns that into a transcript a few minutes later.
-   */
-  return (parsed.data.messages ?? [])
-    .map((message) => ({ role: role(message.role), text: (message.content ?? '').trim() }))
-    .filter((turn) => turn.text !== '');
-};
-
 const fetchRecording = async (
   agent: ProviderAgentRef,
   externalCallId: string,
@@ -429,7 +421,6 @@ export const sarvamProvider: VoiceProvider = {
   parseWebhook,
   getInteraction: (agent, externalCallId) => getInteraction(agent, externalCallId),
   listInteractions,
-  fetchTranscript,
   fetchRecording,
 };
 

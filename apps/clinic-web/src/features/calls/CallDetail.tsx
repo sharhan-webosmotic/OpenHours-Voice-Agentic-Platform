@@ -97,6 +97,20 @@ export const CallDetail = ({
   return (
     <Overlay variant="drawer" title={callerLabel(call)} eyebrow="AI call details" onClose={onClose}>
       <div className="flex flex-col gap-5">
+        {/*
+         * ONLY for a call Sarvam's own records do not hold (D-006, checked after the call
+         * arrived). Not for one that has not been checked yet, and never for a call that simply
+         * has no recording: a clinic that does not record would see it on every call, and staff
+         * would learn to ignore the one time it matters.
+         */}
+        {call.verification === 'NOT_FOUND' && (
+          <Alert kind="warning">
+            Sarvam has no record of this call, so it may not have come through the clinic's voice
+            agent. Treat its transcript with caution, and confirm with the caller before acting on
+            it.
+          </Alert>
+        )}
+
         <div className="flex flex-col gap-2 rounded-lg bg-accent-surface p-4">
           <Badge kind={statusBadge(call.status)}>{statusLabel(call.status)}</Badge>
           <strong className="font-semibold text-default text-md">Conversation summary</strong>

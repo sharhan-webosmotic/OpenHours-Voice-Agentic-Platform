@@ -191,6 +191,36 @@ describe('the call drawer', () => {
     ).not.toBeInTheDocument();
   });
 
+  /**
+   * A webhook's call is checked against Sarvam's records after it arrives (D-006). Only a
+   * call Sarvam does not have is flagged: not one that is merely unchecked, and never one that
+   * simply has no recording, or a clinic that does not record would see it on every call.
+   */
+  it.each([
+    ['not found in Sarvam’s records', { verification: 'NOT_FOUND' }, true],
+    ['verified', { verification: 'VERIFIED' }, false],
+    ['not checked yet', { verification: 'UNCHECKED' }, false],
+    ['verified, with no recording', { verification: 'VERIFIED', hasRecording: false }, false],
+  ] as const)('flags a call that is %s: %s', async (_label, overrides, flagged) => {
+    renderWith(
+      <CallsPage />,
+      signedIn({
+        ...baseRoutes,
+        'GET /api/v1/calls': { body: { items: [{ ...call, ...overrides }], nextCursor: null } },
+      }),
+    );
+    await openDetails();
+
+    const dialog = await screen.findByRole('dialog');
+    const warning = within(dialog).queryByText(/Sarvam has no record of this call/);
+
+    if (flagged) {
+      expect(warning).toBeInTheDocument();
+    } else {
+      expect(warning).not.toBeInTheDocument();
+    }
+  });
+
   it('tells a doctor their role cannot play recordings', async () => {
     renderWith(<CallsPage />, signedIn(baseRoutes, 'DOCTOR'));
     await openDetails();

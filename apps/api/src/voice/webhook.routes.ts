@@ -1,7 +1,7 @@
-import { createHash } from 'node:crypto';
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
 import { config } from '../config.js';
+import { bodyErrorKind } from '../common/body-errors.js';
 import { NotFoundError } from '../common/errors.js';
 import { logger } from '../common/logger.js';
 import { createRateLimiter } from '../common/rate-limit.js';
@@ -12,39 +12,45 @@ import { uuidV7 } from '../common/uuid.js';
 import { asAuthenticator, withTenant } from '../db/tenant-client.js';
 import { record } from '../modules/audit/audit.service.js';
 import { enqueue, VOICE_QUEUES } from '../jobs/queue.js';
+import { ProviderContractError } from './provider.js';
+import { sarvamProvider } from './providers/sarvam.js';
 import * as repository from './voice.repository.js';
 
 /**
  * Where Sarvam tells us a call has finished.
  *
- * ─── THREE MEASURES, BECAUSE SARVAM DOCUMENTS NO SIGNATURE (D-006) ──────────────
+ * ─── THE CONTROL IS THE SECRET AND THE ADDRESS (D-006) ──────────────────────────
+ *
+ * Sarvam documents no signature, so:
  *
  * 1. A long random secret per clinic in the URL PATH, stored only as a hash. It resolves the
  *    clinic, so a request without it is not merely unauthorised: it addresses nobody.
- * 2. An allow-list of Sarvam's two published egress addresses, as defence in depth. It is
- *    configurable and off by default, because a developer replaying an event from a terminal
- *    is not coming from Mumbai, and `release-readiness` owns turning it on.
- * 3. The payload is NEVER trusted for anything that matters. The clinic comes from the
- *    secret, not from `metadata.clinic_id`, and the processing job re-reads the interaction
- *    from Sarvam's authenticated API before acting on it. Measure three is the one that
- *    holds: a forged payload cannot make the platform act on something that is not in the
- *    provider's own records.
+ * 2. An allow-list of Sarvam's egress addresses, or a deliberate, configured decision to run
+ *    without it. Config refuses to start with neither (`SARVAM_WEBHOOK_IP_CHECK_DISABLED`).
  *
- * ─── IT STORES AND RETURNS, AND DOES NOT THINK ──────────────────────────────────
+ * The clinic always comes from the secret, never from `metadata.clinic_id`.
  *
- * The work is three calls to Sarvam and a file upload, which is far past the one second a
- * webhook has. So the raw body goes into `webhook_events` first, a job is enqueued, and the
- * response goes out. A provider that re-sends gets a 200 and no second call row, because the
- * unique index on `(provider, external_event_id)` is what deduplicates rather than a check in
- * this file.
+ * VERIFICATION IS AFTER THE FACT, NOT BEFORE. The call and its transcript are created from
+ * this payload straight away, with no provider re-read in front of them, so a call appears
+ * the moment it is processed. The recording job, which authenticates to Sarvam for the
+ * interaction anyway, then looks it up and marks the call VERIFIED or NOT_FOUND. What used
+ * to be the third measure is now a label on the call, not a gate.
  *
- * ─── EVERY ANSWER IS 200 OR 404, AND NOTHING ELSE ───────────────────────────────
+ * ─── VALIDATED ON THE WAY IN, THEN STORED AND RETURNED ──────────────────────────
+ *
+ * The body is checked against the adapter's schema here: expected shape, types and length
+ * bounds. That schema is the only thing between an unauthenticated body and the database,
+ * so a body that fails it is NOT stored. It is answered 200, because a 4xx would make Sarvam
+ * re-send something that will fail again, and logged with the failing field PATHS only.
+ *
+ * A valid body goes into `webhook_events`, a job is enqueued, and the response goes out. A
+ * provider that re-sends gets a 200 and no second row: the unique index on `(provider,
+ * external_event_id)` deduplicates, not a check in this file.
+ *
+ * ─── EVERY ANSWER IS 200 OR 404 ─────────────────────────────────────────────────
  *
  * 404 for a secret that resolves to no clinic, which is also what a wrong address gets.
- * 200 for everything else, INCLUDING a payload this code cannot parse: the body is already
- * stored, a 500 would make Sarvam re-send something we have, and an unparseable event is a
- * contract problem for a person to look at rather than a delivery to retry. The event's row
- * carries the failure.
+ * 200 for everything else, including a body that is refused.
  */
 
 const BASE = '/webhooks/sarvam';
@@ -65,12 +71,13 @@ const secretParamSchema = z.object({ secret: z.string().min(20).max(200) });
  * address with the wrong secret, which is that there is nothing here.
  */
 const requireSarvamAddress = (req: Request, _res: Response, next: NextFunction): void => {
-  const allowed = config.SARVAM_WEBHOOK_SOURCE_IPS;
-
-  if (allowed.length === 0) {
+  if (config.SARVAM_WEBHOOK_IP_CHECK_DISABLED) {
+    // Switched off by an explicit setting, never by an empty list (config refuses that).
     next();
     return;
   }
+
+  const allowed = config.SARVAM_WEBHOOK_SOURCE_IPS;
 
   const address = req.ip;
 
@@ -86,34 +93,27 @@ const requireSarvamAddress = (req: Request, _res: Response, next: NextFunction):
 };
 
 /**
- * An identifier for an event whose body we could not read.
+ * A webhook body the JSON parser itself refused: cut off, or over the size bound.
  *
- * `interaction_id` is the idempotency key (contract section 3). Without one there is nothing
- * to deduplicate on, so the digest of the body stands in: a provider re-sending the same
- * unreadable body is still one row, and a different unreadable body is a different row
- * somebody can look at. Prefixed, so nobody mistakes it for a provider identifier.
+ * Mounted by `app.ts` straight after this route's own body parser. Answered 200 and stored
+ * nowhere, like any other invalid body, and logged by KIND only: the parser's error carries
+ * the raw text, which here is a transcript (`common/body-errors.ts`).
  */
-const fallbackEventId = (raw: unknown): string =>
-  `unparsed:${createHash('sha256')
-    .update(JSON.stringify(raw) ?? '')
-    .digest('hex')
-    .slice(0, 32)}`;
+export const refusedWebhookBody = (
+  error: unknown,
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): void => {
+  const kind = bodyErrorKind(error);
 
-/**
- * The interaction id, read WITHOUT the provider adapter.
- *
- * The adapter is strict about the fields it uses, and this route must store a body it cannot
- * understand rather than refuse it. So it reaches for one string and leaves the rest alone;
- * `parseWebhook` runs in the job, where a failure can be recorded against a stored row.
- */
-const interactionId = (raw: unknown): string | undefined => {
-  if (typeof raw !== 'object' || raw === null) {
-    return undefined;
+  if (kind === undefined || res.headersSent) {
+    next(error);
+    return;
   }
 
-  const value = (raw as { readonly interaction_id?: unknown }).interaction_id;
-
-  return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
+  (req.log ?? logger).warn({ bodyError: kind }, 'webhook refused: body could not be read');
+  res.status(200).json({ ok: false, received: false });
 };
 
 registerRoute({
@@ -169,7 +169,28 @@ export const sarvamWebhookRouter = (): Router => {
     }
 
     const raw: unknown = req.body;
-    const externalEventId = interactionId(raw) ?? fallbackEventId(raw);
+    let externalEventId: string;
+
+    try {
+      externalEventId = sarvamProvider.parseWebhook(raw).externalCallId;
+    } catch (error) {
+      if (!(error instanceof ProviderContractError)) {
+        throw error;
+      }
+
+      /**
+       * Refused, stored nowhere, answered 200. The note names the failing field PATHS, which
+       * is all the adapter's message carries: never a value, because the values are a
+       * transcript and two telephone numbers.
+       */
+      logger.warn(
+        { voiceAgentId: agent.id, organisationId: agent.organisationId, reason: error.message },
+        'webhook refused: body failed validation',
+      );
+      res.status(200).json({ ok: false, received: false });
+      return;
+    }
+
     const existing = getContext();
 
     const stored = await runWithContext(
@@ -181,9 +202,9 @@ export const sarvamWebhookRouter = (): Router => {
             organisationId: agent.organisationId,
             externalEventId,
             eventType: 'call.finished',
-            // The RAW body, unaltered. It is the evidence the adapter is checked against
-            // after the first real call, and the thing a replay re-reads.
-            payload: typeof raw === 'object' && raw !== null ? raw : { body: raw },
+            // The RAW body, unaltered and already validated. It is the evidence the adapter is
+            // checked against after the first real call, and the thing a replay re-reads.
+            payload: raw as object,
           });
 
           /**
@@ -199,7 +220,7 @@ export const sarvamWebhookRouter = (): Router => {
               organisationId: agent.organisationId,
               // The provider's identifier is not patient data. The payload's contents are,
               // and none of them are here.
-              metadata: { externalEventId, parsed: interactionId(raw) !== undefined },
+              metadata: { externalEventId },
             });
           }
 

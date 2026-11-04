@@ -3,6 +3,7 @@ import type {
   CallDirection,
   CallStatus,
   CallTranscriptRole,
+  CallVerification,
 } from '../../generated/prisma/enums.js';
 
 /**
@@ -26,6 +27,9 @@ export type CallRow = {
   readonly endedAt: Date | null;
   readonly durationSeconds: number | null;
   readonly recordingKey: string | null;
+  /** NULL until the recording job has asked Sarvam. */
+  readonly hasRecording: boolean | null;
+  readonly verification: CallVerification;
   readonly patient: { readonly id: string; readonly fullName: string } | null;
   readonly appointmentId: string | null;
   readonly createdAt: Date;
@@ -43,6 +47,8 @@ const CALL_SELECT = {
   endedAt: true,
   durationSeconds: true,
   recordingKey: true,
+  hasRecording: true,
+  verification: true,
   appointmentId: true,
   createdAt: true,
   patient: { select: { id: true, fullName: true } },
@@ -59,6 +65,11 @@ export type UpsertCallInput = {
   readonly endedAt: Date | null;
   readonly durationSeconds: number | null;
   readonly patientId: string | null;
+  /**
+   * Set by the catch-up job, which builds the call from Sarvam's own interactions list and so
+   * has verified it by construction. The webhook leaves it to the recording job.
+   */
+  readonly verification?: CallVerification;
 };
 
 /**
@@ -96,6 +107,9 @@ export const upsertFromProvider = async (
         ...(input.endedAt === null ? {} : { endedAt: input.endedAt }),
         ...(input.durationSeconds === null ? {} : { durationSeconds: input.durationSeconds }),
         ...(input.patientId === null ? {} : { patientId: input.patientId }),
+        ...(input.verification === undefined
+          ? {}
+          : { verification: input.verification, verifiedAt: new Date() }),
       },
     });
 
@@ -130,6 +144,9 @@ export const upsertFromProvider = async (
         endedAt: input.endedAt,
         durationSeconds: input.durationSeconds,
         patientId: input.patientId,
+        ...(input.verification === undefined
+          ? {}
+          : { verification: input.verification, verifiedAt: new Date() }),
       },
     ],
     skipDuplicates: true,
@@ -185,15 +202,39 @@ export const replaceTranscript = async (
   });
 };
 
-export const setRecordingKey = async (
+/** What Sarvam said about the call's audio. A key only when there was audio to store. */
+export const setRecordingResult = async (
   db: TenantDb,
   organisationId: string,
   callId: string,
-  recordingKey: string,
+  result: { readonly hasRecording: boolean; readonly recordingKey?: string },
 ): Promise<void> => {
-  // Scoped by organisation as well as id: `update` takes a unique where, and a call id from
-  // a job payload is not something to trust on its own.
-  await db.call.updateMany({ where: { id: callId, organisationId }, data: { recordingKey } });
+  await db.call.updateMany({
+    where: { id: callId, organisationId },
+    data: {
+      hasRecording: result.hasRecording,
+      ...(result.recordingKey === undefined ? {} : { recordingKey: result.recordingKey }),
+    },
+  });
+};
+
+/**
+ * Whether Sarvam's interactions list holds the call (D-006, after the fact).
+ *
+ * Only an UNCHECKED call is changed, so a retried job, or a catch-up that already verified it,
+ * cannot overwrite an answer with a later one.
+ */
+export const setVerification = async (
+  db: TenantDb,
+  organisationId: string,
+  callId: string,
+  verification: Exclude<CallVerification, 'UNCHECKED'>,
+  at: Date,
+): Promise<void> => {
+  await db.call.updateMany({
+    where: { id: callId, organisationId, verification: 'UNCHECKED' },
+    data: { verification, verifiedAt: at },
+  });
 };
 
 export type ListFilters = {

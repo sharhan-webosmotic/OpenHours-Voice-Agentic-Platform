@@ -17,7 +17,8 @@ const originListSchema = z
   );
 
 /**
- * Comma-separated IP addresses. Empty means "do not check the source address".
+ * Comma-separated IP addresses. Empty is only valid alongside an explicit decision to switch
+ * the check off (`SARVAM_WEBHOOK_IP_CHECK_DISABLED`), which `configSchema` enforces.
  *
  * Trimmed and emptied-out entries dropped, like the origin list above, so a trailing comma
  * in an environment file does not become an entry that matches nothing.
@@ -67,6 +68,11 @@ const configSchema = z
     TRUST_PROXY: trustProxySchema,
     /** Max JSON request body, in the byte-string form `express.json` accepts. */
     BODY_LIMIT: z.string().default('100kb'),
+    /**
+     * The Sarvam webhook's body limit. Larger than BODY_LIMIT because the body is a call's
+     * whole transcript in two languages, and an invalid body is dropped rather than retried.
+     */
+    WEBHOOK_BODY_LIMIT: z.string().default('1mb'),
 
     /**
      * Signing key for access tokens. 32 bytes minimum: a shorter key weakens HS256 to
@@ -108,27 +114,23 @@ const configSchema = z
     SARVAM_WORKSPACE_ID: z.string().min(1).optional(),
     SARVAM_ANALYTICS_BASE_URL: z.url().default('https://apps.sarvam.ai/api/analytics'),
     /**
-     * Sarvam's two published egress addresses (contract section 2), as the SECOND of D-006's
-     * three measures. Configurable because they are a published fact about somebody else's
-     * infrastructure, which can change without our deployment changing.
-     *
-     * Empty means the check is off. That is the right default for development, where a
-     * webhook is replayed from a terminal, and the wrong one for production, which is why
-     * `release-readiness` has it on its list.
+     * Sarvam's published egress addresses (contract section 2). With the URL secret, this is
+     * the control on the webhook (D-006). Configurable because they are a published fact about
+     * somebody else's infrastructure, which can change without our deployment changing.
      */
     SARVAM_WEBHOOK_SOURCE_IPS: addressListSchema,
     /**
-     * Whether to re-read the interaction from Sarvam before acting on a webhook.
+     * The ONLY way to run without the address check, and it has to be said out loud.
      *
-     * The third and strongest of D-006's measures: a forged payload cannot make the platform
-     * act if the platform only ever acts on what it re-read from the provider. On by default.
-     * It is a flag because the contract documents no single-interaction endpoint, so the
-     * re-read is a filtered list call, and if that proves unusable in practice the fallback
-     * has to be a deliberate decision rather than a silent one.
+     * An empty allow-list used to mean "off" silently, so the control D-006 names could be
+     * missing in production with nobody having decided that. It is not simply required either,
+     * because the contract still marks as UNKNOWN whether those addresses are the ones
+     * webhooks come from, and a guessed list would refuse every real call. So startup needs
+     * one of the two, and fails on neither or both (checked below).
      */
-    SARVAM_REFETCH_BEFORE_ACTING: z
+    SARVAM_WEBHOOK_IP_CHECK_DISABLED: z
       .enum(['true', 'false'])
-      .default('true')
+      .default('false')
       .transform((value) => value === 'true'),
     VOICE_TOOL_CALLS_PER_MINUTE_PER_CLINIC: z.coerce.number().int().positive().default(600),
     VOICE_TOOL_CALLS_PER_MINUTE_PER_ADDRESS: z.coerce.number().int().positive().default(3_000),
@@ -235,6 +237,28 @@ const configSchema = z
         path: ['S3_FORCE_PATH_STYLE'],
         message:
           'a custom S3_ENDPOINT (R2, SeaweedFS, MinIO) needs path-style addressing: set S3_FORCE_PATH_STYLE=true',
+      });
+    }
+
+    /**
+     * The webhook's address check is either configured or deliberately switched off, never
+     * missing by omission (D-006).
+     */
+    if (value.SARVAM_WEBHOOK_SOURCE_IPS.length === 0 && !value.SARVAM_WEBHOOK_IP_CHECK_DISABLED) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SARVAM_WEBHOOK_SOURCE_IPS'],
+        message:
+          'set the webhook source addresses, or set SARVAM_WEBHOOK_IP_CHECK_DISABLED=true to run without the check deliberately',
+      });
+    }
+
+    if (value.SARVAM_WEBHOOK_SOURCE_IPS.length > 0 && value.SARVAM_WEBHOOK_IP_CHECK_DISABLED) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SARVAM_WEBHOOK_IP_CHECK_DISABLED'],
+        message:
+          'contradicts SARVAM_WEBHOOK_SOURCE_IPS: choose either an allow-list or a disabled check',
       });
     }
 

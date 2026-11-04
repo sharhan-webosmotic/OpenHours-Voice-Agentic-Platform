@@ -53,6 +53,7 @@ export type CallView = {
   readonly patient: { readonly id: string; readonly fullName: string | null } | null;
   readonly appointmentId: string | null;
   readonly hasRecording: boolean;
+  readonly verification: 'UNCHECKED' | 'VERIFIED' | 'NOT_FOUND';
   readonly createdAt: string;
 };
 
@@ -74,6 +75,9 @@ const toView = (row: repository.CallRow): CallView => ({
   // The KEY NEVER LEAVES THE SERVER. A client that knew it would still need credentials, and
   // a client that does not know it cannot try.
   hasRecording: row.recordingKey !== null,
+  // Whether Sarvam's own records hold the call (D-006, after the fact). Independent of the
+  // recording: a clinic that does not record has real calls with no audio.
+  verification: row.verification,
   createdAt: row.createdAt.toISOString(),
 });
 

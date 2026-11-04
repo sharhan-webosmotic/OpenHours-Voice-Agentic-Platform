@@ -6,13 +6,11 @@ import {
   catchUpInteractions,
   downloadRecording,
   processWebhookEvent,
+  VERIFICATION_SETTLE_MS,
+  VerificationPendingError,
 } from '../src/voice/ingest.service.js';
 import { sarvamProvider } from '../src/voice/providers/sarvam.js';
-import type {
-  CallTranscriptTurn,
-  ProviderInteraction,
-  VoiceProvider,
-} from '../src/voice/provider.js';
+import type { ProviderInteraction, VoiceProvider } from '../src/voice/provider.js';
 import type { StorageClient } from '../src/storage/object-storage.js';
 import { inboundCallFinished } from '../src/voice/providers/__fixtures__/inbound-call-finished.js';
 
@@ -23,9 +21,9 @@ import { inboundCallFinished } from '../src/voice/providers/__fixtures__/inbound
  *
  * There is no Sarvam to talk to, and if there were, these tests would be asserting their
  * uptime. What is ours and worth testing is everything that happens to a payload after it
- * arrives: which clinic it lands in, whether a second delivery changes anything, whether a
- * payload the provider cannot confirm is acted on, and whether the patient is linked when
- * and only when that is unambiguous. All of that is database behaviour.
+ * arrives: which clinic it lands in, whether a second delivery changes anything, how a call
+ * the provider does not have is flagged, and whether the patient is linked when and only when
+ * that is unambiguous. All of that is database behaviour.
  *
  * The parser is NOT stubbed: the real `sarvamProvider.parseWebhook` runs, because the point
  * is the whole path from a stored body to a call row.
@@ -36,44 +34,60 @@ const RECORDING = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x01, 0x02, 0x03, 0x04
 type Stub = {
   readonly provider: VoiceProvider;
   readonly storage: StorageClient;
+  readonly now: () => Date;
   readonly puts: { key: string; contentType: string; bytes: number }[];
+  /** Every provider call made, by name, so a test can assert that none was. */
+  readonly asked: string[];
+  /** The `around` each interaction lookup was anchored on. */
+  readonly anchors: (Date | undefined)[];
 };
 
 /**
- * A provider that answers from memory.
+ * A provider that answers from memory and records what it was asked.
  *
- * `getInteraction` returning null is the forged-webhook case and has its own test, so it is a
- * knob rather than a fixed answer.
+ * `interaction: null` is Sarvam having no record of the call, which is what a forged webhook
+ * looks like to the verification step, so it is a knob rather than a fixed answer.
  */
 const stub = (
   options: {
     readonly interaction?: ProviderInteraction | null;
-    readonly transcript?: readonly CallTranscriptTurn[];
-    readonly transcriptThrows?: boolean;
+    readonly lookupThrows?: Error;
     readonly recording?: Uint8Array | null;
     readonly interactions?: readonly ProviderInteraction[];
+    readonly now?: Date;
   } = {},
 ): Stub => {
   const puts: Stub['puts'] = [];
+  const asked: string[] = [];
+  const anchors: Stub['anchors'] = [];
 
   return {
     puts,
+    asked,
+    anchors,
+    now: () => options.now ?? new Date(),
     provider: {
       name: 'SARVAM',
       parseWebhook: sarvamProvider.parseWebhook,
-      getInteraction: () =>
-        Promise.resolve(options.interaction === undefined ? null : options.interaction),
-      listInteractions: () => Promise.resolve(options.interactions ?? []),
-      fetchTranscript: () =>
-        options.transcriptThrows === true
-          ? Promise.reject(new Error('transcript not ready'))
-          : Promise.resolve(options.transcript ?? []),
-      fetchRecording: () =>
-        Promise.resolve(
+      getInteraction: (_agent, _id, around) => {
+        asked.push('getInteraction');
+        anchors.push(around);
+        return options.lookupThrows === undefined
+          ? Promise.resolve(options.interaction === undefined ? null : options.interaction)
+          : Promise.reject(options.lookupThrows);
+      },
+      listInteractions: () => {
+        asked.push('listInteractions');
+        return Promise.resolve(options.interactions ?? []);
+      },
+      fetchRecording: () => {
+        asked.push('fetchRecording');
+        return Promise.resolve(
           options.recording === null || options.recording === undefined
             ? null
             : { bytes: options.recording, contentType: 'audio/wav' },
-        ),
+        );
+      },
     },
     storage: {
       put: (input) => {
@@ -158,6 +172,10 @@ const callFor = async (externalCallId: string) =>
         patientId: true,
         transcript: true,
         recordingKey: true,
+        hasRecording: true,
+        verification: true,
+        verifiedAt: true,
+        createdAt: true,
         startedAt: true,
       },
     }),
@@ -219,73 +237,34 @@ describe('processing a stored webhook event', () => {
     expect(turns).toBe(4);
   });
 
-  it('prefers the provider’s own figures over the payload’s', async () => {
-    const interactionId = `20261102/authority_${Date.now()}`;
-    // A payload claiming a much longer call than the provider's records show.
-    const eventId = await storeEvent(payload(interactionId, { duration: 9999 }));
+  it('uses the payload as it arrived, and asks the provider nothing', async () => {
+    const interactionId = `20261104/payload_${Date.now()}`;
+    const eventId = await storeEvent(payload(interactionId, { duration: 140 }));
+    const dependencies = stub();
 
-    await processWebhookEvent(eventId, stub({ interaction: confirmed(interactionId) }));
+    const result = await processWebhookEvent(eventId, dependencies);
 
-    // D-006 measure three: what we act on is what the provider says, not what the
-    // unauthenticated body claims.
-    expect((await callFor(interactionId))?.durationSeconds).toBe(92);
-  });
-
-  it('refuses to create a call the provider has no record of', async () => {
-    const interactionId = `20261102/forged_${Date.now()}`;
-    const eventId = await storeEvent(payload(interactionId));
-
-    // `interaction: null` is the forged-webhook case: a well-formed body for a call that
-    // never happened. This is the whole reason the re-read exists.
-    const result = await processWebhookEvent(eventId, stub({ interaction: null }));
-
-    expect(result.outcome).toBe('unresolvable');
-    expect(await callFor(interactionId)).toBeNull();
-
-    const event = await asPlatform(ownerClient(), (tx) =>
-      tx.webhookEvent.findUnique({
-        where: { id: eventId },
-        select: { status: true, lastError: true, attempts: true },
-      }),
-    );
-
-    expect(event?.status).toBe('FAILED');
-    expect(event?.lastError).toBe('the provider has no such interaction');
-    expect(event?.attempts).toBe(1);
-  });
-
-  it('prefers the transcript endpoint over the webhook’s copy', async () => {
-    const interactionId = `20261102/transcript_${Date.now()}`;
-    const eventId = await storeEvent(payload(interactionId));
-
-    await processWebhookEvent(
-      eventId,
-      stub({
-        interaction: confirmed(interactionId),
-        transcript: [{ role: 'AGENT', text: 'From the authenticated endpoint.' }],
-      }),
-    );
+    // D-006 as amended: no re-read and no transcript fetch before the call appears.
+    expect(dependencies.asked).toEqual([]);
+    expect(result.outcome).toBe('processed');
 
     const call = await callFor(interactionId);
-    expect(call?.transcript).toBe('Agent: From the authenticated endpoint.');
+    expect(call?.durationSeconds).toBe(140);
+    expect(call?.transcript).toContain('Agent: Good morning');
+    // Created unverified; the recording job checks it later.
+    expect(call?.verification).toBe('UNCHECKED');
+    expect(call?.hasRecording).toBeNull();
   });
 
-  it('keeps the webhook’s transcript when the endpoint is not ready', async () => {
-    const interactionId = `20261102/notready_${Date.now()}`;
+  it('creates a call the provider would not recognise, to be flagged after the fact', async () => {
+    const interactionId = `20261104/unknown_${Date.now()}`;
     const eventId = await storeEvent(payload(interactionId));
 
-    /**
-     * The contract says an unknown id answers 200 with no messages and should be retried
-     * later (section 5), and a fetch may also simply fail. Either way the call row and the
-     * words the webhook carried are better than nothing, so neither is fatal.
-     */
-    const result = await processWebhookEvent(
-      eventId,
-      stub({ interaction: confirmed(interactionId), transcriptThrows: true }),
-    );
+    // The provider has no record, but nothing asks it at this point.
+    const result = await processWebhookEvent(eventId, stub({ interaction: null }));
 
-    expect(result.transcriptTurns).toBe(4);
-    expect((await callFor(interactionId))?.transcript).toContain('Agent: Good morning');
+    expect(result.outcome).toBe('processed');
+    expect((await callFor(interactionId))?.verification).toBe('UNCHECKED');
   });
 
   it('links the caller to their record, and refuses to when a number is shared', async () => {
@@ -346,19 +325,18 @@ describe('processing a stored webhook event', () => {
 });
 
 describe('copying the recording', () => {
+  /** The verification half has its own suite below; here Sarvam simply has the call. */
+  const found: ProviderInteraction = { ...confirmed('any'), externalCallId: 'any' };
   const ingest = async (interactionId: string): Promise<string> => {
     const eventId = await storeEvent(payload(interactionId));
-    const result = await processWebhookEvent(
-      eventId,
-      stub({ interaction: confirmed(interactionId) }),
-    );
+    const result = await processWebhookEvent(eventId, stub());
     return result.callId ?? '';
   };
 
   it('writes it to our own storage and records the key', async () => {
     const interactionId = `20261102/rec_${Date.now()}`;
     const callId = await ingest(interactionId);
-    const dependencies = stub({ recording: RECORDING });
+    const dependencies = stub({ recording: RECORDING, interaction: found });
 
     const result = await downloadRecording(callId, clinic.organisationId, dependencies);
 
@@ -375,8 +353,12 @@ describe('copying the recording', () => {
     const interactionId = `20261102/rec_twice_${Date.now()}`;
     const callId = await ingest(interactionId);
 
-    await downloadRecording(callId, clinic.organisationId, stub({ recording: RECORDING }));
-    const again = stub({ recording: RECORDING });
+    await downloadRecording(
+      callId,
+      clinic.organisationId,
+      stub({ recording: RECORDING, interaction: found }),
+    );
+    const again = stub({ recording: RECORDING, interaction: found });
     const second = await downloadRecording(callId, clinic.organisationId, again);
 
     // A retry after the key was written must not pull the file down again: the key on the row
@@ -392,7 +374,7 @@ describe('copying the recording', () => {
     const result = await downloadRecording(
       callId,
       clinic.organisationId,
-      stub({ recording: null }),
+      stub({ recording: null, interaction: found }),
     );
 
     // Consent may have been declined, or the call may have ended before anything was
@@ -406,7 +388,11 @@ describe('copying the recording', () => {
     const interactionId = `20261102/rec_audit_${Date.now()}`;
     const callId = await ingest(interactionId);
 
-    await downloadRecording(callId, clinic.organisationId, stub({ recording: RECORDING }));
+    await downloadRecording(
+      callId,
+      clinic.organisationId,
+      stub({ recording: RECORDING, interaction: found }),
+    );
 
     const row = await asPlatform(ownerClient(), (tx) =>
       tx.auditLog.findFirst({
@@ -417,6 +403,157 @@ describe('copying the recording', () => {
 
     expect(row?.organisationId).toBe(clinic.organisationId);
     expect(row?.metadata).toMatchObject({ bytes: RECORDING.byteLength });
+  });
+});
+
+/**
+ * Verification after the fact (D-006 as amended on 2026-11-04).
+ *
+ * A webhook's call is created from its payload and then looked up in Sarvam's interactions
+ * list by the recording job. TWO FACTS, NEVER MIXED: "is there audio" comes from the recording
+ * endpoint, whose 404 a forged call and a clinic that does not record both get; "did Sarvam
+ * have this call" comes from the interactions list.
+ */
+describe('verifying a call after it arrived', () => {
+  const ingest = async (interactionId: string): Promise<string> => {
+    const result = await processWebhookEvent(await storeEvent(payload(interactionId)), stub());
+    return result.callId ?? '';
+  };
+
+  const afterSettling = async (callId: string): Promise<Date> => {
+    const row = await asPlatform(ownerClient(), (tx) =>
+      tx.call.findUniqueOrThrow({ where: { id: callId }, select: { createdAt: true } }),
+    );
+    return new Date(row.createdAt.getTime() + VERIFICATION_SETTLE_MS + 1_000);
+  };
+
+  it('marks a call VERIFIED when Sarvam’s interactions list holds it', async () => {
+    const interactionId = `20261104/verify_found_${Date.now()}`;
+    const callId = await ingest(interactionId);
+
+    const result = await downloadRecording(
+      callId,
+      clinic.organisationId,
+      stub({ interaction: confirmed(interactionId), recording: RECORDING }),
+    );
+
+    expect(result.verification).toBe('VERIFIED');
+    const call = await callFor(interactionId);
+    expect(call).toMatchObject({ verification: 'VERIFIED', hasRecording: true });
+    expect(call?.verifiedAt).not.toBeNull();
+  });
+
+  it('keeps "no audio" and "not a real call" apart: a verified call with no recording', async () => {
+    const interactionId = `20261104/verify_silent_${Date.now()}`;
+    const callId = await ingest(interactionId);
+
+    // The recording endpoint's 404, which a clinic that does not record gets on every call.
+    await downloadRecording(
+      callId,
+      clinic.organisationId,
+      stub({ interaction: confirmed(interactionId), recording: null }),
+    );
+
+    expect(await callFor(interactionId)).toMatchObject({
+      verification: 'VERIFIED',
+      hasRecording: false,
+    });
+  });
+
+  it('marks a call NOT_FOUND once the list’s cache window has passed', async () => {
+    const interactionId = `20261104/verify_missing_${Date.now()}`;
+    const callId = await ingest(interactionId);
+
+    const result = await downloadRecording(
+      callId,
+      clinic.organisationId,
+      stub({ interaction: null, recording: null, now: await afterSettling(callId) }),
+    );
+
+    expect(result.verification).toBe('NOT_FOUND');
+    expect((await callFor(interactionId))?.verification).toBe('NOT_FOUND');
+
+    const audit = await asPlatform(ownerClient(), (tx) =>
+      tx.auditLog.findFirst({
+        where: { action: 'call.verified', entityId: callId },
+        select: { metadata: true },
+      }),
+    );
+    expect(audit?.metadata).toMatchObject({ verification: 'NOT_FOUND' });
+  });
+
+  it('does not believe an absence inside the cache window: retries, and stays UNCHECKED', async () => {
+    const interactionId = `20261104/verify_early_${Date.now()}`;
+    const callId = await ingest(interactionId);
+
+    await expect(
+      downloadRecording(
+        callId,
+        clinic.organisationId,
+        stub({ interaction: null, recording: RECORDING }),
+      ),
+    ).rejects.toThrow(VerificationPendingError);
+
+    // The recording was still copied: verification is a side effect, not a gate on it.
+    expect(await callFor(interactionId)).toMatchObject({
+      verification: 'UNCHECKED',
+      hasRecording: true,
+    });
+  });
+
+  it('leaves the call UNCHECKED and retries when the lookup itself fails', async () => {
+    const interactionId = `20261104/verify_error_${Date.now()}`;
+    const callId = await ingest(interactionId);
+
+    await expect(
+      downloadRecording(
+        callId,
+        clinic.organisationId,
+        stub({ lookupThrows: new Error('analytics answered 503'), recording: null }),
+      ),
+    ).rejects.toThrow('analytics answered 503');
+
+    expect((await callFor(interactionId))?.verification).toBe('UNCHECKED');
+  });
+
+  it('asks each question once: a retry neither re-fetches the audio nor re-verifies', async () => {
+    const interactionId = `20261104/verify_once_${Date.now()}`;
+    const callId = await ingest(interactionId);
+
+    await downloadRecording(
+      callId,
+      clinic.organisationId,
+      stub({ interaction: confirmed(interactionId), recording: RECORDING }),
+    );
+    const retry = stub({
+      interaction: null,
+      recording: RECORDING,
+      now: await afterSettling(callId),
+    });
+    await downloadRecording(callId, clinic.organisationId, retry);
+
+    expect(retry.asked).toEqual([]);
+    expect((await callFor(interactionId))?.verification).toBe('VERIFIED');
+  });
+
+  it('anchors the lookup on when WE received the call, not on a time the payload claims', async () => {
+    const interactionId = `20261104/verify_anchor_${Date.now()}`;
+    // A payload claiming the call happened a year ago, which would steer a window built from
+    // it far away from where the real call would be.
+    const callId = await processWebhookEvent(
+      await storeEvent(
+        payload(interactionId, {
+          start_datetime: '2025-11-04T06:30:00.000Z',
+          end_datetime: '2025-11-04T06:31:00.000Z',
+        }),
+      ),
+      stub(),
+    ).then((result) => result.callId ?? '');
+    const dependencies = stub({ interaction: confirmed(interactionId), recording: null });
+
+    await downloadRecording(callId, clinic.organisationId, dependencies);
+
+    expect(dependencies.anchors).toEqual([(await callFor(interactionId))?.createdAt]);
   });
 });
 
@@ -442,6 +579,10 @@ describe('catching up on calls no webhook delivered', () => {
      */
     expect(result.interactionsSeen).toBeGreaterThanOrEqual(2);
     expect(await callFor(missing)).not.toBeNull();
+    // Both came from Sarvam's own list, so both are verified at no extra cost: the one the
+    // catch-up created, and the one a webhook had already delivered unchecked.
+    expect((await callFor(missing))?.verification).toBe('VERIFIED');
+    expect((await callFor(existing))?.verification).toBe('VERIFIED');
 
     const duplicates = await asPlatform(ownerClient(), (tx) =>
       tx.call.count({ where: { externalCallId: existing } }),

@@ -48,11 +48,10 @@ let boss: PgBoss | undefined;
  * Retry policy, stated once.
  *
  * Six attempts with exponential backoff, which from a 30-second base reaches roughly a
- * quarter of an hour. Two things drive those numbers rather than taste: the contract says a
- * transcript for an unknown id answers 200 with no messages and should be retried later
- * (section 5), so the first attempts are expected to find nothing; and it says 429 carries
- * `Retry-After` and 5xx should be retried with backoff (section 1). A job that gave up after
- * two tries would lose the transcript of a call that simply had not been written yet.
+ * quarter of an hour. Two things drive those numbers rather than taste: the contract says the
+ * interactions list is cached for 60 seconds (section 5), so verifying a call just after it
+ * ended can find nothing and must be retried rather than believed; and it says 429 carries
+ * `Retry-After` and 5xx should be retried with backoff (section 1).
  */
 const RETRY = { retryLimit: 6, retryDelay: 30, retryBackoff: true } as const;
 
@@ -121,13 +120,20 @@ export const stopQueue = async (): Promise<void> => {
  * already stored. The event is in `webhook_events` either way, with status RECEIVED, so the
  * catch-up job is what eventually picks it up. The absence is logged at warn.
  */
-export const enqueue = async (queue: VoiceQueue, data: object): Promise<string | null> => {
+export const enqueue = async (
+  queue: VoiceQueue,
+  data: object,
+  options: { readonly startAfterSeconds?: number } = {},
+): Promise<string | null> => {
   if (boss === undefined) {
     logger.warn({ queue }, 'job enqueued with no runner started; it will be caught up later');
     return null;
   }
 
-  return boss.send(queue, data, RETRY);
+  return boss.send(queue, data, {
+    ...RETRY,
+    ...(options.startAfterSeconds === undefined ? {} : { startAfter: options.startAfterSeconds }),
+  });
 };
 
 /** For tests and for the worker process: the running instance, or undefined. */

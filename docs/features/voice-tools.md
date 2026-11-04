@@ -161,16 +161,42 @@ wrong, and are therefore each in one place:
 
 ### How a webhook is authenticated, given that it is not signed
 
-D-006's three measures, in the order they run:
+D-006 as amended on 2026-11-04:
 
 1. A per-clinic secret in the URL path, stored only as a hash, in its own column. It resolves
-   the clinic, so a request without it addresses nobody.
-2. An allow-list of Sarvam's two published egress addresses, configurable and off by default,
-   because a developer replaying an event is not coming from Mumbai.
-3. **The one that holds:** the interaction is re-read from the authenticated analytics API
-   and the provider's own figures are preferred field by field. An event the provider has no
-   record of is marked FAILED and creates nothing. `metadata.clinic_id` is cross-checked and
-   never believed: a mismatch is logged and the secret's answer stands.
+   the clinic, so a request without it addresses nobody. The request log replaces it with
+   `[REDACTED]`.
+2. An allow-list of Sarvam's egress addresses, **or an explicit decision to run without one**.
+   The API refuses to start with neither (`SARVAM_WEBHOOK_SOURCE_IPS` or
+   `SARVAM_WEBHOOK_IP_CHECK_DISABLED=true`) and with both.
+
+`metadata.clinic_id` is never used to route: a mismatch is logged and the secret's answer
+stands.
+
+**Validated on the way in.** The adapter's schema checks the body's shape, types and length
+bounds (ids 200 characters, phones 32, times 64, a duration of at most a day, at most 2,000
+transcript turns of at most 20,000 characters). A body that fails is answered 200 with
+`{ ok: false, received: false }`, logged with the failing field paths only, and stored nowhere.
+So is a body the JSON parser cannot read. The webhook has its own 1 MB body limit
+(`WEBHOOK_BODY_LIMIT`), because a long call's transcript in two languages passes the general
+100 kb one.
+
+**Used as it arrived, verified after.** A valid body becomes a call and a transcript with no
+provider call in front of it. The recording job, two minutes later, asks Sarvam two separate
+questions and records two separate answers:
+
+| Question                   | Asked of               | Recorded as                                                  |
+| -------------------------- | ---------------------- | ------------------------------------------------------------ |
+| Is there audio?            | the recording endpoint | `calls.has_recording`, and the copied file                   |
+| Did Sarvam have this call? | the interactions list  | `calls.verification`: `UNCHECKED`, `VERIFIED` or `NOT_FOUND` |
+
+They are kept apart because the recording endpoint answers 404 both for a call that never
+happened and for a real call that was not recorded. The interactions list is cached for 60
+seconds (contract section 5), so a call absent from it is only marked `NOT_FOUND` once five
+minutes have passed since we received it; before that the job retries. The lookup's window is
+anchored on our own receive time, never on a time the payload claims. A call the catch-up job
+creates, or finds, is `VERIFIED` by construction, since it came from that same list. The Call
+History drawer warns on `NOT_FOUND` only.
 
 ### The jobs
 
@@ -185,12 +211,12 @@ has already seen writes nothing.
 
 ### Deviations in the ingestion half
 
-| Deviation                                                                                                                                  | Why                                                                                                                                                                                                                                                                                                   |
-| ------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **The transcript is its own table**, not the `call_transcripts` the contract's mapping names, and `calls.transcript` keeps the plain text. | The dashboard shows an attributed conversation, so the turns need rows. The text column already existed and is what an export or a search wants.                                                                                                                                                      |
-| **`calls.outcome` is never written.**                                                                                                      | Deciding that a call resulted in a booking means reading what the agent did during it. That is the outcome work, and inventing it from the status would be a fact the clinic acts on. The UI reads "Not classified".                                                                                  |
-| **Outbound calls are parsed but not ingested.**                                                                                            | `attempt_id` marks an outbound attempt (contract section 4), and an outbound webhook arriving here must not be filed as somebody ringing the clinic. Outbound reminders are a later milestone.                                                                                                        |
-| **The authoritative re-read is a filtered list**, not a read of one interaction.                                                           | The contract documents no single-interaction endpoint. It is weaker than a direct read and still the strongest available: a forged payload must name an interaction that genuinely exists in that workspace, in the window it claims. Question 3 in the contract's own list is what would replace it. |
+| Deviation                                                                                                                                  | Why                                                                                                                                                                                                                  |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **The transcript is its own table**, not the `call_transcripts` the contract's mapping names, and `calls.transcript` keeps the plain text. | The dashboard shows an attributed conversation, so the turns need rows. The text column already existed and is what an export or a search wants.                                                                     |
+| **`calls.outcome` is never written.**                                                                                                      | Deciding that a call resulted in a booking means reading what the agent did during it. That is the outcome work, and inventing it from the status would be a fact the clinic acts on. The UI reads "Not classified". |
+| **Outbound calls are parsed but not ingested.**                                                                                            | `attempt_id` marks an outbound attempt (contract section 4), and an outbound webhook arriving here must not be filed as somebody ringing the clinic. Outbound reminders are a later milestone.                       |
+| **Verification is a filtered list lookup**, not a read of one interaction.                                                                 | The contract documents no single-interaction endpoint, so the recording job lists the window around our receive time and looks for the id. Question 3 in the contract's own list is what would replace it.           |
 
 ## The Call History screens
 

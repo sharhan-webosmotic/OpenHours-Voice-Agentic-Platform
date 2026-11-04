@@ -74,18 +74,49 @@ contract and a second place for the number-to-clinic mapping to drift.
 
 ---
 
-## D-006 Sarvam webhooks are authenticated by three measures, because Sarvam documents none
+## D-006 Sarvam webhooks are authenticated by the URL secret and the address allow-list, and verified after the fact
 
-Until Sarvam publishes a signature scheme: a long random secret in the webhook URL path, an
-IP allowlist in front of the endpoint, and re-fetching the authoritative record from Sarvam
-before acting on anything the payload claims.
+**AMENDED 2026-11-04. This is the decision in force.** Until Sarvam publishes a signature
+scheme, the control on the webhook is two measures:
 
-**Why:** none of the three is sufficient alone, and the third is the one that holds: a
-forged payload cannot make the platform act if the platform only ever acts on what it
-re-read from the provider.
+- **A long random secret per clinic in the URL path**, stored only as a hash. It resolves the
+  clinic. `metadata.clinic_id` in the payload is never used to route.
+- **An allow-list of Sarvam's egress addresses, or an explicit decision to run without one.**
+  Configuration refuses to start with neither (`SARVAM_WEBHOOK_SOURCE_IPS`, or
+  `SARVAM_WEBHOOK_IP_CHECK_DISABLED=true`), and with both. It is a required choice rather
+  than a required list because the contract still marks as UNKNOWN whether Sarvam's two
+  published addresses are the ones webhooks come from, and a guessed list would refuse every
+  real call.
 
-**Replaces, not supplements:** when Sarvam documents a signature scheme, verify the
-signature and keep the re-fetch. Record that as a new decision rather than editing this one.
+**The payload is validated on the way in and then used as it arrived.** The adapter's schema
+checks shape, types and length bounds; a body that fails is answered 200, logged by field path
+only, and stored nowhere. A valid body becomes a call and a transcript with no provider call in
+front of it, so a call appears as soon as its event is processed.
+
+**Verification is after the fact, not before.** The recording job, which authenticates to
+Sarvam for the interaction anyway, looks it up in Sarvam's interactions list and marks the call
+`VERIFIED` or `NOT_FOUND`. The clinic dashboard flags `NOT_FOUND` calls and nothing else. "Is
+there audio" is a separate fact (`calls.has_recording`), because the recording endpoint's 404
+is what a forged call AND a clinic that does not record both get.
+
+**Why it changed.** Re-reading before acting put two provider calls between a finished call and
+its appearance in the dashboard, made a call depend on Sarvam's analytics being up at that
+moment, and, for a clinic with no app id, either failed open or held real calls back.
+
+**What it costs, stated plainly.** A forged webhook, which needs the clinic's URL secret and,
+with the allow-list on, a Sarvam address, now creates a call and a transcript that staff can
+read until the recording job flags it, a few minutes later. The flag is the control from then
+on, which is why it is shown only for calls Sarvam does not have: a warning on every call would
+be ignored. A clinic with no Sarvam app id cannot be verified at all and its calls stay
+`UNCHECKED`.
+
+**When Sarvam documents a signature scheme:** verify it on the way in, keep the after-the-fact
+lookup, and record that as an amendment here.
+
+**The original decision, 2026-10, kept for the record.** Three measures: the URL secret, the
+allow-list, and re-fetching the authoritative record from Sarvam before acting on anything the
+payload claimed, on the reasoning that the third was the one that holds because the platform
+only ever acted on what it re-read. That ordering is what the amendment above replaces.
 
 ---
 

@@ -422,6 +422,21 @@ enum CallDirection {
   @@map("call_direction")
 }
 
+/// Whether the provider's own records hold a call that arrived by webhook (D-006).
+///
+/// The webhook is not signed, so its call is created first and checked after: the recording
+/// job looks the interaction up in Sarvam's interactions list.
+enum CallVerification {
+  /// Not looked up yet, or could not be (the clinic has no Sarvam app id).
+  UNCHECKED
+  /// Sarvam's interactions list holds this interaction.
+  VERIFIED
+  /// Sarvam's interactions list does not, after its cache window has passed.
+  NOT_FOUND
+
+  @@map("call_verification")
+}
+
 enum CallStatus {
   RINGING
   IN_PROGRESS
@@ -695,34 +710,41 @@ model Appointment {
 }
 
 model Call {
-  id              String        @id @db.Uuid
-  organisationId  String        @map("organisation_id") @db.Uuid
-  provider        Provider      @default(SARVAM)
+  id              String           @id @db.Uuid
+  organisationId  String           @map("organisation_id") @db.Uuid
+  provider        Provider         @default(SARVAM)
   /// The provider's call identifier, unique per provider.
-  externalCallId  String        @map("external_call_id")
+  externalCallId  String           @map("external_call_id")
   direction       CallDirection
   status          CallStatus
-  outcome         CallOutcome   @default(NONE)
+  outcome         CallOutcome      @default(NONE)
   /// PHI: caller and callee numbers in E.164.
-  fromE164        String        @map("from_e164")
-  toE164          String        @map("to_e164")
+  fromE164        String           @map("from_e164")
+  toE164          String           @map("to_e164")
   /// Linked when exactly one patient matches the normalised number, else left NULL.
-  patientId       String?       @map("patient_id") @db.Uuid
-  appointmentId   String?       @map("appointment_id") @db.Uuid
-  startedAt       DateTime?     @map("started_at") @db.Timestamptz(6)
-  endedAt         DateTime?     @map("ended_at") @db.Timestamptz(6)
-  durationSeconds Int?          @map("duration_seconds")
+  patientId       String?          @map("patient_id") @db.Uuid
+  appointmentId   String?          @map("appointment_id") @db.Uuid
+  startedAt       DateTime?        @map("started_at") @db.Timestamptz(6)
+  endedAt         DateTime?        @map("ended_at") @db.Timestamptz(6)
+  durationSeconds Int?             @map("duration_seconds")
   /// Integer minor units.
-  costMinor       Int?          @map("cost_minor")
+  costMinor       Int?             @map("cost_minor")
   /// Private S3 key, never a public URL. PHI.
-  recordingKey    String?       @map("recording_key")
+  recordingKey    String?          @map("recording_key")
+  /// Whether Sarvam returned audio for this call. NULL until the recording job has asked.
+  /// Separate from `verification` on purpose: a clinic that does not record has real calls
+  /// with no audio, and "no audio" must never read as "not a real call".
+  hasRecording    Boolean?         @map("has_recording")
+  /// Whether Sarvam's own interactions list holds this call (D-006, after the fact).
+  verification    CallVerification @default(UNCHECKED)
+  verifiedAt      DateTime?        @map("verified_at") @db.Timestamptz(6)
   transcript      String?
-  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  organisation   Organisation         @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-  patient        Patient?             @relation(fields: [patientId], references: [id], onDelete: SetNull)
-  appointment    Appointment?         @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  organisation    Organisation         @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  patient         Patient?             @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  appointment     Appointment?         @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   transcriptTurns CallTranscriptTurn[]
 
   @@unique([provider, externalCallId])

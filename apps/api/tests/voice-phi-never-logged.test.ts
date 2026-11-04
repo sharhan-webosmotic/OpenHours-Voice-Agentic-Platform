@@ -41,7 +41,7 @@ vi.mock('../src/common/logger.js', async () => {
 const { createApp } = await import('../src/app.js');
 const { asPlatform, disconnectAll, mintToolSecret, mintWebhookSecret, ownerClient } =
   await import('./support/db.js');
-const { processWebhookEvent } = await import('../src/voice/ingest.service.js');
+const { downloadRecording, processWebhookEvent } = await import('../src/voice/ingest.service.js');
 const { sarvamProvider } = await import('../src/voice/providers/sarvam.js');
 const { createOrganisationGraph } = await import('./support/fixtures.js');
 const { markHoursCollected, nextBookableLocal } = await import('./support/clinic-schedule.js');
@@ -199,28 +199,11 @@ describe('nothing from a call webhook reaches the log', () => {
     );
 
     /**
-     * Processed with a stubbed provider, so the job runs its whole path (parse, re-read,
-     * write the call, write the transcript, audit) without a network. That path is where the
-     * transcript is in scope, which is what makes this the interesting log to read.
+     * The whole processing path (parse, write the call, write the transcript, audit). It asks
+     * the provider nothing (D-006), and it is where the transcript is in scope, which is what
+     * makes this the interesting log to read.
      */
-    await processWebhookEvent(stored.id, {
-      provider: {
-        ...sarvamProvider,
-        getInteraction: () =>
-          Promise.resolve({
-            externalCallId: interactionId,
-            startedAt: new Date('2026-11-02T07:00:00.000Z'),
-            endedAt: new Date('2026-11-02T07:02:20.000Z'),
-            durationSeconds: 140,
-            direction: 'INBOUND' as const,
-            fromE164: null,
-            toE164: null,
-            endedBy: 'caller',
-            failureReason: null,
-          }),
-        fetchTranscript: () => Promise.resolve([]),
-      },
-    });
+    await processWebhookEvent(stored.id);
 
     const log = captured.slice(before).join('\n');
 
@@ -237,31 +220,28 @@ describe('nothing from a call webhook reaches the log', () => {
     expect(turns).toBe(2);
   });
 
-  it('logs nothing identifying when the payload cannot be parsed', async () => {
+  it('logs nothing identifying when a body fails validation and is refused', async () => {
     const before = captured.length;
 
-    // No `interaction_id`, so the route stores it under a digest and the job's parse throws.
-    // The error path is the one most likely to interpolate a body into a message.
+    // Two failures at once: no `interaction_id`, and a transcript turn far over its bound.
+    // The refusal is the path most likely to interpolate a body into a message.
     const received = await request(app)
       .post(`/webhooks/sarvam/${webhookSecret}`)
-      .send({ user_phone_number: CALLER_PHONE, note: COMPLAINT });
+      .send({
+        user_phone_number: CALLER_PHONE,
+        interaction_transcript: [{ role: 'user', en_text: `${COMPLAINT} `.repeat(400) }],
+      });
 
     expect(received.status).toBe(200);
-
-    const stored = await asPlatform(ownerClient(), (tx) =>
-      tx.webhookEvent.findFirstOrThrow({
-        where: { organisationId, externalEventId: { startsWith: 'unparsed:' } },
-        select: { id: true },
-        orderBy: { receivedAt: 'desc' },
-      }),
-    );
-
-    await expect(processWebhookEvent(stored.id)).rejects.toThrow();
+    expect(received.body).toEqual({ ok: false, received: false });
 
     const log = captured.slice(before).join('\n');
 
+    expect(log).toContain('failed validation');
+    expect(log).toContain('interaction_id');
     expect(log).not.toContain(COMPLAINT);
     expect(log).not.toContain(CALLER_PHONE);
+    expect(log).not.toContain('9812399777');
   });
 });
 
@@ -372,9 +352,9 @@ describe('the webhook secret never reaches the log', () => {
  *
  * Every other case in this file passed with redaction switched off, because none of today's
  * paths hand the logger anything identifying. That proves the paths are clean today and says
- * nothing about the day one is not. This one drives real application code, the ingestion
- * job's "transcript fetch failed" warning, with a provider error that carries what the
- * provider sent back, as SDK errors commonly do. With redaction off it leaks and fails.
+ * nothing about the day one is not. This one drives real application code, the recording
+ * job's "call verification lookup failed" warning, with a provider error that carries what
+ * the provider sent back, as SDK errors commonly do. With redaction off it leaks and fails.
  */
 describe('redaction is what keeps an error carrying patient data out of the log', () => {
   const LEAKED_NAME = 'Perpetua Wolfsbane';
@@ -394,38 +374,32 @@ describe('redaction is what keeps an error carrying patient data out of the log'
         select: { id: true },
       }),
     );
+    const processed = await processWebhookEvent(stored.id);
 
     // What a provider SDK attaches to the error it throws: the response it was given.
-    const providerError = Object.assign(new Error('transcript request failed'), {
+    const providerError = Object.assign(new Error('interactions request failed'), {
       transcript: [{ role: 'user', content: LEAKED_WORDS }],
       patient: { name: LEAKED_NAME, phone: LEAKED_PHONE },
     });
 
     const before = captured.length;
 
-    await processWebhookEvent(stored.id, {
-      provider: {
-        ...sarvamProvider,
-        getInteraction: () =>
-          Promise.resolve({
-            externalCallId: interactionId,
-            startedAt: null,
-            endedAt: null,
-            durationSeconds: 30,
-            direction: 'INBOUND',
-            fromE164: null,
-            toE164: null,
-            endedBy: null,
-            failureReason: null,
-          }),
-        fetchTranscript: () => Promise.reject(providerError),
-      },
-    });
+    // The recording job's verification lookup fails, which it logs as a warning before the job
+    // is retried: real application code handing the logger an error that carries patient data.
+    await expect(
+      downloadRecording(processed.callId ?? '', organisationId, {
+        provider: {
+          ...sarvamProvider,
+          getInteraction: () => Promise.reject(providerError),
+          fetchRecording: () => Promise.resolve(null),
+        },
+      }),
+    ).rejects.toThrow('interactions request failed');
 
     const log = captured.slice(before).join('\n');
 
     // The line was written, so the absence below is redaction working rather than silence.
-    expect(log).toContain('transcript fetch failed');
+    expect(log).toContain('call verification lookup failed');
     expect(log).toContain('[REDACTED]');
 
     expect(log).not.toContain(LEAKED_NAME);

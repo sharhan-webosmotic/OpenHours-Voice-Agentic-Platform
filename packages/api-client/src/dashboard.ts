@@ -287,6 +287,12 @@ export type CallView = {
    * is deliberately not part of this contract: a client that cannot learn it cannot try it.
    */
   readonly hasRecording: boolean;
+  /**
+   * Whether Sarvam's own records hold this call, checked after it arrived (D-006). Only
+   * NOT_FOUND means something is wrong: UNCHECKED is not looked up yet, and it has nothing to
+   * do with whether there is a recording.
+   */
+  readonly verification: 'UNCHECKED' | 'VERIFIED' | 'NOT_FOUND';
   readonly createdAt: string;
 };
 

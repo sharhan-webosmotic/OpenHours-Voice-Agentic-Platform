@@ -269,6 +269,7 @@ export const call: CallView = {
   patient: { id: PATIENT_ID, fullName: 'Test Patient One' },
   appointmentId: APPOINTMENT_ID,
   hasRecording: true,
+  verification: 'VERIFIED',
   createdAt: '2026-11-02T06:31:40.000Z',
 };
 

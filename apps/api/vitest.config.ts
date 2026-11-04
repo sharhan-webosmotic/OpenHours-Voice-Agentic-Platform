@@ -26,6 +26,8 @@ export default defineConfig({
             DATABASE_URL: 'postgresql://test:test@127.0.0.1:1/test',
             LOG_LEVEL: 'silent',
             JWT_SECRET: 'unit-test-jwt-secret-at-least-32-bytes!!',
+            // Tests replay webhooks from 127.0.0.1, so the address check is off on purpose.
+            SARVAM_WEBHOOK_IP_CHECK_DISABLED: 'true',
           },
         },
       },
