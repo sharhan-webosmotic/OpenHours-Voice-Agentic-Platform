@@ -2,9 +2,10 @@
  * Shared contracts used by the API and both web apps: zod schemas, enums and the
  * permission matrix. Named exports only.
  *
- * Empty of product types on purpose - this prompt builds the foundation only. The
- * permission matrix (packages/shared/permissions.ts) and the domain schemas arrive
- * with the features that need them.
+ * The permission matrix lives in `permissions.ts` and is imported by the API and by both
+ * consoles, which is the one copy root CLAUDE.md rule 3 allows. The clinic configuration
+ * contract lives in `clinic.ts` for the same reason: the API's routes, the admin console's
+ * forms and the prompt renderer must agree on what a valid opening hour is.
  */
 
 /** Semantic version of the shared contract package, for diagnostics endpoints. */
@@ -20,9 +21,11 @@ export {
   RESOURCES,
   ROLES,
   SCOPES,
+  USER_ROLES,
   isPermitted,
   isPlatformRole,
   isRole,
+  isUserRole,
   permissionScope,
   roleBelongsInAudience,
   type Action,
@@ -32,4 +35,139 @@ export {
   type Resource,
   type Role,
   type Scope,
+  type UserRole,
 } from './permissions.js';
+
+export {
+  DEFAULT_COUNTRY_CODE,
+  isE164,
+  normalisePhone,
+  toE164,
+  type PhoneNormalisation,
+  type PhoneProblem,
+} from './phone.js';
+
+export { SUGGESTED_TIME_ZONES, isIanaTimeZone } from './timezone.js';
+
+export {
+  PATIENT_SEXES,
+  PATIENT_SORTS,
+  patientSchema,
+  updatePatientSchema,
+  type PatientInput,
+  type PatientSex,
+  type PatientSort,
+  type UpdatePatientInput,
+} from './patient.js';
+
+export {
+  AGENDA_RANGES,
+  APPOINTMENT_SOURCES,
+  APPOINTMENT_STATUSES,
+  APPOINTMENT_TRANSITIONS,
+  SLOT_HOLDING_STATUSES,
+  agendaQuerySchema,
+  availabilityQuerySchema,
+  canTransition,
+  cancelAppointmentSchema,
+  changeAppointmentStatusSchema,
+  APPOINTMENT_NOTES_MAX,
+  createAppointmentSchema,
+  holdsSlot,
+  rescheduleAppointmentSchema,
+  type AgendaQuery,
+  type AgendaRange,
+  type AppointmentSource,
+  type AppointmentStatus,
+  type AvailabilityQuery,
+  type CancelAppointmentInput,
+  type ChangeAppointmentStatusInput,
+  type CreateAppointmentInput,
+  type RescheduleAppointmentInput,
+} from './appointment.js';
+
+export {
+  addDays,
+  clinicDayOf,
+  daysBetween,
+  endOfClinicDay,
+  formatMinuteOfDay,
+  isClinicDay,
+  startOfClinicDay,
+  weekdayOf,
+  zonedParts,
+  zonedTimeToUtc,
+  type ClinicDay,
+  type ZonedParts,
+} from './clinic-time.js';
+
+export {
+  AGENT_TONES,
+  MAX_PER_SLOT_SUPPORTED,
+  MINUTES_IN_DAY,
+  ORGANISATION_STATUSES,
+  RECORDING_CONSENT_MODES,
+  SUGGESTED_AGENT_LANGUAGES,
+  WEEKDAYS,
+  agentProfileSchema,
+  bookingPolicySchema,
+  clinicFaqsSchema,
+  clinicHoursSchema,
+  clinicProfileSchema,
+  createOrganisationSchema,
+  dayHoursSchema,
+  doctorSchema,
+  e164Schema,
+  faqSchema,
+  hoursSegmentSchema,
+  languageTagSchema,
+  phoneSchema,
+  sarvamMappingSchema,
+  createClinicOwnerSchema,
+  serviceSchema,
+  telephonySchema,
+  timezoneSchema,
+  updateDoctorSchema,
+  updateOrganisationSchema,
+  updateServiceSchema,
+  type AgentProfileInput,
+  type AgentTone,
+  type BookingPolicyInput,
+  type ClinicFaqsInput,
+  type ClinicHoursInput,
+  type ClinicProfileInput,
+  type CreateOrganisationInput,
+  type DayHours,
+  type DoctorInput,
+  type FaqInput,
+  type HoursSegment,
+  type OrganisationStatus,
+  type RecordingConsentMode,
+  type SarvamMappingInput,
+  type CreateClinicOwnerInput,
+  type ServiceInput,
+  type TelephonyInput,
+  type UpdateOrganisationInput,
+  type Weekday,
+} from './clinic.js';
+
+export {
+  READINESS_REQUIREMENTS,
+  READINESS_SECTIONS,
+  clinicReadiness,
+  type ClinicReadiness,
+  type ReadinessInput,
+  type ReadinessRequirement,
+  type ReadinessSection,
+} from './clinic-readiness.js';
+
+export {
+  VOICE_AGENT_REQUIREMENTS,
+  VOICE_AGENT_REQUIREMENT_LABELS,
+  VOICE_AGENT_STATES,
+  voiceAgentStatus,
+  type VoiceAgentRequirement,
+  type VoiceAgentState,
+  type VoiceAgentStatus,
+  type VoiceAgentStatusInput,
+} from './voice-agent-status.js';

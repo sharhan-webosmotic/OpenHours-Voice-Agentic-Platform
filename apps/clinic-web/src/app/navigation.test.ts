@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PERMISSIONS, ROLES, isPermitted, type Role } from '@clinicai/shared';
+import { PERMISSIONS, USER_ROLES, isPermitted, type Role } from '@clinicai/shared';
 import { CLINIC_NAV, landingPath, visibleNavigation } from './navigation';
 
 /**
@@ -29,7 +29,7 @@ describe('every item is governed by a real matrix cell', () => {
 });
 
 describe('visibleNavigation agrees with the matrix for every role', () => {
-  it.each(ROLES)('%s sees exactly the clinic items it is permitted', (role) => {
+  it.each(USER_ROLES)('%s sees exactly the clinic items it is permitted', (role) => {
     const visible = visibleNavigation(CLINIC_NAV, role);
 
     for (const item of CLINIC_NAV) {
@@ -81,7 +81,7 @@ describe('the specific denials that shape the product', () => {
 });
 
 describe('landingPath', () => {
-  it.each(ROLES)('sends %s to a page it may actually read, or nowhere', (role) => {
+  it.each(USER_ROLES)('sends %s to a page it may actually read, or nowhere', (role) => {
     const path = landingPath(CLINIC_NAV, role);
 
     if (path === undefined) {
@@ -126,5 +126,29 @@ describe('landingPath', () => {
 
     expect(landingPath(platformOnly, 'DOCTOR')).toBeUndefined();
     expect(landingPath(platformOnly, 'CLINIC_OWNER')).toBe('/settings');
+  });
+});
+
+/**
+ * The voice agent is a principal, not a person, so it has no menu.
+ *
+ * This is NOT derived from the matrix, deliberately: the matrix grants the agent a real
+ * read of appointments, patients, services and the clinic's settings, so a matrix-derived
+ * assertion was satisfied by showing it five pages. The menu is a person's menu, and that
+ * is a statement about the product rather than about the permission table.
+ */
+describe('the voice agent has no menu', () => {
+  it('sees nothing and lands nowhere', () => {
+    expect(visibleNavigation(CLINIC_NAV, 'VOICE_AGENT')).toHaveLength(0);
+    expect(landingPath(CLINIC_NAV, 'VOICE_AGENT')).toBeUndefined();
+  });
+
+  it('is denied the pages its matrix row would otherwise open', () => {
+    // Named so the test fails loudly if the agent's grants are widened without anybody
+    // thinking about the dashboard.
+    for (const resource of ['appointments', 'patients', 'clinic_settings'] as const) {
+      expect(isPermitted('VOICE_AGENT', resource, 'read')).toBe(true);
+    }
+    expect(visibleNavigation(CLINIC_NAV, 'VOICE_AGENT')).toEqual([]);
   });
 });

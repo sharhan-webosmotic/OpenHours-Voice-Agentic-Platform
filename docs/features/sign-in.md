@@ -189,6 +189,10 @@ pnpm --filter @clinicai/api dev
 The API needs `CORS_ALLOWED_ORIGINS` to include both application origins, and `COOKIE_SECURE`
 left true.
 
+The API will not start until its environment sets `SARVAM_WEBHOOK_SOURCE_IPS` or
+`SARVAM_WEBHOOK_IP_CHECK_DISABLED=true` (D-006). `apps/api/.env.example` sets the second for
+local development; an existing `.env` written before 2026-11-04 has neither and needs one added.
+
 `.env` lives at the repository root and is read by `prisma.config.ts` and by the `tsx`-based
 scripts through `--env-file-if-exists`. Nothing loaded it before, so every one of these
 commands failed on a fresh shell with "expected string, received undefined". `pnpm start`

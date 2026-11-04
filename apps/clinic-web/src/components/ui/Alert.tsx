@@ -13,10 +13,22 @@ import { cn } from './cn';
  * distinguish the red from the green.
  */
 
-export type AlertKind = 'danger' | 'success' | 'info';
+/**
+ * `warning` arrived with the clinic dashboard's booking form, and it earns its place.
+ *
+ * "The clinic is closed that day" is neither an error nor a note: nothing went wrong, and the
+ * sentence is the answer to what the user just asked for. Showing it in red says the product
+ * broke; showing it in grey hides the one thing on the screen that matters. The tokens
+ * already carried a warning surface, which is the clue that this variant was always expected.
+ *
+ * Added to both applications, because D-009 holds one copy of this file per application and a
+ * variant in only one of them is a divergence waiting to surprise somebody.
+ */
+export type AlertKind = 'danger' | 'warning' | 'success' | 'info';
 
 const KINDS: Record<AlertKind, { readonly box: string; readonly label: string }> = {
   danger: { box: 'bg-danger-surface text-danger', label: 'Error' },
+  warning: { box: 'bg-warning-surface text-warning', label: 'Heads up' },
   success: { box: 'bg-success-surface text-success', label: 'Done' },
   info: { box: 'bg-background text-muted', label: 'Note' },
 };

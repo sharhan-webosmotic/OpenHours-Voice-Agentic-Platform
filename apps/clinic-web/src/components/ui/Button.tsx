@@ -45,13 +45,13 @@ const BASE =
  * for every type size it absorbed. Review finding M3.
  */
 const SIZES: Record<ButtonSize, string> = {
-  md: 'h-10 text-xs',
+  md: 'h-10 text-sm',
   lg: 'h-11 text-base',
 };
 
 const KINDS: Record<ButtonKind, string> = {
-  primary: 'bg-accent text-inverse hover:bg-accent-strong',
-  secondary: 'bg-surface text-default border border-border hover:bg-background',
+  primary: 'bg-accent text-inverse shadow-control hover:bg-accent-strong',
+  secondary: 'bg-surface text-default border border-border shadow-control hover:bg-background',
   danger: 'bg-danger text-inverse hover:brightness-95',
 };
 

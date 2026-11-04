@@ -1,6 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { inject } from 'vitest';
 import { PrismaClient } from '../../src/generated/prisma/client.js';
+import { generateOpaqueToken, hashToken } from '../../src/common/tokens.js';
 
 /**
  * Clients for the database tests.
@@ -82,4 +83,41 @@ export const tenantTables = async (client: PrismaClient): Promise<readonly strin
     ORDER BY c.relname
   `);
   return rows.map((r) => r.table_name);
+};
+
+/**
+ * Gives an organisation's voice agent a tool secret, and returns the secret.
+ *
+ * The platform mints these and stores only a SHA-256 hash (D-012), so a test cannot read
+ * one back and has to set it. Written here rather than in the fixture because most suites
+ * have no business authenticating as a voice agent, and a fixture that handed every test a
+ * live credential would make it easy to use one by accident.
+ */
+export const mintToolSecret = async (tx: Tx, organisationId: string): Promise<string> => {
+  const secret = generateOpaqueToken();
+
+  await tx.voiceAgent.update({
+    where: { organisationId_provider: { organisationId, provider: 'SARVAM' } },
+    data: { toolSecretHash: hashToken(secret), toolSecretSetAt: new Date() },
+  });
+
+  return secret;
+};
+
+/**
+ * Gives an organisation's voice agent a WEBHOOK secret, and returns it.
+ *
+ * Separate from the tool secret for the same reason the columns are separate: this one
+ * travels in a URL path (D-006), so a test that used one value for both would not notice if
+ * the application started accepting a URL secret as a bearer credential.
+ */
+export const mintWebhookSecret = async (tx: Tx, organisationId: string): Promise<string> => {
+  const secret = generateOpaqueToken();
+
+  await tx.voiceAgent.update({
+    where: { organisationId_provider: { organisationId, provider: 'SARVAM' } },
+    data: { webhookSecretHash: hashToken(secret), webhookSecretSetAt: new Date() },
+  });
+
+  return secret;
 };

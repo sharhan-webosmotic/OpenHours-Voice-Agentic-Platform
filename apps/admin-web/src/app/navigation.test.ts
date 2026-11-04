@@ -3,7 +3,7 @@ import { PERMISSIONS, PLATFORM_ROLES, ROLES, isPermitted, isPlatformRole } from 
 import { ADMIN_NAV, landingPath, permits, visibleNavigation } from './navigation';
 
 /**
- * The admin menu against the permission matrix, for all six roles.
+ * The admin menu against the permission matrix, for every role in it.
  *
  * Expectations are DERIVED from `PERMISSIONS`, never transcribed. A test that hardcoded
  * "an internal admin sees three items" would need editing whenever a permission changed,
@@ -86,5 +86,21 @@ describe('landingPath', () => {
     expect(landingPath(ADMIN_NAV, 'STAFF')).toBeUndefined();
     expect(landingPath(ADMIN_NAV, 'SUPER_ADMIN')).toBe('/clinics');
     expect(landingPath(ADMIN_NAV, 'INTERNAL_ADMIN')).toBe('/clinics');
+  });
+});
+
+/**
+ * The voice agent is a principal, not a person.
+ *
+ * It is excluded here by `permits`, which already requires a platform role, so this is a
+ * statement that the existing guard covers the new principal rather than a new guard. The
+ * clinic dashboard needed a change for the same requirement, because its menu filters on
+ * the matrix alone and the agent has real grants in it.
+ */
+describe('the voice agent has no admin menu', () => {
+  it('sees nothing and lands nowhere', () => {
+    expect(visibleNavigation(ADMIN_NAV, 'VOICE_AGENT')).toHaveLength(0);
+    expect(landingPath(ADMIN_NAV, 'VOICE_AGENT')).toBeUndefined();
+    expect(permits('VOICE_AGENT', 'organisations', 'read')).toBe(false);
   });
 });

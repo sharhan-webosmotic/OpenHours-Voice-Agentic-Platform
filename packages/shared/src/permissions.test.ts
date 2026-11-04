@@ -4,9 +4,11 @@ import {
   PERMISSIONS,
   RESOURCES,
   ROLES,
+  USER_ROLES,
   isPermitted,
   isPlatformRole,
   isRole,
+  isUserRole,
   permissionScope,
   roleBelongsInAudience,
   type Grant,
@@ -36,6 +38,7 @@ const EXPECTED: Readonly<Record<Resource, Readonly<Record<Role, string>>>> = {
     CLINIC_MANAGER: '-',
     DOCTOR: '-',
     STAFF: '-',
+    VOICE_AGENT: '-',
   },
   organisations: {
     SUPER_ADMIN: 'RWD',
@@ -44,6 +47,7 @@ const EXPECTED: Readonly<Record<Resource, Readonly<Record<Role, string>>>> = {
     CLINIC_MANAGER: '-',
     DOCTOR: '-',
     STAFF: '-',
+    VOICE_AGENT: '-',
   },
   phone_voice_mapping: {
     SUPER_ADMIN: 'RW',
@@ -52,6 +56,7 @@ const EXPECTED: Readonly<Record<Resource, Readonly<Record<Role, string>>>> = {
     CLINIC_MANAGER: '-',
     DOCTOR: '-',
     STAFF: '-',
+    VOICE_AGENT: '-',
   },
   clinic_settings: {
     SUPER_ADMIN: 'RW',
@@ -60,6 +65,7 @@ const EXPECTED: Readonly<Record<Resource, Readonly<Record<Role, string>>>> = {
     CLINIC_MANAGER: 'R',
     DOCTOR: '-',
     STAFF: '-',
+    VOICE_AGENT: 'R',
   },
   clinic_users: {
     SUPER_ADMIN: 'RW',
@@ -68,6 +74,7 @@ const EXPECTED: Readonly<Record<Resource, Readonly<Record<Role, string>>>> = {
     CLINIC_MANAGER: 'R',
     DOCTOR: '-',
     STAFF: '-',
+    VOICE_AGENT: '-',
   },
   doctors_services_hours: {
     SUPER_ADMIN: 'RW',
@@ -76,6 +83,7 @@ const EXPECTED: Readonly<Record<Resource, Readonly<Record<Role, string>>>> = {
     CLINIC_MANAGER: 'RW',
     DOCTOR: 'R',
     STAFF: 'R',
+    VOICE_AGENT: 'R',
   },
   patients: {
     SUPER_ADMIN: 'R:masked',
@@ -84,6 +92,7 @@ const EXPECTED: Readonly<Record<Resource, Readonly<Record<Role, string>>>> = {
     CLINIC_MANAGER: 'RW',
     DOCTOR: 'R:own',
     STAFF: 'RW',
+    VOICE_AGENT: 'RW',
   },
   appointments: {
     SUPER_ADMIN: 'R:masked',
@@ -92,6 +101,7 @@ const EXPECTED: Readonly<Record<Resource, Readonly<Record<Role, string>>>> = {
     CLINIC_MANAGER: 'RWD',
     DOCTOR: 'RW:own',
     STAFF: 'RWD',
+    VOICE_AGENT: 'RW',
   },
   call_history: {
     SUPER_ADMIN: 'R:metadata',
@@ -100,6 +110,7 @@ const EXPECTED: Readonly<Record<Resource, Readonly<Record<Role, string>>>> = {
     CLINIC_MANAGER: 'R',
     DOCTOR: 'R:own',
     STAFF: 'R',
+    VOICE_AGENT: '-',
   },
   recordings: {
     SUPER_ADMIN: '-',
@@ -108,6 +119,7 @@ const EXPECTED: Readonly<Record<Resource, Readonly<Record<Role, string>>>> = {
     CLINIC_MANAGER: 'R',
     DOCTOR: '-',
     STAFF: 'R:clinic_opt_in',
+    VOICE_AGENT: '-',
   },
   prescriptions: {
     SUPER_ADMIN: '-',
@@ -116,6 +128,7 @@ const EXPECTED: Readonly<Record<Resource, Readonly<Record<Role, string>>>> = {
     CLINIC_MANAGER: '-',
     DOCTOR: 'RW:own',
     STAFF: '-',
+    VOICE_AGENT: '-',
   },
   follow_ups: {
     SUPER_ADMIN: '-',
@@ -124,6 +137,7 @@ const EXPECTED: Readonly<Record<Resource, Readonly<Record<Role, string>>>> = {
     CLINIC_MANAGER: 'RWD',
     DOCTOR: 'RW',
     STAFF: 'RW:assigned',
+    VOICE_AGENT: '-',
   },
   reminder_settings: {
     SUPER_ADMIN: 'R',
@@ -132,6 +146,7 @@ const EXPECTED: Readonly<Record<Resource, Readonly<Record<Role, string>>>> = {
     CLINIC_MANAGER: 'RW',
     DOCTOR: '-',
     STAFF: 'R',
+    VOICE_AGENT: '-',
   },
   forwarding_schedules: {
     SUPER_ADMIN: 'R',
@@ -140,6 +155,7 @@ const EXPECTED: Readonly<Record<Resource, Readonly<Record<Role, string>>>> = {
     CLINIC_MANAGER: 'RW',
     DOCTOR: '-',
     STAFF: '-',
+    VOICE_AGENT: '-',
   },
   analytics: {
     SUPER_ADMIN: 'R:usage',
@@ -148,6 +164,7 @@ const EXPECTED: Readonly<Record<Resource, Readonly<Record<Role, string>>>> = {
     CLINIC_MANAGER: 'R',
     DOCTOR: 'R:own',
     STAFF: '-',
+    VOICE_AGENT: '-',
   },
   audit_log: {
     SUPER_ADMIN: 'R',
@@ -156,6 +173,7 @@ const EXPECTED: Readonly<Record<Resource, Readonly<Record<Role, string>>>> = {
     CLINIC_MANAGER: '-',
     DOCTOR: '-',
     STAFF: '-',
+    VOICE_AGENT: '-',
   },
   integration_errors: {
     SUPER_ADMIN: 'R',
@@ -164,6 +182,7 @@ const EXPECTED: Readonly<Record<Resource, Readonly<Record<Role, string>>>> = {
     CLINIC_MANAGER: '-',
     DOCTOR: '-',
     STAFF: '-',
+    VOICE_AGENT: '-',
   },
 };
 
@@ -308,8 +327,10 @@ describe('invariants that must hold whatever the table says', () => {
    * This is user experience, not a control. ADR-0001 says so, and the permission matrix
    * above is what actually protects the admin surface.
    */
-  it('places every role in exactly one application', () => {
-    for (const role of ROLES) {
+  it('places every role a person can hold in exactly one application', () => {
+    // USER_ROLES, not ROLES: the voice agent signs in to neither application, which the
+    // next assertion states rather than this one weakening to accommodate it.
+    for (const role of USER_ROLES) {
       const clinic = roleBelongsInAudience(role, 'clinic');
       const admin = roleBelongsInAudience(role, 'admin');
 
@@ -318,12 +339,71 @@ describe('invariants that must hold whatever the table says', () => {
     }
   });
 
-  it('recognises exactly the six roles and nothing else', () => {
+  it('places the voice agent in no application at all', () => {
+    const agents = ROLES.filter((role) => !isUserRole(role));
+
+    // Derived rather than named, so a second non-user principal added later is covered
+    // by this invariant on the day it is added.
+    expect(agents).not.toHaveLength(0);
+    for (const role of agents) {
+      expect(roleBelongsInAudience(role, 'clinic')).toBe(false);
+      expect(roleBelongsInAudience(role, 'admin')).toBe(false);
+    }
+  });
+
+  it('recognises exactly the roles in the matrix and nothing else', () => {
     for (const role of ROLES) {
       expect(isRole(role)).toBe(true);
     }
     for (const value of ['ADMIN', 'clinic_owner', '', 'Role', 42, null, undefined, {}]) {
       expect(isRole(value)).toBe(false);
     }
+  });
+});
+
+/**
+ * The voice agent is a principal and not a person.
+ *
+ * These assert the half of that statement which lives in this package. The other half is
+ * in the API (the token verifier and the user-creating endpoints) and in the two front
+ * ends, each with its own test, because nothing here can stop a dropdown being built from
+ * the wrong list.
+ */
+describe('the voice agent role', () => {
+  it('is in the matrix but is not a role a user may hold', () => {
+    expect(ROLES).toContain('VOICE_AGENT');
+    expect(USER_ROLES).not.toContain('VOICE_AGENT');
+    expect(USER_ROLES).toHaveLength(ROLES.length - 1);
+  });
+
+  it('is a role to the matrix and not a role to anything that assigns one', () => {
+    // Both guards exist because the matrix must know the agent while every schema and
+    // dropdown must not. A single predicate could not answer both questions.
+    expect(isRole('VOICE_AGENT')).toBe(true);
+    expect(isUserRole('VOICE_AGENT')).toBe(false);
+  });
+
+  it('may book and may not listen to a recording or touch a prescription', () => {
+    expect(isPermitted('VOICE_AGENT', 'appointments', 'write')).toBe(true);
+    expect(isPermitted('VOICE_AGENT', 'patients', 'write')).toBe(true);
+    expect(isPermitted('VOICE_AGENT', 'clinic_settings', 'read')).toBe(true);
+
+    // Rule 9 and the rawest PHI the platform holds, as matrix cells rather than as prose.
+    expect(isPermitted('VOICE_AGENT', 'recordings', 'read')).toBe(false);
+    expect(isPermitted('VOICE_AGENT', 'prescriptions', 'read')).toBe(false);
+    expect(isPermitted('VOICE_AGENT', 'clinic_settings', 'write')).toBe(false);
+    expect(isPermitted('VOICE_AGENT', 'appointments', 'delete')).toBe(false);
+    expect(isPermitted('VOICE_AGENT', 'audit_log', 'read')).toBe(false);
+  });
+
+  it('belongs to neither front end, so no sign-in can land on it', () => {
+    expect(roleBelongsInAudience('VOICE_AGENT', 'clinic')).toBe(false);
+    expect(roleBelongsInAudience('VOICE_AGENT', 'admin')).toBe(false);
+  });
+
+  it('is not a platform role, so it is confined to one clinic', () => {
+    // It gets its organisation from the per-clinic secret, and a platform role would be
+    // able to name any clinic it liked.
+    expect(isPlatformRole('VOICE_AGENT')).toBe(false);
   });
 });

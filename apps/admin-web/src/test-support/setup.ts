@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom/vitest';
-import { afterEach } from 'vitest';
+import { afterEach, beforeAll } from 'vitest';
 import { cleanup, configure } from '@testing-library/react';
 
 /**
@@ -16,6 +16,17 @@ import { cleanup, configure } from '@testing-library/react';
  * quiet machine and fails in CI, which is the kind of flake people respond to by re-running
  * the build until it is green.
  */
+/**
+ * Every lazily loaded route module is imported before any test in the file runs, so the first
+ * test to render a page does not pay for that import inside its own `findBy`. Under the gate's
+ * parallel load that import is what pushed the clinic dashboard's first tests past the
+ * five-second wait. Kept identical to the clinic dashboard's setup (D-009).
+ */
+beforeAll(async () => {
+  const { preloadPages } = await import('../app/routes');
+  await preloadPages();
+}, 60_000);
+
 configure({ asyncUtilTimeout: 5_000 });
 
 /**

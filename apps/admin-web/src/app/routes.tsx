@@ -1,5 +1,6 @@
 import { lazy, Suspense, type ReactElement } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router';
+import type { Action, Resource } from '@clinicai/shared';
 import { Spinner } from '../components/ui/Spinner';
 import { ChangePasswordPage } from '../features/auth/ChangePasswordPage';
 import { NoAccessPage } from '../features/auth/NoAccessPage';
@@ -18,20 +19,90 @@ import { useAuth } from './AuthProvider';
 
 const placeholders = () => import('../features/placeholders/pages');
 
-const ClinicsPage = lazy(async () => ({ default: (await placeholders()).ClinicsPage }));
-const InternalUsersPage = lazy(async () => ({
+/** Every lazily loaded route module, in the order declared below. */
+const pageLoaders: (() => Promise<unknown>)[] = [];
+
+/**
+ * `lazy`, plus a record of the loader so the modules can be fetched ahead of a render.
+ *
+ * Every route component below goes through this rather than calling `lazy` directly, so
+ * `preloadPages` can never miss one. Kept identical to the clinic dashboard's (D-009).
+ */
+const page: typeof lazy = (load) => {
+  pageLoaders.push(load);
+  return lazy(load);
+};
+
+/**
+ * Fetches every lazily loaded route module now, rather than on first render.
+ *
+ * The test setup calls this before any test, so the first test in a file to render a page no
+ * longer pays for importing it inside its own five-second wait, which is what made the clinic
+ * dashboard's suite fail intermittently under the gate's parallel load. Also usable as a
+ * prefetch once a user has signed in.
+ */
+export const preloadPages = async (): Promise<void> => {
+  await Promise.all(pageLoaders.map((load) => load()));
+};
+
+const InternalUsersPage = page(async () => ({
   default: (await placeholders()).InternalUsersPage,
 }));
-const MonitoringPage = lazy(async () => ({ default: (await placeholders()).MonitoringPage }));
-const SettingsPage = lazy(async () => ({ default: (await placeholders()).SettingsPage }));
+const MonitoringPage = page(async () => ({ default: (await placeholders()).MonitoringPage }));
+const SettingsPage = page(async () => ({ default: (await placeholders()).SettingsPage }));
+
+/**
+ * The clinic screens, lazily loaded like everything else behind the shell.
+ *
+ * Three pages rather than one, because the detail page pulls in nine section forms and the
+ * list page is what every session opens on. Keeping them in separate chunks means the first
+ * paint after sign-in does not carry the forms.
+ */
+const ClinicsListPage = page(async () => ({
+  default: (await import('../features/clinics/ClinicsListPage')).ClinicsListPage,
+}));
+const CreateClinicPage = page(async () => ({
+  default: (await import('../features/clinics/CreateClinicPage')).CreateClinicPage,
+}));
+const ClinicDetailPage = page(async () => ({
+  default: (await import('../features/clinics/ClinicDetailPage')).ClinicDetailPage,
+}));
 
 /** Typed to cover every nav path, so an item with no page is a compile error. */
 const ELEMENTS: Record<(typeof ADMIN_NAV)[number]['path'], ReactElement> = {
-  '/clinics': <ClinicsPage />,
+  '/clinics': <ClinicsListPage />,
   '/internal-users': <InternalUsersPage />,
   '/monitoring': <MonitoringPage />,
   '/settings': <SettingsPage />,
 };
+
+/**
+ * Pages that sit UNDER a nav item rather than being one.
+ *
+ * Separate from `ELEMENTS`, which is exhaustively typed against the menu so that a nav item
+ * with no page is a compile error. Widening that record to `string` to fit these would have
+ * given that guarantee away for two routes. Each of these names the matrix cell its parent
+ * item names, so the route guard asks the same question the sidebar did.
+ */
+const CHILD_ROUTES = [
+  {
+    path: '/clinics/new',
+    element: <CreateClinicPage />,
+    resource: 'organisations',
+    action: 'write',
+  },
+  {
+    path: '/clinics/:clinicId',
+    element: <ClinicDetailPage />,
+    resource: 'organisations',
+    action: 'read',
+  },
+] as const satisfies readonly {
+  readonly path: string;
+  readonly element: ReactElement;
+  readonly resource: Resource;
+  readonly action: Action;
+}[];
 
 const Shell = () => {
   const { user, signOut } = useAuth();
@@ -90,6 +161,21 @@ export const AppRoutes = () => (
     <Route element={<RequireSession />}>
       <Route element={<Shell />}>
         <Route index element={<Landing />} />
+        {CHILD_ROUTES.map((route) => (
+          <Route
+            key={route.path}
+            path={route.path}
+            element={
+              <RequirePermission
+                resource={route.resource}
+                action={route.action}
+                fallback={<NoAccessPage />}
+              >
+                <Suspense fallback={<Spinner />}>{route.element}</Suspense>
+              </RequirePermission>
+            }
+          />
+        ))}
         {ADMIN_NAV.map((item) => (
           <Route
             key={item.path}

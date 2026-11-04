@@ -66,6 +66,48 @@ const EXEMPT = new Map<string, string>([
  * redeems a code, which a gated user therefore cannot obtain, and it ignores an
  * `Authorization` header entirely.
  */
+const VOICE_TOOL_PATHS = [
+  'book',
+  'cancel',
+  'check-availability',
+  'clinic-info',
+  'lookup-patient',
+  'reschedule',
+] as const;
+
+/**
+ * The voice tool endpoints, which authenticate with a per-clinic secret and nothing else.
+ *
+ * NOT exemptions, for the reason above: a user's access token is not a credential there at
+ * all, so there is no gate to apply. The proof is the same for all six, so it is written
+ * once: present a gated user's token as the bearer and watch it refused with a 401. If
+ * anybody ever mounted `requireAuth` on these, that 401 would become a 200 or a 403 and
+ * this suite would say so.
+ *
+ * The first-login gate is genuinely wrong for these routes rather than merely inapplicable.
+ * It exists so a person who was handed a temporary password cannot use the product until
+ * they have chosen their own. The agent has no password, and a clinic whose owner has not
+ * signed in yet still has patients ringing it.
+ */
+const voiceToolEntries = VOICE_TOOL_PATHS.map(
+  (
+    path,
+  ): [string, { readonly reason: string; readonly prove: (token: string) => Promise<void> }] => [
+    `POST /voice/tools/${path}`,
+    {
+      reason: 'authenticated by the per-clinic voice tool secret; a user access token is not one',
+      prove: async (token: string) => {
+        const response = await request(app)
+          .post(`/voice/tools/${path}`)
+          .set('Authorization', `Bearer ${token}`)
+          .send({});
+
+        expect(response.status).toBe(401);
+      },
+    },
+  ],
+);
+
 const NO_USER_SESSION = new Map<
   string,
   { readonly reason: string; readonly prove: (token: string, email: string) => Promise<void> }
@@ -117,6 +159,26 @@ const NO_USER_SESSION = new Map<
       },
     },
   ],
+  ...voiceToolEntries,
+  [
+    'POST /webhooks/sarvam/:secret',
+    {
+      reason: 'authenticated by the secret in its own URL path (D-006); no token is read',
+      prove: async (token: string) => {
+        /**
+         * A gated user's token in the header changes nothing, because the URL is the
+         * credential. The 404 is for the secret `not-a-secret-at-all` matching no clinic,
+         * which is the same answer any wrong URL gets.
+         */
+        const response = await request(app)
+          .post('/webhooks/sarvam/not-a-secret-at-all-but-long-enough')
+          .set('Authorization', `Bearer ${token}`)
+          .send({ interaction_id: '20261102/gate' });
+
+        expect(response.status).toBe(404);
+      },
+    },
+  ],
 ]);
 
 /** Drives one route as the holder of `token`, returning the status. */
@@ -145,7 +207,230 @@ const RECIPES = new Map<string, (token: string) => Promise<number>>([
           .send({ organisationId: org.organisationId, reason: 'checking a booking problem' })
       ).status,
   ],
+
+  /**
+   * Clinic configuration. A gated user may not read or change a clinic, which is worth
+   * stating rather than assuming: a temporary password is handed over out of band and may
+   * have been read off a screen or forwarded, and these routes expose every clinic on the
+   * platform plus the Sarvam mapping that authenticates its agent.
+   *
+   * THE BODIES ARE DELIBERATELY MINIMAL, which is safe here and would not be in the
+   * permission guard. `requirePasswordChangeComplete` runs before `validate` on every one of
+   * these routes, so the gate answers first and the body is never parsed. If that order were
+   * ever reversed, these would start returning 400 instead of 403 and this suite would fail,
+   * which is the behaviour worth having.
+   */
+  ...clinicConfigurationRecipes(),
+
+  /**
+   * Patients and appointments: the first PHI routes to reach this guard.
+   *
+   * A temporary password is handed over out of band, so it may have been read off a screen,
+   * forwarded in a message, or typed by someone standing beside the person it was meant for.
+   * Patient records are the last thing it should open, which is why these are driven rather
+   * than assumed.
+   *
+   * THE BODIES ARE MINIMAL for the same reason as the clinic configuration ones above:
+   * `requirePasswordChangeComplete` runs before `validate`, so the gate answers first and the
+   * body is never parsed. If that order were ever reversed these would return 400 and this
+   * suite would fail, which is exactly the signal worth having.
+   */
+  ...patientAndAppointmentRecipes(),
 ]);
+
+/** One recipe per patient, appointment and call route, built from a table. */
+function patientAndAppointmentRecipes(): readonly [string, (token: string) => Promise<number>][] {
+  const patients = '/api/v1/patients';
+  const appointments = '/api/v1/appointments';
+  const calls = '/api/v1/calls';
+  const patientId = () => org.ids.patients ?? '';
+  const appointmentId = () => org.ids.appointments ?? '';
+  const callId = () => org.ids.calls ?? '';
+
+  const routes: readonly {
+    readonly method: 'get' | 'post' | 'patch';
+    readonly registered: string;
+    readonly path: () => string;
+  }[] = [
+    { method: 'get', registered: patients, path: () => patients },
+    { method: 'get', registered: `${patients}/summary`, path: () => `${patients}/summary` },
+    { method: 'post', registered: patients, path: () => patients },
+    {
+      method: 'get',
+      registered: `${patients}/:patientId`,
+      path: () => `${patients}/${patientId()}`,
+    },
+    {
+      method: 'patch',
+      registered: `${patients}/:patientId`,
+      path: () => `${patients}/${patientId()}`,
+    },
+    { method: 'get', registered: appointments, path: () => appointments },
+    { method: 'post', registered: appointments, path: () => appointments },
+    { method: 'get', registered: `${appointments}/agenda`, path: () => `${appointments}/agenda` },
+    {
+      method: 'get',
+      registered: `${appointments}/availability`,
+      path: () => `${appointments}/availability`,
+    },
+    {
+      method: 'get',
+      registered: `${appointments}/:appointmentId`,
+      path: () => `${appointments}/${appointmentId()}`,
+    },
+    {
+      method: 'post',
+      registered: `${appointments}/:appointmentId/cancel`,
+      path: () => `${appointments}/${appointmentId()}/cancel`,
+    },
+    {
+      method: 'post',
+      registered: `${appointments}/:appointmentId/reschedule`,
+      path: () => `${appointments}/${appointmentId()}/reschedule`,
+    },
+    {
+      method: 'post',
+      registered: `${appointments}/:appointmentId/status`,
+      path: () => `${appointments}/${appointmentId()}/status`,
+    },
+    {
+      method: 'get',
+      registered: '/api/v1/analytics/overview',
+      path: () => '/api/v1/analytics/overview',
+    },
+    // The call history is as gated as everything else: a user holding a temporary password
+    // reads nothing, including the call that came in while they were being set up.
+    { method: 'get', registered: calls, path: () => calls },
+    { method: 'get', registered: `${calls}/:callId`, path: () => `${calls}/${callId()}` },
+    {
+      method: 'get',
+      registered: `${calls}/:callId/recording-url`,
+      path: () => `${calls}/${callId()}/recording-url`,
+    },
+  ];
+
+  return routes.map(
+    (route) =>
+      [
+        `${route.method.toUpperCase()} ${route.registered}`,
+        async (token: string) =>
+          (
+            await request(app)
+              [route.method](route.path())
+              .set('Authorization', `Bearer ${token}`)
+              .send({})
+          ).status,
+      ] as const,
+  );
+}
+
+/**
+ * One recipe per clinic configuration route, built from a table rather than written out
+ * fifteen times.
+ *
+ * The keys must match the registry exactly, and `accounts for every registered route`
+ * above is what catches a drift between this list and the real one.
+ */
+function clinicConfigurationRecipes(): readonly [string, (token: string) => Promise<number>][] {
+  const base = '/api/v1/organisations';
+  const id = () => org.organisationId;
+
+  const routes: readonly {
+    readonly method: 'get' | 'post' | 'patch' | 'put';
+    readonly registered: string;
+    readonly path: () => string;
+  }[] = [
+    { method: 'get', registered: base, path: () => base },
+    { method: 'post', registered: base, path: () => base },
+    { method: 'get', registered: `${base}/:organisationId`, path: () => `${base}/${id()}` },
+    { method: 'patch', registered: `${base}/:organisationId`, path: () => `${base}/${id()}` },
+    {
+      method: 'put',
+      registered: `${base}/:organisationId/profile`,
+      path: () => `${base}/${id()}/profile`,
+    },
+    {
+      method: 'put',
+      registered: `${base}/:organisationId/hours`,
+      path: () => `${base}/${id()}/hours`,
+    },
+    {
+      method: 'put',
+      registered: `${base}/:organisationId/booking-policy`,
+      path: () => `${base}/${id()}/booking-policy`,
+    },
+    {
+      method: 'put',
+      registered: `${base}/:organisationId/agent-profile`,
+      path: () => `${base}/${id()}/agent-profile`,
+    },
+    {
+      method: 'put',
+      registered: `${base}/:organisationId/telephony`,
+      path: () => `${base}/${id()}/telephony`,
+    },
+    {
+      method: 'put',
+      registered: `${base}/:organisationId/faqs`,
+      path: () => `${base}/${id()}/faqs`,
+    },
+    {
+      method: 'put',
+      registered: `${base}/:organisationId/sarvam-mapping`,
+      path: () => `${base}/${id()}/sarvam-mapping`,
+    },
+    {
+      method: 'get',
+      registered: `${base}/:organisationId/prompt-preview`,
+      path: () => `${base}/${id()}/prompt-preview`,
+    },
+    {
+      method: 'post',
+      registered: `${base}/:organisationId/owners`,
+      path: () => `${base}/${id()}/owners`,
+    },
+    {
+      method: 'post',
+      registered: `${base}/:organisationId/services`,
+      path: () => `${base}/${id()}/services`,
+    },
+    {
+      method: 'patch',
+      registered: `${base}/:organisationId/services/:serviceId`,
+      path: () => `${base}/${id()}/services/${org.ids.services ?? ''}`,
+    },
+    {
+      method: 'post',
+      registered: `${base}/:organisationId/doctors`,
+      path: () => `${base}/${id()}/doctors`,
+    },
+    {
+      method: 'patch',
+      registered: `${base}/:organisationId/doctors/:doctorId`,
+      path: () => `${base}/${id()}/doctors/${org.ids.doctors ?? ''}`,
+    },
+    {
+      method: 'get',
+      registered: `${base}/:organisationId/doctors/:doctorId/hours`,
+      path: () => `${base}/${id()}/doctors/${org.ids.doctors ?? ''}/hours`,
+    },
+    {
+      method: 'put',
+      registered: `${base}/:organisationId/doctors/:doctorId/hours`,
+      path: () => `${base}/${id()}/doctors/${org.ids.doctors ?? ''}/hours`,
+    },
+  ];
+
+  return routes.map(
+    (route) =>
+      [
+        `${route.method.toUpperCase()} ${route.registered}`,
+        async (token: string) =>
+          (await request(app)[route.method](route.path()).set('Authorization', `Bearer ${token}`))
+            .status,
+      ] as const,
+  );
+}
 
 const keyOf = (route: RouteDescriptor): string => `${route.method.toUpperCase()} ${route.path}`;
 

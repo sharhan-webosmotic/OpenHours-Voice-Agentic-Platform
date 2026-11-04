@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
-import { isRole, type Role } from '@clinicai/shared';
+import { isUserRole, type Role } from '@clinicai/shared';
 import { config } from '../../config.js';
 import { UnauthorizedError } from '../../common/errors.js';
 
@@ -71,14 +71,22 @@ export const verifyAccessToken = async (token: string): Promise<AccessTokenClaim
       throw new Error('missing claims');
     }
     /**
-     * The role must be one the matrix knows, not merely a string.
+     * The role must be one a USER may hold, not merely a string and not merely a role the
+     * matrix knows.
+     *
+     * `isUserRole` rather than `isRole` is the control that keeps `VOICE_AGENT` out of
+     * every session. The agent is in the matrix so that what it may do is one readable
+     * row, and it authenticates on the voice tool endpoints with a per-clinic secret
+     * (D-004). A token carrying that role is therefore never legitimate, whoever signed
+     * it, and it is refused here rather than being allowed to reach the matrix and be
+     * granted the booking rights the agent genuinely has.
      *
      * Only our own signing key can mint a token and `signAccessToken` takes the role from
-     * a database enum, so this needs the JWT secret to exploit and the practical risk is
-     * low. It is still the difference between denying an unknown role and throwing on it.
-     * Review finding I13.
+     * a database enum that has no such value, so this needs the JWT secret to exploit and
+     * the practical risk is low. It is still the difference between denying a role and
+     * handing a session the receptionist's permissions. Review finding I13.
      */
-    if (!isRole(role)) {
+    if (!isUserRole(role)) {
       throw new Error('invalid role claim');
     }
     if (org !== null && typeof org !== 'string') {

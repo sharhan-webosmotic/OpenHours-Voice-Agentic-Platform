@@ -1,10 +1,12 @@
 import { render, type RenderResult } from '@testing-library/react';
+import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router';
 import type { ReactNode } from 'react';
 import { ApiError, type ApiClient, type CurrentUser, type Session } from '@clinicai/api-client';
 import type { Role } from '@clinicai/shared';
 import { AuthProvider } from '../app/AuthProvider';
 import { createSessionBus, type SessionBus } from '../app/sessionBus';
+import { createAppStore } from '../app/store';
 
 /**
  * A stub API client, and the renderer the component tests use.
@@ -50,7 +52,12 @@ export const stubClient = (options: StubOptions = {}): Stub => {
   const session = (user: CurrentUser): Session => ({
     accessToken: 'access-token',
     mustChangePassword: user.mustChangePassword,
-    user: { id: user.id, organisationId: user.organisationId, role: user.role },
+    user: {
+      id: user.id,
+      organisationId: user.organisationId,
+      role: user.role,
+      fullName: user.fullName,
+    },
   });
 
   const expired = () =>
@@ -99,18 +106,32 @@ export const user = (role: Role, mustChangePassword = false): CurrentUser => ({
   id: 'user-1',
   organisationId: role === 'SUPER_ADMIN' || role === 'INTERNAL_ADMIN' ? null : 'org-1',
   role,
+  // Synthetic, like every name in these fixtures: obviously a test account, nobody real.
+  fullName: 'Test Person',
   mustChangePassword,
 });
 
+/**
+ * A fresh store per render.
+ *
+ * FRESH, because a store shared between tests would carry one test's cached clinic into the
+ * next and the assertions would then pass or fail depending on the order they ran in. The
+ * store is built by a factory for exactly this reason (`app/store.ts`).
+ *
+ * The application's own retry policy stays in place, because it lives in the baseQuery and
+ * these tests stub the client rather than the transport, so nothing here retries anyway.
+ */
 export const renderWith = (
   children: ReactNode,
   stub: Stub,
   initialEntries: readonly string[] = ['/'],
 ): RenderResult =>
   render(
-    <MemoryRouter initialEntries={[...initialEntries]}>
-      <AuthProvider client={stub.client} sessionLost={stub.bus.subscribe}>
-        {children}
-      </AuthProvider>
-    </MemoryRouter>,
+    <Provider store={createAppStore(stub.client)}>
+      <MemoryRouter initialEntries={[...initialEntries]}>
+        <AuthProvider client={stub.client} sessionLost={stub.bus.subscribe}>
+          {children}
+        </AuthProvider>
+      </MemoryRouter>
+    </Provider>,
   );

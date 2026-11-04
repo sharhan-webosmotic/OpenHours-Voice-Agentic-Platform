@@ -1,10 +1,11 @@
-import { randomInt } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../src/generated/prisma/client.js';
 import { hashPassword } from '../src/common/passwords.js';
 import { uuidV7 } from '../src/common/uuid.js';
-import { Role, UserStatus } from '../src/generated/prisma/enums.js';
+import { Role } from '../src/generated/prisma/enums.js';
+import { clinicUserRow } from '../src/modules/clinic-users/clinic-users.repository.js';
+import { temporaryPassword } from '../src/modules/clinic-users/temporary-password.js';
 
 /**
  * Provisions one clinic with an owner, a manager and a staff user, each holding a
@@ -58,27 +59,6 @@ export const assertLocalDatabase = (connectionString: string): void => {
         'for local development only. Add the host to LOCAL_HOSTS only if it is genuinely local.',
     );
   }
-};
-
-/**
- * A readable temporary password with roughly 77 bits of entropy.
- *
- * Readable because a human reads it off a terminal and types it into a login form, and a
- * password that invites transcription errors gets written on a note instead. Six groups of
- * four from a 32-character alphabet is 120 bits of alphabet space; the alphabet omits
- * characters that are misread aloud or on screen (0/O, 1/l/I).
- *
- * `randomInt` is used rather than `Math.random`, which is not a CSPRNG. These passwords
- * are live credentials for as long as it takes someone to change them.
- */
-const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-
-export const temporaryPassword = (): string => {
-  const groups = Array.from({ length: 6 }, () =>
-    Array.from({ length: 4 }, () => ALPHABET[randomInt(ALPHABET.length)]).join(''),
-  );
-
-  return groups.join('-');
 };
 
 export type ProvisionedUser = {
@@ -179,18 +159,16 @@ export const provisionClinic = async (
       }
 
       await tx.user.create({
-        data: {
-          id: uuidV7(),
+        data: clinicUserRow({
           organisationId,
           email: user.email,
           passwordHash,
           fullName: user.fullName,
           role: user.role,
-          status: UserStatus.ACTIVE,
           // The whole point: every one of these must be replaced at first sign-in, unless
           // the caller asked for ready accounts (see ProvisionOptions.readyPassword).
           mustChangePassword: ready === undefined,
-        },
+        }),
       });
     }
   });

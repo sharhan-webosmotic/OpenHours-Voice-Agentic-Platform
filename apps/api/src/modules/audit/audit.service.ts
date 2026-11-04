@@ -1,3 +1,4 @@
+import { isUserRole } from '@clinicai/shared';
 import { uuidV7 } from '../../common/uuid.js';
 import { getContext } from '../../common/request-context.js';
 import type { TenantDb } from '../../db/tenant-client.js';
@@ -95,7 +96,13 @@ export const record = async (db: TenantDb, input: AuditInput): Promise<void> => 
     id: uuidV7(),
     ...(organisationId === undefined ? {} : { organisationId }),
     ...(context?.userId === undefined ? {} : { actorUserId: context.userId }),
-    ...(context?.role === undefined ? {} : { actorRole: context.role }),
+    /**
+     * Only a role the `role` enum holds reaches the column. The context carries `role` as
+     * a string, and the voice agent's principal is not one of the six: its actions are
+     * recorded with no actor role, under a `voice.*` action that names the actor. See
+     * `InsertAudit.actorRole`.
+     */
+    ...(isUserRole(context?.role) ? { actorRole: context.role } : {}),
     action: input.action,
     entityType: input.entityType,
     ...(input.entityId === undefined ? {} : { entityId: input.entityId }),

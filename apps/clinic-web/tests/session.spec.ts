@@ -233,7 +233,10 @@ test.describe('signing out', () => {
     await signInAs(page, account.email, account.password);
     await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Sign out' }).click();
+    // Sign-out lives in the account menu since the shell was rebuilt to the dashboard
+    // reference (ebb0530), where it is labelled "Logout".
+    await page.getByRole('button', { name: 'Account menu' }).click();
+    await page.getByRole('button', { name: 'Logout' }).click();
     await expect(page.getByRole('button', { name: 'Sign in' })).toBeVisible();
 
     expect(await refreshCookie(page)).toBeUndefined();
@@ -261,6 +264,7 @@ test.describe('a deep link while signed out', () => {
     await page.getByLabel('Password').fill(account.password);
     await page.getByRole('button', { name: 'Sign in' }).click();
 
-    await expect(page.getByRole('heading', { name: 'Patients' })).toBeVisible();
+    // Exact, because the patients page also has a "Registered patients" heading.
+    await expect(page.getByRole('heading', { name: 'Patients', exact: true })).toBeVisible();
   });
 });

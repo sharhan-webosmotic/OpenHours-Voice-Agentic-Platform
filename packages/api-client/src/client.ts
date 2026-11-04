@@ -33,6 +33,8 @@ export type CurrentUser = {
   readonly id: string;
   readonly organisationId: string | null;
   readonly role: Role;
+  /** The person's own name, shown in the dashboard's header above their role. */
+  readonly fullName: string;
   readonly mustChangePassword: boolean;
 };
 
@@ -43,6 +45,7 @@ export type Session = {
     readonly id: string;
     readonly organisationId: string | null;
     readonly role: Role;
+    readonly fullName: string;
   };
 };
 
@@ -120,9 +123,18 @@ export const createApiClient = ({
       readonly body?: unknown;
       readonly csrf?: boolean;
       readonly authorize?: boolean;
+      /**
+       * Extra request headers, for the one thing a body cannot carry: `Idempotency-Key`.
+       *
+       * Set by the caller rather than built here, because which requests are idempotent is a
+       * fact about the endpoint and not about the transport. They are applied BEFORE the
+       * client's own headers below, so nothing a caller passes can overwrite the
+       * `Authorization`, the CSRF header or the content type.
+       */
+      readonly headers?: Readonly<Record<string, string>>;
     },
   ): Promise<Response> => {
-    const headers = new Headers();
+    const headers = new Headers(init.headers);
 
     if (init.body !== undefined) {
       headers.set('Content-Type', 'application/json');
@@ -210,8 +222,18 @@ export const createApiClient = ({
    * who you are, not a stale credential, so retrying it would turn one refusal into two
    * and, for `password-change-required`, would hide the screen the user needs to see.
    */
-  const authed = async (path: string, method = 'GET', body?: unknown): Promise<Response> => {
-    const first = await call(path, { method, body, authorize: true });
+  const authed = async (
+    path: string,
+    method = 'GET',
+    body?: unknown,
+    extraHeaders?: Readonly<Record<string, string>>,
+  ): Promise<Response> => {
+    const first = await call(path, {
+      method,
+      body,
+      authorize: true,
+      ...(extraHeaders === undefined ? {} : { headers: extraHeaders }),
+    });
 
     if (first.status !== 401) {
       return first;
@@ -225,7 +247,17 @@ export const createApiClient = ({
       return first;
     }
 
-    const second = await call(path, { method, body, authorize: true });
+    /**
+     * THE RETRY CARRIES THE SAME HEADERS, which matters for exactly one of them: a retried
+     * booking must present the same `Idempotency-Key`, or the server treats it as a second
+     * booking and the patient gets two appointments.
+     */
+    const second = await call(path, {
+      method,
+      body,
+      authorize: true,
+      ...(extraHeaders === undefined ? {} : { headers: extraHeaders }),
+    });
 
     if (second.status === 401) {
       // A fresh token was refused, so this is not an expiry problem: the account or the

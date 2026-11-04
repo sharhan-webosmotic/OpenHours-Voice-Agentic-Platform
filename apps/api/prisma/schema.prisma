@@ -76,16 +76,24 @@ enum NotificationChannel {
 }
 
 model Organisation {
-  id                     String             @id @db.Uuid
-  name                   String
+  id                      String             @id @db.Uuid
+  name                    String
   /// IANA zone, e.g. Asia/Kolkata. Clinic-local times are derived from this at the edges.
-  timezone               String
-  status                 OrganisationStatus @default(ACTIVE)
+  timezone                String
+  status                  OrganisationStatus @default(ACTIVE)
   /// Clinic-level toggles, e.g. recordings_visible_to_staff. Never patient data.
-  settings               Json               @default("{}")
-  recordingRetentionDays Int                @default(90) @map("recording_retention_days")
-  createdAt              DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt              DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  settings                Json               @default("{}")
+  recordingRetentionDays  Int                @default(90) @map("recording_retention_days")
+  /// When the full week of opening hours was last saved.
+  ///
+  /// The distinction this exists for: a weekday with no `clinic_hours` rows is a weekly
+  /// off, which is a real answer, and a clinic whose hours have never been collected also
+  /// has no rows. From row counts alone the two are identical, and the voice agent would
+  /// have to guess which. Saving hours always writes all seven weekdays and sets this, so
+  /// NULL means the question has not been asked.
+  openingHoursCollectedAt DateTime?          @map("opening_hours_collected_at") @db.Timestamptz(6)
+  createdAt               DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   users               User[]
   phoneNumbers        PhoneNumber[]
@@ -103,6 +111,7 @@ model Organisation {
   patients            Patient[]
   appointments        Appointment[]
   calls               Call[]
+  callTranscriptTurns CallTranscriptTurn[]
   prescriptions       Prescription[]
   prescriptionItems   PrescriptionItem[]
   followUps           FollowUp[]
@@ -111,6 +120,12 @@ model Organisation {
   forwardingEvents    ForwardingEvent[]
   webhookEvents       WebhookEvent[]
   supportSessions     SupportSession[]
+
+  clinicProfile       ClinicProfile?
+  clinicBookingPolicy ClinicBookingPolicy?
+  clinicAgentProfile  ClinicAgentProfile?
+  clinicTelephony     ClinicTelephony?
+  clinicFaqs          ClinicFaq[]
 
   @@index([status])
   @@map("organisations")
@@ -135,7 +150,7 @@ model User {
   createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt          DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  organisation      Organisation?  @relation(fields: [organisationId], references: [id], onDelete: Restrict)
+  organisation      Organisation?    @relation(fields: [organisationId], references: [id], onDelete: Restrict)
   refreshTokens     RefreshToken[]
   pairingCodes      PairingCode[]
   notifications     Notification[]
@@ -186,23 +201,73 @@ model PhoneNumber {
   @@map("phone_numbers")
 }
 
+/// The provider-side mapping for one clinic's agent, entered BY HAND after the Sarvam
+/// setup has been done in Sarvam's own console. Nothing here is provisioned automatically.
+///
+/// WHY THESE ARE TYPED COLUMNS AND NOT `config` JSON. Every one of them is resolved on a
+/// request path: an inbound call is matched to an organisation, and a tool call is
+/// authenticated against this clinic's secret. A Json blob would put that lookup behind a
+/// shape nothing validates, and a typo in a key would read as an absent value rather than
+/// as an error. `config` stays for genuinely provider-shaped extras.
+///
+/// `sarvamAppId` WAS `externalAgentId`. The two named the same thing, and holding both
+/// would have left two columns to keep in step with nothing enforcing it, so the generic
+/// name was dropped rather than kept beside the specific one. It is nullable because the
+/// row exists from the moment a clinic is created and the id does not arrive until someone
+/// has finished the manual setup.
 model VoiceAgent {
-  id              String             @id @db.Uuid
-  organisationId  String             @map("organisation_id") @db.Uuid
-  provider        Provider           @default(SARVAM)
-  /// The provider's agent identifier. Used to resolve a webhook to an organisation.
-  externalAgentId String             @map("external_agent_id")
-  agentNumberId   String?            @map("agent_number_id") @db.Uuid
-  /// Provider-specific agent configuration, validated by a zod schema before write.
-  config          Json               @default("{}")
-  status          OrganisationStatus @default(ACTIVE)
-  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt       DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                 String             @id @db.Uuid
+  organisationId     String             @map("organisation_id") @db.Uuid
+  provider           Provider           @default(SARVAM)
+  /// Sarvam's application identifier. Resolves a webhook to an organisation.
+  sarvamAppId        String?            @map("sarvam_app_id")
+  sarvamAppVersion   String?            @map("sarvam_app_version")
+  sarvamDeploymentId String?            @map("sarvam_deployment_id")
+  sarvamConnectionId String?            @map("sarvam_connection_id")
+  /// The number patients dial. Bought inside Sarvam (D-005), platform-unique.
+  agentNumberId      String?            @map("agent_number_id") @db.Uuid
+  /// SHA-256 of the per-clinic tool secret (D-004). The secret itself is shown once at
+  /// generation and is never stored, never logged and never returned by any endpoint.
+  toolSecretHash     String?            @map("tool_secret_hash")
+  toolSecretSetAt    DateTime?          @map("tool_secret_set_at") @db.Timestamptz(6)
+  /// SHA-256 of the secret that appears in this clinic's webhook URL path (D-006).
+  ///
+  /// SEPARATE FROM THE TOOL SECRET ON PURPOSE. This one travels in a URL, where proxies,
+  /// access logs and browser history can see it, so it must not also be the credential the
+  /// tool endpoints accept in a header. Same storage rule as the tool secret: minted by the
+  /// platform, shown once, stored only as a hash, never returned by any endpoint.
+  webhookSecretHash  String?            @map("webhook_secret_hash")
+  webhookSecretSetAt DateTime?          @map("webhook_secret_set_at") @db.Timestamptz(6)
+  /// Which master prompt version is loaded into the Sarvam agent right now, so a prompt
+  /// change in this repository can be compared with what the agent is actually running.
+  promptVersion      String?            @map("prompt_version")
+  /// Provider-specific extras, validated by a zod schema before write.
+  config             Json               @default("{}")
+  status             OrganisationStatus @default(ACTIVE)
+  createdAt          DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime           @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
   agentNumber  PhoneNumber? @relation(fields: [agentNumberId], references: [id], onDelete: SetNull)
 
-  @@unique([provider, externalAgentId])
+  /// One agent row per clinic per provider, which is D-004 expressed as a constraint
+  /// rather than as a convention. It is also what makes the create idempotent enough that
+  /// a double-submitted "create clinic" cannot leave two agent shells behind.
+  @@unique([organisationId, provider])
+  @@unique([provider, sarvamAppId])
+  /// The tool secret is what every voice tool call presents, so resolving it to a clinic is
+  /// an index probe rather than a scan of one row per clinic, which is what it was before.
+  /// UNIQUE as well as indexed, because two clinics sharing a secret would mean either
+  /// clinic's agent could act on the other's patients, and nothing else would notice.
+  /// PostgreSQL allows many NULLs in a unique index, so clinics with no secret yet are fine.
+  @@unique([toolSecretHash])
+  /// Resolves an incoming webhook to a clinic by the secret in its URL, as an index probe.
+  /// Unique for the same reason the tool secret is: two clinics sharing it would mean either
+  /// clinic's calls could be attributed to the other.
+  @@unique([webhookSecretHash])
+  /// The webhook payload names a deployment, and the clinic is resolved from OUR table by
+  /// that id rather than from anything the payload asserts about itself.
+  @@index([provider, sarvamDeploymentId])
   @@index([organisationId, status])
   @@map("voice_agents")
 }
@@ -225,14 +290,14 @@ model Device {
 }
 
 model PairingCode {
-  id             String    @id @db.Uuid
-  organisationId String    @map("organisation_id") @db.Uuid
+  id              String    @id @db.Uuid
+  organisationId  String    @map("organisation_id") @db.Uuid
   /// SHA-256 of the 6-character code. Single use, 10-minute lifetime.
-  codeHash       String    @unique @map("code_hash")
-  createdByUserId String   @map("created_by_user_id") @db.Uuid
-  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
-  consumedAt     DateTime? @map("consumed_at") @db.Timestamptz(6)
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  codeHash        String    @unique @map("code_hash")
+  createdByUserId String    @map("created_by_user_id") @db.Uuid
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz(6)
+  consumedAt      DateTime? @map("consumed_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
 
   organisation  Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
   createdByUser User         @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
@@ -296,6 +361,30 @@ model AuditLog {
 // organisation is not known at insert time. Unresolved rows are reachable only with
 // app.platform = 'on', which is what an operator debugging a failed webhook needs.
 
+/// How the agent should sound. Stored as an enum rather than free text because the
+/// rendered prompt branches on it, and "warm but professional-ish" is not a branch.
+enum AgentTone {
+  FORMAL
+  FRIENDLY
+  NEUTRAL
+
+  @@map("agent_tone")
+}
+
+/// How recording consent is obtained.
+///
+/// `NOT_RECORDED` is the only mode needing no consent, because nothing is kept. The other
+/// two require the announcement text to exist, which the shared schema enforces. Honouring
+/// the mode is the agent's and the recording pipeline's job, both of which arrive with the
+/// voice work; this records the clinic's decision.
+enum RecordingConsentMode {
+  NOT_RECORDED
+  ANNOUNCEMENT
+  EXPLICIT_OPT_IN
+
+  @@map("recording_consent_mode")
+}
+
 enum Weekday {
   MONDAY
   TUESDAY
@@ -331,6 +420,21 @@ enum CallDirection {
   OUTBOUND
 
   @@map("call_direction")
+}
+
+/// Whether the provider's own records hold a call that arrived by webhook (D-006).
+///
+/// The webhook is not signed, so its call is created first and checked after: the recording
+/// job looks the interaction up in Sarvam's interactions list.
+enum CallVerification {
+  /// Not looked up yet, or could not be (the clinic has no Sarvam app id).
+  UNCHECKED
+  /// Sarvam's interactions list holds this interaction.
+  VERIFIED
+  /// Sarvam's interactions list does not, after its cache window has passed.
+  NOT_FOUND
+
+  @@map("call_verification")
 }
 
 enum CallStatus {
@@ -378,6 +482,20 @@ enum OutboundCallStatus {
   CANCELLED
 
   @@map("outbound_call_status")
+}
+
+/// Who spoke a turn of a call transcript.
+///
+/// `OTHER` is not a placeholder for a bug: Sarvam does not enumerate the roles it sends on
+/// the webhook's `interaction_transcript` (docs/sarvam-contract.md section 3), and a turn
+/// whose speaker we cannot label is still part of what was said. Dropping it would make the
+/// transcript a clinician reads differ from the conversation that happened.
+enum CallTranscriptRole {
+  AGENT
+  CALLER
+  OTHER
+
+  @@map("call_transcript_role")
 }
 
 enum WebhookEventStatus {
@@ -505,20 +623,34 @@ model DoctorService {
   @@map("doctor_services")
 }
 
+/// A patient's recorded sex, as the clinic chose to capture it: two values, with "not
+/// recorded" as the column being null rather than a third value.
+enum PatientSex {
+  FEMALE
+  MALE
+
+  @@map("patient_sex")
+}
+
 model Patient {
-  id             String    @id @db.Uuid
-  organisationId String    @map("organisation_id") @db.Uuid
+  id             String      @id @db.Uuid
+  organisationId String      @map("organisation_id") @db.Uuid
   /// PHI. Trigram index for search added in M1-06.
-  fullName       String    @map("full_name")
+  fullName       String      @map("full_name")
   /// PHI, E.164. Indexed but NOT unique: families share numbers, and a clinic may hold
   /// two records for one number until they are merged.
   phone          String
-  dateOfBirth    DateTime? @map("date_of_birth") @db.Date
+  dateOfBirth    DateTime?   @map("date_of_birth") @db.Date
+  /// PHI. Optional, and null means not recorded. Only staff set it: the voice agent never
+  /// asks for it and never writes it.
+  sex            PatientSex?
+  /// PHI. Optional contact address, stored lower-cased.
+  email          String?
   notes          String?
   /// Soft delete: appointment and prescription history must survive a patient removal.
-  deletedAt      DateTime? @map("deleted_at") @db.Timestamptz(6)
-  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?   @map("deleted_at") @db.Timestamptz(6)
+  createdAt      DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   organisation  Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
   appointments  Appointment[]
@@ -533,34 +665,41 @@ model Patient {
 }
 
 model Appointment {
-  id                String            @id @db.Uuid
-  organisationId    String            @map("organisation_id") @db.Uuid
-  patientId         String            @map("patient_id") @db.Uuid
-  doctorId          String            @map("doctor_id") @db.Uuid
-  serviceId         String?           @map("service_id") @db.Uuid
-  startAt           DateTime          @map("start_at") @db.Timestamptz(6)
-  endAt             DateTime          @map("end_at") @db.Timestamptz(6)
-  status            AppointmentStatus @default(SCHEDULED)
-  source            AppointmentSource @default(DASHBOARD)
+  id                 String            @id @db.Uuid
+  organisationId     String            @map("organisation_id") @db.Uuid
+  patientId          String            @map("patient_id") @db.Uuid
+  doctorId           String            @map("doctor_id") @db.Uuid
+  serviceId          String?           @map("service_id") @db.Uuid
+  startAt            DateTime          @map("start_at") @db.Timestamptz(6)
+  endAt              DateTime          @map("end_at") @db.Timestamptz(6)
+  status             AppointmentStatus @default(SCHEDULED)
+  source             AppointmentSource @default(DASHBOARD)
   /// Replay protection for creates the voice agent can reach (root CLAUDE.md rule 8).
   /// Unique per organisation so two clinics cannot collide on one key.
-  idempotencyKey    String?           @map("idempotency_key")
+  idempotencyKey     String?           @map("idempotency_key")
   /// Set when this appointment replaces an earlier one, so a reschedule keeps its history.
-  rescheduledFromId String?           @unique @map("rescheduled_from_id") @db.Uuid
-  cancelledAt       DateTime?         @map("cancelled_at") @db.Timestamptz(6)
-  cancellationReason String?          @map("cancellation_reason")
-  createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  rescheduledFromId  String?           @unique @map("rescheduled_from_id") @db.Uuid
+  cancelledAt        DateTime?         @map("cancelled_at") @db.Timestamptz(6)
+  cancellationReason String?           @map("cancellation_reason")
+  /// PHI: what the receptionist wrote when booking. Never logged, never in an audit
+  /// payload, nulled for a platform role's masked read, and carried across a reschedule.
+  /// The service's listed price when this appointment was booked, in minor units. Kept
+  /// because a service's price changes and a past booking's must not change with it. Null
+  /// for appointments booked before the column existed, which cannot be recovered.
+  priceMinor         Int?              @map("price_minor")
+  notes              String?
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  organisation     Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-  patient          Patient        @relation(fields: [patientId], references: [id], onDelete: Restrict)
-  doctor           Doctor         @relation(fields: [doctorId], references: [id], onDelete: Restrict)
-  service          Service?       @relation(fields: [serviceId], references: [id], onDelete: SetNull)
-  rescheduledFrom  Appointment?   @relation("AppointmentReschedule", fields: [rescheduledFromId], references: [id], onDelete: SetNull)
-  rescheduledTo    Appointment?   @relation("AppointmentReschedule")
-  calls            Call[]
-  prescriptions    Prescription[]
-  followUps        FollowUp[]
+  organisation    Organisation   @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  patient         Patient        @relation(fields: [patientId], references: [id], onDelete: Restrict)
+  doctor          Doctor         @relation(fields: [doctorId], references: [id], onDelete: Restrict)
+  service         Service?       @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  rescheduledFrom Appointment?   @relation("AppointmentReschedule", fields: [rescheduledFromId], references: [id], onDelete: SetNull)
+  rescheduledTo   Appointment?   @relation("AppointmentReschedule")
+  calls           Call[]
+  prescriptions   Prescription[]
+  followUps       FollowUp[]
 
   @@unique([organisationId, idempotencyKey])
   @@index([organisationId, startAt])
@@ -571,40 +710,77 @@ model Appointment {
 }
 
 model Call {
-  id             String        @id @db.Uuid
-  organisationId String        @map("organisation_id") @db.Uuid
-  provider       Provider      @default(SARVAM)
+  id              String           @id @db.Uuid
+  organisationId  String           @map("organisation_id") @db.Uuid
+  provider        Provider         @default(SARVAM)
   /// The provider's call identifier, unique per provider.
-  externalCallId String        @map("external_call_id")
-  direction      CallDirection
-  status         CallStatus
-  outcome        CallOutcome   @default(NONE)
+  externalCallId  String           @map("external_call_id")
+  direction       CallDirection
+  status          CallStatus
+  outcome         CallOutcome      @default(NONE)
   /// PHI: caller and callee numbers in E.164.
-  fromE164       String        @map("from_e164")
-  toE164         String        @map("to_e164")
+  fromE164        String           @map("from_e164")
+  toE164          String           @map("to_e164")
   /// Linked when exactly one patient matches the normalised number, else left NULL.
-  patientId      String?       @map("patient_id") @db.Uuid
-  appointmentId  String?       @map("appointment_id") @db.Uuid
-  startedAt      DateTime?     @map("started_at") @db.Timestamptz(6)
-  endedAt        DateTime?     @map("ended_at") @db.Timestamptz(6)
-  durationSeconds Int?         @map("duration_seconds")
+  patientId       String?          @map("patient_id") @db.Uuid
+  appointmentId   String?          @map("appointment_id") @db.Uuid
+  startedAt       DateTime?        @map("started_at") @db.Timestamptz(6)
+  endedAt         DateTime?        @map("ended_at") @db.Timestamptz(6)
+  durationSeconds Int?             @map("duration_seconds")
   /// Integer minor units.
-  costMinor      Int?          @map("cost_minor")
+  costMinor       Int?             @map("cost_minor")
   /// Private S3 key, never a public URL. PHI.
-  recordingKey   String?       @map("recording_key")
-  transcript     String?
-  createdAt      DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt      DateTime      @updatedAt @map("updated_at") @db.Timestamptz(6)
+  recordingKey    String?          @map("recording_key")
+  /// Whether Sarvam returned audio for this call. NULL until the recording job has asked.
+  /// Separate from `verification` on purpose: a clinic that does not record has real calls
+  /// with no audio, and "no audio" must never read as "not a real call".
+  hasRecording    Boolean?         @map("has_recording")
+  /// Whether Sarvam's own interactions list holds this call (D-006, after the fact).
+  verification    CallVerification @default(UNCHECKED)
+  verifiedAt      DateTime?        @map("verified_at") @db.Timestamptz(6)
+  transcript      String?
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
 
-  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
-  patient      Patient?     @relation(fields: [patientId], references: [id], onDelete: SetNull)
-  appointment  Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  organisation    Organisation         @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  patient         Patient?             @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  appointment     Appointment?         @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  transcriptTurns CallTranscriptTurn[]
 
   @@unique([provider, externalCallId])
   @@index([organisationId, startedAt])
   @@index([organisationId, status, startedAt])
   @@index([organisationId, patientId, startedAt])
   @@map("calls")
+}
+
+/// One turn of one call's transcript. PHI, every word of it.
+///
+/// ITS OWN TABLE RATHER THAN TEXT ON `calls`, for two reasons. The dashboard shows a
+/// transcript as a conversation, with each turn attributed, and a single text column would
+/// mean inventing a line format and parsing it back out in the browser. And the mapping in
+/// docs/sarvam-contract.md section 8 names a transcript table for the same reason.
+///
+/// `calls.transcript` remains as the plain-text rendering, which is what a search or an
+/// export wants and what a reader gets if this table is empty.
+model CallTranscriptTurn {
+  id             String             @id @db.Uuid
+  organisationId String             @map("organisation_id") @db.Uuid
+  callId         String             @map("call_id") @db.Uuid
+  /// Position in the conversation, from zero. Part of the unique key, so re-ingesting the
+  /// same call replaces its turns instead of appending a second copy of them.
+  turnIndex      Int                @map("turn_index")
+  role           CallTranscriptRole
+  /// PHI: the words themselves. Never logged, never in an audit payload.
+  text           String
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  call         Call         @relation(fields: [callId], references: [id], onDelete: Cascade)
+
+  @@unique([callId, turnIndex])
+  @@index([organisationId, callId, turnIndex])
+  @@map("call_transcript_turns")
 }
 
 model WebhookEvent {
@@ -676,20 +852,20 @@ model PrescriptionItem {
 }
 
 model FollowUp {
-  id               String         @id @db.Uuid
-  organisationId   String         @map("organisation_id") @db.Uuid
-  patientId        String         @map("patient_id") @db.Uuid
-  doctorId         String?        @map("doctor_id") @db.Uuid
-  appointmentId    String?        @map("appointment_id") @db.Uuid
+  id             String         @id @db.Uuid
+  organisationId String         @map("organisation_id") @db.Uuid
+  patientId      String         @map("patient_id") @db.Uuid
+  doctorId       String?        @map("doctor_id") @db.Uuid
+  appointmentId  String?        @map("appointment_id") @db.Uuid
   /// The STAFF user responsible. "assigned" in the permission matrix refers to this.
-  assignedUserId   String?        @map("assigned_user_id") @db.Uuid
-  dueAt            DateTime       @map("due_at") @db.Timestamptz(6)
-  status           FollowUpStatus @default(PENDING)
+  assignedUserId String?        @map("assigned_user_id") @db.Uuid
+  dueAt          DateTime       @map("due_at") @db.Timestamptz(6)
+  status         FollowUpStatus @default(PENDING)
   /// PHI.
-  notes            String?
-  completedAt      DateTime?      @map("completed_at") @db.Timestamptz(6)
-  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  notes          String?
+  completedAt    DateTime?      @map("completed_at") @db.Timestamptz(6)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
   patient      Patient      @relation(fields: [patientId], references: [id], onDelete: Restrict)
@@ -789,4 +965,155 @@ model SupportSession {
   @@index([organisationId, expiresAt])
   @@index([platformUserId, expiresAt])
   @@map("support_sessions")
+}
+
+// ─── Clinic configuration (Feature 2: pilot clinic setup) ────────────────────────
+//
+// FIVE TABLES RATHER THAN FIFTY COLUMNS ON `organisations`. The sections are collected at
+// different times, by different people, from different sources: the address comes off a
+// letterhead, the booking policy from the practice manager, the agent's words from whoever
+// signs off on what a machine may say to a patient. Grouping them means a write touches one
+// section, an audit row names one section, and a form maps to one row.
+//
+// Each of the four one-to-one tables carries organisation_id and nothing else identifying,
+// so it is covered by the ordinary tenant_isolation policy and the tenant client extension
+// without a special case. The uniqueness of organisation_id is enforced in prisma/sql,
+// alongside the policy loop that gives these tables their row-level security.
+//
+// EVERY FIELD IS NULLABLE. A clinic is configured over several conversations, so a
+// half-collected section has to be a storable state. What has to be present before the
+// agent takes a real call is `packages/shared/clinic-readiness.ts`, which is advisory and
+// is the only place that says "required".
+
+/// Who the clinic is and where it is: the answers to "what is this place called", "where
+/// are you" and "how do I reach a person".
+model ClinicProfile {
+  id             String   @id @db.Uuid
+  organisationId String   @unique @map("organisation_id") @db.Uuid
+  /// The registered entity, where it differs from the name patients know.
+  legalName      String?  @map("legal_name")
+  /// citext so one address cannot be stored under two spellings.
+  contactEmail   String?  @map("contact_email") @db.Citext
+  /// E.164, normalised on the way in by the shared schema.
+  contactPhone   String?  @map("contact_phone")
+  website        String?
+  addressLine1   String?  @map("address_line1")
+  addressLine2   String?  @map("address_line2")
+  city           String?
+  state          String?
+  postalCode     String?  @map("postal_code")
+  /// ISO 3166-1 alpha-2.
+  country        String?  @db.Char(2)
+  /// A link the agent can send or the dashboard can show. https only.
+  mapUrl         String?  @map("map_url")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@map("clinic_profiles")
+}
+
+/// The rules that decide whether a requested appointment is bookable at all.
+///
+/// Read by the booking logic and baked into the rendered prompt, because a policy the agent
+/// does not know is a policy it will contradict.
+model ClinicBookingPolicy {
+  id                      String   @id @db.Uuid
+  organisationId          String   @unique @map("organisation_id") @db.Uuid
+  /// The grid appointments sit on, in minutes.
+  slotGranularityMinutes  Int?     @map("slot_granularity_minutes")
+  /// How soon before a slot a booking may still be made.
+  minimumNoticeMinutes    Int?     @map("minimum_notice_minutes")
+  /// How far ahead the agent may book.
+  maximumAdvanceDays      Int?     @map("maximum_advance_days")
+  /// How late a patient may cancel without it counting against them.
+  cancellationWindowHours Int?     @map("cancellation_window_hours")
+  acceptsNewPatients      Boolean? @map("accepts_new_patients")
+  /// Gap after every appointment, unless a doctor's own buffer overrides it.
+  defaultBufferMinutes    Int?     @map("default_buffer_minutes")
+  /// More than one only for clinics that deliberately overbook.
+  maxPerSlot              Int?     @map("max_per_slot")
+  /// What the clinic does about a no-show, in words the agent can read out.
+  noShowPolicy            String?  @map("no_show_policy")
+  createdAt               DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@map("clinic_booking_policies")
+}
+
+/// How the agent behaves: what it says, in which languages, and what it must never say.
+///
+/// `neverPromise` is the clinical safety boundary from root CLAUDE.md rule 9 expressed as
+/// clinic-specific data. The agent never diagnoses or prescribes whatever is in here; this
+/// is the clinic adding its own refusals on top of that.
+model ClinicAgentProfile {
+  id                  String     @id @db.Uuid
+  organisationId      String     @unique @map("organisation_id") @db.Uuid
+  /// The first thing a caller hears.
+  greeting            String?
+  /// BCP-47 tags, for example en-IN. Validated for shape, not against Sarvam's set: that
+  /// set is the provider's and is confirmed during the manual setup.
+  languages           String[]   @default([])
+  tone                AgentTone?
+  /// What the agent says when there is nothing to offer.
+  fullyBookedResponse String?    @map("fully_booked_response")
+  /// When to hand the call to a human, in the clinic's own words.
+  escalationRules     String?    @map("escalation_rules")
+  /// Discrete items, because each becomes one line of the rendered prompt.
+  neverPromise        String[]   @default([]) @map("never_promise")
+  createdAt           DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime   @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@map("clinic_agent_profiles")
+}
+
+/// Recording and consent, which is a legal position rather than a preference.
+///
+/// Stored separately from the agent's words because it is the one section a lawyer rather
+/// than a practice manager answers, and because `consentConfirmedAt` is evidence: it
+/// records that a named person at the clinic accepted the arrangement.
+model ClinicTelephony {
+  id                     String                @id @db.Uuid
+  organisationId         String                @unique @map("organisation_id") @db.Uuid
+  recordingConsentMode   RecordingConsentMode? @map("recording_consent_mode")
+  /// The exact words played to the caller, stored so they are auditable, not guessed.
+  consentAnnouncement    String?               @map("consent_announcement")
+  /// When somebody at the clinic confirmed the arrangement is theirs.
+  consentConfirmedAt     DateTime?             @map("consent_confirmed_at") @db.Timestamptz(6)
+  /// A member of clinic staff, never a patient, so the name may be stored.
+  consentConfirmedByName String?               @map("consent_confirmed_by_name")
+  createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt              DateTime              @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@map("clinic_telephony")
+}
+
+/// Answers the clinic wants given verbatim, in the order the clinic gave them.
+///
+/// Its own table rather than an array, because each entry is edited, reordered and switched
+/// off individually, and because the voice work will later want to match a spoken question
+/// against these rows.
+model ClinicFaq {
+  id             String   @id @db.Uuid
+  organisationId String   @map("organisation_id") @db.Uuid
+  question       String
+  answer         String
+  /// The clinic's own ordering, which is also the order the prompt renders them in.
+  sortOrder      Int      @map("sort_order")
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  organisation Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+
+  @@unique([organisationId, sortOrder])
+  @@index([organisationId, active, sortOrder])
+  @@map("clinic_faqs")
 }

@@ -74,18 +74,49 @@ contract and a second place for the number-to-clinic mapping to drift.
 
 ---
 
-## D-006 Sarvam webhooks are authenticated by three measures, because Sarvam documents none
+## D-006 Sarvam webhooks are authenticated by the URL secret and the address allow-list, and verified after the fact
 
-Until Sarvam publishes a signature scheme: a long random secret in the webhook URL path, an
-IP allowlist in front of the endpoint, and re-fetching the authoritative record from Sarvam
-before acting on anything the payload claims.
+**AMENDED 2026-11-04. This is the decision in force.** Until Sarvam publishes a signature
+scheme, the control on the webhook is two measures:
 
-**Why:** none of the three is sufficient alone, and the third is the one that holds: a
-forged payload cannot make the platform act if the platform only ever acts on what it
-re-read from the provider.
+- **A long random secret per clinic in the URL path**, stored only as a hash. It resolves the
+  clinic. `metadata.clinic_id` in the payload is never used to route.
+- **An allow-list of Sarvam's egress addresses, or an explicit decision to run without one.**
+  Configuration refuses to start with neither (`SARVAM_WEBHOOK_SOURCE_IPS`, or
+  `SARVAM_WEBHOOK_IP_CHECK_DISABLED=true`), and with both. It is a required choice rather
+  than a required list because the contract still marks as UNKNOWN whether Sarvam's two
+  published addresses are the ones webhooks come from, and a guessed list would refuse every
+  real call.
 
-**Replaces, not supplements:** when Sarvam documents a signature scheme, verify the
-signature and keep the re-fetch. Record that as a new decision rather than editing this one.
+**The payload is validated on the way in and then used as it arrived.** The adapter's schema
+checks shape, types and length bounds; a body that fails is answered 200, logged by field path
+only, and stored nowhere. A valid body becomes a call and a transcript with no provider call in
+front of it, so a call appears as soon as its event is processed.
+
+**Verification is after the fact, not before.** The recording job, which authenticates to
+Sarvam for the interaction anyway, looks it up in Sarvam's interactions list and marks the call
+`VERIFIED` or `NOT_FOUND`. The clinic dashboard flags `NOT_FOUND` calls and nothing else. "Is
+there audio" is a separate fact (`calls.has_recording`), because the recording endpoint's 404
+is what a forged call AND a clinic that does not record both get.
+
+**Why it changed.** Re-reading before acting put two provider calls between a finished call and
+its appearance in the dashboard, made a call depend on Sarvam's analytics being up at that
+moment, and, for a clinic with no app id, either failed open or held real calls back.
+
+**What it costs, stated plainly.** A forged webhook, which needs the clinic's URL secret and,
+with the allow-list on, a Sarvam address, now creates a call and a transcript that staff can
+read until the recording job flags it, a few minutes later. The flag is the control from then
+on, which is why it is shown only for calls Sarvam does not have: a warning on every call would
+be ignored. A clinic with no Sarvam app id cannot be verified at all and its calls stay
+`UNCHECKED`.
+
+**When Sarvam documents a signature scheme:** verify it on the way in, keep the after-the-fact
+lookup, and record that as an amendment here.
+
+**The original decision, 2026-10, kept for the record.** Three measures: the URL secret, the
+allow-list, and re-fetching the authoritative record from Sarvam before acting on anything the
+payload claimed, on the reasoning that the third was the one that holds because the platform
+only ever acted on what it re-read. That ordering is what the amendment above replaces.
 
 ---
 
@@ -205,6 +236,437 @@ third-party artefact kept as the design system's provenance and is not product c
 so changing a seed email on an existing database fails with a primary-key collision rather
 than updating the row. It only bites a developer who re-seeds across a rename, and the fix
 is to upsert by id. Not fixed here, because the database it affects is disposable.
+
+---
+
+## D-012 One Sarvam identifier per clinic, and the platform generates the tool secret
+
+`voice_agents.external_agent_id` is gone, replaced by `sarvam_app_id`. The two named the same
+thing, and the per-clinic tool secret (D-004) is minted by the platform, shown exactly once
+and stored only as a SHA-256 hash. No endpoint can read it back.
+
+**Why one identifier:** two columns holding one fact, with nothing enforcing that they agree,
+drift. The failure mode is a webhook that resolves to no organisation, which is silent until a
+patient's call goes nowhere.
+
+**Why the platform generates the secret rather than accepting one:** it is the entire
+authentication for the tool endpoints the agent calls. A secret supplied by an operator is as
+strong as whoever typed it felt like making it and arrives by whatever channel they chose.
+Minted from the CSPRNG and shown once is the same arrangement as a temporary password (D-003),
+for the same reason: a secret the platform can read back is a secret an attacker can read back.
+
+**Regenerating is explicit and confirmed**, because a new secret invalidates the one the live
+agent is using and takes that clinic's agent off the air until the new value is pasted into
+Sarvam. An ordinary save never mints one.
+
+**The drop was safe once and will not be again.** `external_agent_id` was NOT NULL and the
+table was empty in every environment, so the migration drops the column. After a real agent is
+mapped, the same change would need a copy-then-drop across two migrations.
+
+---
+
+## D-013 A clinic's configuration is five tables, and every field is nullable until collected
+
+Identity and address, booking policy, agent behaviour, telephony consent, and the frequently
+asked answers are five tables rather than fifty columns on `organisations`. Opening hours stay
+in `clinic_hours` as one row per opening segment. Every field is nullable, and a blank value
+submitted by a form is stored as NULL rather than as an empty string.
+
+**Why separate tables:** the sections are collected at different times, by different people,
+from different sources. Grouping them means one write touches one section, one audit row names
+one section, and one form maps to one row.
+
+**Why nullable, and why blank means not collected:** a clinic is configured over several
+conversations, so a half-collected section has to be a storable state. This is not a nicety. An
+HTML input has no null, so an uncollected field arrives as `''`, and with the email and phone
+validated strictly a clinic whose email nobody had asked for yet could not have its ADDRESS
+saved. Whether what has been collected is enough to go live is a separate, advisory question,
+answered in one place by `packages/shared/clinic-readiness.ts`.
+
+**A break is the gap between two opening segments and a weekly off is a weekday with none.**
+`organisations.opening_hours_collected_at` is what distinguishes a clinic that is closed on
+Sunday from one nobody has asked, which row counts alone cannot. The agent is told to state no
+hours at all in the second case rather than asserting a closure nobody confirmed. Overnight
+hours are refused for now, in the schema and by a CHECK constraint.
+
+---
+
+## D-014 The master prompt is versioned files in the repository, not rows in a table
+
+Each version is a file under `apps/api/src/voice/prompts/`, listed in a registry, and a clinic
+stores the version string its Sarvam agent is actually running. Adding a version changes
+nothing for a clinic still marked with an older one.
+
+**Why files:** the prompt determines what a machine says to a patient about their healthcare. A
+change to it deserves what a change to a permission check gets, which is a diff, an approver and
+a commit that says why. A prompt edited through a form by whoever was logged in, with the
+previous wording gone, is not reconstructable six months later when a patient says the agent
+told them something.
+
+**Why a clinic stores a version:** the platform does not push prompts. A person pastes the
+rendered text into Sarvam's console, so the stored version is our record of what was pasted, and
+it is how you tell which clinics still owe a re-paste after a prompt change.
+
+**Availability is never rendered into a prompt.** Not which slots are free, not a count, not
+today's schedule. A prompt is a snapshot, and an agent answering from a snapshot offers a slot
+that was taken an hour ago. Hours, services and policies may be baked in for now because they
+change rarely, and `docs/features/pilot-clinic.md` records that this set is expected to shrink
+once the tool endpoints exist.
+
+---
+
+## D-015 One data layer: Redux Toolkit and RTK Query, with TanStack Query removed
+
+Server data lives in RTK Query caches. Global client state (the session, user-interface
+preferences, filters that cross screens) lives in Redux Toolkit slices. TanStack Query is
+removed from the repository, including from the admin console, which had one hook using it.
+
+**Why one and not two:** the clinic dashboard is the first application with enough screens for
+the choice to matter, and it arrived with TanStack Query already installed in both web
+applications but used by a single hook. Two cache libraries means two invalidation models, two
+sets of retry semantics and two answers to "where does this data come from", and every later
+feature has to pick. Picking once, now, while the cost of changing is one hook, is cheaper than
+picking per feature for a year.
+
+**RTK Query's baseQuery is `packages/api-client`, never `fetch`.** The client holds the
+single-flight refresh on 401, the CSRF header and `credentials: 'include'`, and all three were
+verified in a real browser in the sign-in feature. A baseQuery that called `fetch` directly
+would silently reimplement a session that is already correct, and the failure mode is not a
+broken request: it is five parallel queries each triggering a refresh, the refresh token
+rotating under them and the user being signed out by their own page load. A test asserts that a
+401 inside an RTK Query call produces exactly one refresh and one retry.
+
+**Server data is never copied into a slice.** A slice holding a copy of what a query cache
+already holds is a second source of truth with no invalidation, which is the specific bug this
+decision exists to prevent.
+
+---
+
+## D-016 M1-14 moves to after the pilot call, which amends D-008
+
+D-008 said the `app.platform` escape clause is removed from all 25 row-level security policies
+before the voice work begins. It was not, and the voice work proceeded. This entry records that
+as a decision taken with the measurements in view, not as a decision that was skipped.
+
+**Why the risk does not bite at pilot scale:** the 13x penalty in D-008 was measured on 50,000
+rows. The pilot is one clinic with a handful of patients, where a sequential scan over a tiny
+table costs microseconds, so the non-indexable predicate does not threaten the requirement of
+voice tool endpoints at p95 under 400 ms. The self-escalation half of D-008 is not reachable
+from outside the API process.
+
+**What it is now gated on, in place of "before M3":** M1-14 lands immediately after the real
+call works, and before either a load test or a second clinic. Those two events are precisely
+the points at which the reasoning above stops holding: a load test runs against the row counts
+where the sequential scan was measured, and a second clinic is where one tenant's compromise
+reaching another stops being hypothetical.
+
+**D-008 is not deleted and its reasoning is not weakened.** Both halves of it remain true at
+scale. What changed is the ordering, and the condition that replaces it is written in
+`docs/BACKLOG.md` as well, because that is where whoever picks the ticket up will look.
+
+---
+
+## D-017 A platform read of one clinic is confined by the application lock, not by convention
+
+`asSystem` is for the paths that have no single organisation: login, resolving a provider
+webhook, the clinic list, jobs. A platform role reading ONE clinic's patients or appointments,
+which the matrix grants as `read: 'masked'`, runs under a third scope kind,
+`platform-organisation`, served by `asOrganisationSystem`.
+
+It is platform scope in the DATABASE, because `app.platform = 'on'` is what lets the query
+past row-level security, and tenant scope in the APPLICATION, because the client extension
+injects `organisation_id` from the named clinic exactly as it does for a clinic user.
+
+**Why it exists.** The first version of the dashboard's patient and appointment reads used
+unbounded `asSystem` and relied on every repository function filtering by organisation itself.
+That is a convention, not a control: row-level security is off for those connections, so a
+function added in a later feature without the filter returns every clinic's patients, and no
+existing test fails. The lock belongs in the one place it cannot be forgotten.
+
+**The repository filters stay**, as a second layer, and the tests say which layer is which.
+`tests/platform-scope-isolation.test.ts` drives every repository read under this scope, and
+also issues the queries a function that forgot its filter would issue. Deleting the
+`platform-organisation` branch from the extension fails six named cases; deleting one
+repository function's filter fails none, which is the demonstration that the extension is the
+control.
+
+**CORRECTION, 2026-11-03: the organisations module was not covered, and is now.** The two
+paragraphs above were true of patients and appointments and were read as true of every path
+that touches one clinic. They were not. Clinic configuration (`modules/organisations`: the
+sections, services, doctors, a doctor's week and the Sarvam mapping) ran every platform-role
+read and write under unbounded `asSystem`, so its confinement was exactly the convention this
+decision exists to replace. The Feature 2 review demonstrated it: with one filter removed from
+`updateService`, a super admin's PATCH on clinic A's URL renamed clinic B's service, and the
+whole database suite stayed green.
+
+Every per-clinic function in that module now runs under `withClinicScope`
+(`db/principal-scope.ts`): `asOrganisationSystem` for a platform role, the caller's own tenant
+scope for a clinic role, and 404 for a clinic role naming another clinic in the URL.
+`tests/organisation-write-confinement.test.ts` is its guard. It fails on the old routing with a
+filter removed, and passes on the new routing with the same filter removed, which is the same
+demonstration as above. Two paths stay on `asSystem` because they have no single existing
+clinic: the clinic list, and clinic create, whose organisation does not exist until the
+transaction writes it.
+
+`tests/platform-scope-isolation.test.ts` still covers patients and appointments only. A module
+that reads or writes one clinic for a platform role needs its own case there or a file like
+the one above. Nothing finds such a module automatically.
+
+**A clinic principal cannot be scoped to another organisation at all.** `withOrganisationScope`
+refuses it rather than opening a scope, because reaching that line means an organisation came
+from something other than the token.
+
+**What the extension does with each operation, measured rather than assumed.** `findUnique`
+needs no rewrite to `findFirst`: Prisma 7 accepts the injected non-unique condition, so a
+foreign id answers null and `findUniqueOrThrow` raises not-found. `create`, `createMany` and an
+`upsert`'s create half are verified against the scope and refused outright, because organisation
+never comes from input. `update`, `updateMany`, `delete` and `deleteMany` are injected, so they
+touch nothing. Every one of those is a case in `tests/platform-scope-isolation.test.ts`,
+including a check that the other clinic's row was not quietly modified, because a write that
+reports nothing and still happens is the failure that matters.
+
+**The `Organisation` model was the one real hole, and it is closed.** It is scoped by its
+primary key, so a supplied `where.id` used to pass straight through on the reasoning that
+row-level security would answer. That reasoning held only while every cross-tenant read ran
+with row-level security ON. This scope sets `app.platform = 'on'`, which switches it off, so
+`organisation.findUnique({ where: { id: someoneElse } })` returned the other clinic's name, time
+zone and settings. The extension now appends the scoped id to `where.AND`, which answers null
+instead: still the "not found" rule 7 asks for, with no error that would itself disclose
+whether the row exists.
+
+**CORRECTION, 2026-11-03 (Feature 3 review, I2 and I3): two query shapes were outside it, and
+are now refused or confined.** `updateManyAndReturn` was in neither operation list, so it was
+passed on with nothing injected, and under this scope it changed and returned another clinic's
+row. A nested relation write (`data: { patient: { connect: { id } } } }`) was never looked at,
+because the extension sees only the top-level operation, and it linked one clinic's appointment
+to another clinic's patient. Now every operation must be in `CONFINED_OPERATIONS` or it is
+refused, and a test reads the generated client's operation list so a shape Prisma adds later
+fails in the gate rather than in production. Nested relation writes are refused on every
+confined scope; write the child row with its own top-level call. The sabotage count quoted
+above is also out of date: removing the `platform-organisation` branch now fails sixteen named
+cases, not six.
+
+**What the extension still cannot confine: a scalar foreign key.** `data: { patientId: <another
+clinic's patient> }` is an ordinary column write, and PostgreSQL checks a foreign key without
+row-level security, so it links across clinics on ANY scope. The control today is that every
+service resolves such an id inside its own scope first (booking checks the patient is
+reachable). The structural fix is composite foreign keys that include `organisation_id`, and it
+is owed in `docs/BACKLOG.md`.
+
+**Raw SQL is outside this extension and cannot be made safe by it.** `$queryRaw` and
+`$executeRaw` bypass every injection above. There is none on this path, and a test asserts that
+by scanning `src/modules`: the only raw statements in the application are the `set_config` calls
+that establish a scope and the health probe's `SELECT 1`, neither of which reads a tenant table.
+A repository that needs raw SQL on a tenant table has to put `organisation_id` in the statement
+itself and say so.
+
+**THIS SCOPE DEPENDS ON `app.platform`, WHICH M1-14 REMOVES.** `asOrganisationSystem` sets
+`app.platform = 'on'` so row-level security lets a platform read through, and the extension's
+injection is what confines it to one clinic. When M1-14 replaces that GUC with an `app_platform`
+database role, this path must switch to that role in the same change, or every platform read of
+a clinic returns nothing.
+
+The failure is fail-closed, which is the right direction and also the reason it would not be
+noticed quickly: the dashboard would simply show an internal admin an empty patient list. The
+tests that catch it are the positive controls in `tests/platform-scope-isolation.test.ts`, which
+assert that the clinic actually named is still readable. `docs/BACKLOG.md` carries the same
+warning on the M1-14 entry.
+
+---
+
+## D-018 Object storage is Cloudflare R2, and the provider is configuration
+
+Recordings and database dumps live in Cloudflare R2, reached with the S3 API. The provider is
+decided by four environment variables, `S3_ENDPOINT`, `AWS_REGION`, `S3_FORCE_PATH_STYLE` and
+the credential pair, so moving to AWS S3 or Lightsail object storage is a configuration change
+and not a code change. Nothing in `apps/api/src/storage/` names a provider.
+
+**Why R2:** no charge for egress, which is the line item that matters here. A recording is
+downloaded by a browser every time somebody reviews a call, and on S3 that traffic is billed
+per gigabyte leaving the region.
+
+**OPEN QUESTION, NOT YET DECIDED: whether no data-residency guarantee is acceptable.** It is
+recorded here because it has to be visible, and writing it down is not the same as settling it.
+The decision belongs to whoever owns the product's commitments to clinics, and until they make
+it, this entry describes a choice that is in force rather than one that has been accepted. R2
+stays in use meanwhile because the pilot holds one clinic's data and no contract has been
+signed that says otherwise. What must not happen is a second clinic being onboarded, or a
+hospital group being quoted, while this is still open.
+
+**R2 GIVES NO DATA-RESIDENCY GUARANTEE, AND THIS IS THE COST OF THE CHOICE.** A bucket can be
+given a location HINT, which Cloudflare treats as a preference rather than a commitment, and
+objects may be stored or cached outside India. The platform holds Indian patients' health data
+and recordings of their voices, so if a clinic, a hospital group or an audit asks where that
+data physically resides, the honest answer today is "Cloudflare's network, hinted towards Asia,
+not contractually in India".
+
+**The alternative, for when that answer is not good enough:** AWS S3 in `ap-south-1`, which is
+physically in Mumbai and contractually so. It is a change of four environment variables and a
+data migration, with egress charges as the ongoing cost. R2's own jurisdictional restriction
+feature, which does pin data to a region, is the other option and is worth pricing before a
+second clinic signs.
+
+**Not negotiable regardless of provider:** no object is ever public, recordings are served only
+as short-lived presigned URLs and never proxied through the API (D-007), and keys carry ids
+rather than names, because a key appears in provider logs and billing exports.
+
+---
+
+## D-019 Supabase free PostgreSQL in Mumbai, through the transaction pooler
+
+The database is a Supabase free-tier PostgreSQL project in the Mumbai region, reached through
+the transaction-mode pooler rather than a direct connection.
+
+**Why the pooler:** the API runs on a 2 GB Lightsail instance (D-020) and Supabase's free tier
+allows few direct connections. Transaction mode hands a server connection back at the end of
+each transaction, which suits an application whose every query already runs inside one.
+
+**THE ISOLATION DEPENDS ON THAT BEING TRUE, AND IT IS BEING VERIFIED RATHER THAN ASSUMED.**
+Tenant isolation is enforced by `set_config('app.org_id', ..., true)`, which is
+TRANSACTION-LOCAL, inside an interactive transaction. Transaction-mode pooling is compatible
+with that by definition, because a transaction holds one server connection for its whole life.
+What would break it is a pooler that handed the connection to another client mid-transaction,
+and the consequence would be silent: a query that reads another clinic's rows with no error
+anywhere. So the isolation suite is run against Supabase through the pooler, not only against
+local PostgreSQL, and the result is recorded in `docs/STACK.md`.
+
+**What the free tier does not give us, and what follows from it:** no automated backups, no
+point-in-time recovery, and a project that is paused after a week of inactivity. The nightly
+dump to R2 is therefore the ONLY copy of the database, which is why
+`docs/operations/backup-and-restore.md` exists and why the restore is a command rather than a
+paragraph.
+
+---
+
+## D-020 The API runs on one AWS Lightsail 2 GB instance in ap-south-1
+
+A single Lightsail instance in Mumbai, not ECS Fargate, not Kubernetes.
+
+**Why:** the pilot is one clinic. A fixed monthly price, one box to reason about and one SSH
+session to debug on is the right shape for that, and `docs/STACK.md`'s ECS plan is for a
+platform with more than one tenant on it.
+
+**What it costs, stated plainly:** there is no redundancy. A single instance is a single point
+of failure, a reboot is downtime, and a disk that fills takes the API down with it. The
+mitigations are that the database and the object store are both off-box, so an instance can be
+rebuilt without data loss, and that the backup job streams its dump rather than writing it to
+that disk.
+
+**The scaling trigger is a second clinic**, not a load figure: at that point the single box, the
+free-tier database and D-016's deferral of M1-14 all stop being defensible together.
+
+---
+
+## D-021 The voice agent is a seventh role in the matrix, and never a user
+
+`VOICE_AGENT` is a role in `packages/shared/permissions.ts` with its own column: appointments
+read and write, patients read and write, a read of the clinic's settings and of doctors,
+services and hours. Everything else is denied, including recordings, prescriptions,
+follow-ups, analytics and the audit trail.
+
+**Why a role rather than a separate capability table:** the matrix is already the one place
+the guards, the tests and both menus hang off. A second table would be a second place to look,
+and the service layer would still need a principal with a role to reuse the scope and masking
+logic. One readable column that says what the agent can and cannot do is worth more than
+keeping the list at six.
+
+**It is a principal, not a person, and four controls say so.** Each has a test:
+
+- the Prisma `Role` enum stays at six values, so no user row can store it. A test inserts one
+  and asserts PostgreSQL refuses the cast, which is also why no API path can assign it.
+- `verifyAccessToken` uses `isUserRole`, so a validly signed token carrying the role is
+  refused, with the same error as a token naming a role that does not exist.
+- `USER_ROLES` is a TYPE as well as a list, so a map from roles to labels or form fields that
+  includes the agent does not compile.
+- it belongs to no login audience, and the clinic dashboard's menu returns nothing for a
+  non-user role.
+
+**The last one was a real hole.** The dashboard's menu filters on the matrix alone, so the
+agent's genuine grants would have shown it five pages. A matrix-derived test accepted that,
+which is why that assertion is deliberately not derived from the matrix.
+
+**What this decision could not fix.** `audit_logs.actor_role` IS the database's `role` enum,
+so an action by the agent can name its actor in neither `actor_role` nor `actor_user_id`.
+Those rows carry `metadata.source` or `metadata.actorSource` instead, which is a naming
+convention standing in for a column in a regulated trail. The proper fix is a schema change
+and is in `docs/BACKLOG.md`.
+
+**Patient write is a ceiling, not a licence.** The matrix cannot express "create but not
+update", and the agent must be able to book for a first-time caller. The control is the
+ABSENCE OF AN ENDPOINT: the tool surface exposes a lookup and a create and no way to edit or
+delete an existing record.
+
+---
+
+## D-022 The voice tool endpoints answer 200 with a speakable sentence, except twice
+
+`POST /voice/tools/*`, outside `/api/v1`, authenticated by `Authorization: Bearer <per-clinic
+secret>` and nothing else. Every answer is `{ ok, message, data }`. `message` is a whole short
+sentence, because it is read to a patient.
+
+**Why almost always 200:** an HTTP error reaches a patient as silence or as a crash
+mid-sentence. A refused booking, an unidentifiable doctor or a slot taken a second ago is a
+thing to say, not a status code.
+
+**The two exceptions, and why each earns one:**
+
+- **401** when the secret does not authenticate. That is a misconfigured deployment or
+  somebody probing. Neither is a thing to tell a caller, and a 200 would hide both from
+  whoever is watching the service.
+- **429** when a clinic exceeds its limit, so the provider can back off rather than being
+  told everything is fine.
+
+A 5xx is never returned: an unexpected failure becomes a neutral sentence and a logged error,
+because the call is still in progress.
+
+**Not under `/api/v1`**, per `sarvam-voice-integration`. It is a provider surface with its own
+authentication, and the shared prefix would imply that a session reaches it.
+
+**The rate limit is keyed on the clinic, never on the address.** Sarvam calls from a handful
+of fixed addresses, so an address bucket would throttle every clinic at once. 600 per clinic
+per minute, with a 3,000-per-address backstop ahead of authentication, both configurable. The
+arithmetic is in `voice/tools.routes.ts`.
+
+**The bearer header is our contract and Sarvam's half is unconfirmed.** Whether their API tool
+can send a custom `Authorization` header is an open question in `docs/sarvam-contract.md`.
+If it cannot, the fallback is the webhook's arrangement, the secret in the URL path (D-006),
+which is a change in one function.
+
+## D-023 The estimated revenue figure is hidden for the pilot
+
+Decided 2026-11-03, at the Feature 3 review. The Overview's "Estimated Revenue Impact" card is
+removed, and the overview endpoint no longer returns a revenue figure at all, rather than
+returning one that no screen shows.
+
+**Why it is hidden:** no decision in this repository ever agreed its formula. What was built
+summed the listed price of every appointment the AI receptionist booked, and that number
+counts cancelled and no-show bookings, read through to today's service price, and is the
+most disputable figure on the first screen a clinic owner sees. Nothing in the pilot needs it
+to prove anything.
+
+**What must be settled before it returns:**
+
+- **Which statuses count.** Whether a cancelled or no-show booking is revenue, and whether a
+  booking still awaiting confirmation is.
+- **Booking date or visit date.** Whether a figure for "last 7 days" means bookings made in
+  those days or visits that took place in them.
+- **How reschedules are handled.** A reschedule writes a new appointment that inherits the
+  original's source. The figure must count the visit once, at one price, whoever moved it.
+- **Which price.** The price stored on the appointment when it was booked (below), never the
+  service's price today.
+
+**Kept now although the card is hidden: the price at booking time.** `appointments.price_minor`
+(migration `20261103160000_appointment_price`) stores the service's listed price when the
+appointment is booked. A move to another time keeps it, because it is the same visit; a change
+of service takes that service's price at the time. It costs nothing to keep, it cannot be
+recovered later, and without it any future figure silently rewrites history whenever a price
+changes. Appointments booked before the column existed have none, and are not back-filled,
+because back-filling today's price is exactly that rewrite.
+
+**Fixed now although the card is hidden: AI Bookings no longer counts reschedules.** The same
+inheritance made a moved AI booking count twice on the AI Bookings card, which stays visible,
+and credited the agent with reschedules a receptionist made. A row created by a reschedule is
+no longer counted as a booking (`isAiBooking` in `modules/analytics`).
 
 ---
 

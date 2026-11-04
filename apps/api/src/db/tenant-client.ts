@@ -137,6 +137,70 @@ export const asSystem = async <T>(reason: string, fn: (db: TenantDb) => Promise<
     });
   });
 
+/**
+ * Resolves a presented credential to an organisation, before any tenant is known.
+ *
+ * THE ONLY DIFFERENCE FROM `asSystem` IS THAT IT DOES NOT AUDIT, and that is the whole
+ * reason it exists. `asSystem` writes an audit row in a transaction of its own and logs a
+ * line, which is right for a login or a job and wrong for something that runs on EVERY
+ * VOICE TOOL CALL: it would double the round trips inside a 400 ms budget and file one
+ * "platform scope opened" row per sentence a patient speaks, burying the reads that matter.
+ *
+ * What keeps it honest instead:
+ *   - the work inside is a single indexed read of one credential row, nothing else
+ *   - the operation it authenticates is itself audited, with the organisation named
+ *   - `tests/credential-scope-call-sites.test.ts` enumerates every call site, so a second
+ *     use cannot appear without somebody deciding it belongs here
+ *
+ * M1-14 INTERACTION: this opens platform scope with `app.platform`, the GUC M1-14 removes.
+ * That ticket must move this to the `app_platform` role along with the other platform reads,
+ * or every voice tool call stops authenticating. Recorded in D-017 and in the M1-14 entry.
+ */
+export const asAuthenticator = async <T>(
+  reason: string,
+  fn: (db: TenantDb) => Promise<T>,
+): Promise<T> =>
+  runInScope({ kind: 'platform', reason }, () =>
+    scopedClient.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(PLATFORM_SCOPE_SQL);
+      return fn(tx);
+    }),
+  );
+
+/**
+ * Runs `fn` as a platform principal, confined to ONE organisation.
+ *
+ * The scope a platform role gets for a read the matrix grants it, such as a masked patient
+ * list. Two things are true at once and both are deliberate:
+ *
+ *  - IN THE DATABASE it is platform scope, because row-level security would otherwise refuse
+ *    a connection whose `app.org_id` names a clinic the user does not belong to.
+ *  - IN THE APPLICATION it is tenant scope, because the extension injects `organisation_id`
+ *    into every `where` from `scope.organisationId`.
+ *
+ * So a repository function CANNOT read another clinic's rows here even if it forgets to
+ * filter, which is the property that `asSystem` does not have and that
+ * `tests/platform-scope-isolation.test.ts` proves per function.
+ *
+ * The use is audited exactly as `asSystem` is, with the organisation named, so a platform
+ * read of a clinic is never silent.
+ */
+export const asOrganisationSystem = async <T>(
+  reason: string,
+  organisationId: string,
+  fn: (db: TenantDb) => Promise<T>,
+): Promise<T> =>
+  runInScope({ kind: 'platform-organisation', reason, organisationId }, async () => {
+    await recordScopeUse(`${reason} (organisation ${organisationId})`);
+
+    logger.info({ reason, organisationId }, 'platform scope opened for one organisation');
+
+    return scopedClient.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(PLATFORM_SCOPE_SQL);
+      return fn(tx);
+    });
+  });
+
 /** Closes the pool. Called from the server's shutdown path. */
 export const disconnectDatabase = async (): Promise<void> => {
   await scopedClient.$disconnect();

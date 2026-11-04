@@ -1,0 +1,13 @@
+-- The tool secret hash is what authenticates every voice tool call, so it is resolved to a
+-- clinic on the hot path. Without an index that is a sequential scan of voice_agents, one
+-- row per clinic, on every call the agent makes.
+--
+-- UNIQUE rather than a plain index, because it is also an integrity control: two clinics
+-- holding the same secret would mean either agent could act on the other clinic's patients,
+-- and no other constraint would notice. PostgreSQL permits many NULLs in a unique index, so
+-- clinics whose secret has not been minted yet are unaffected.
+--
+-- Additive and safe to apply to a populated table: the column exists, and the platform mints
+-- each secret from 256 bits of CSPRNG output, so a collision that would fail this is not a
+-- realistic state.
+CREATE UNIQUE INDEX "voice_agents_tool_secret_hash_key" ON "voice_agents" ("tool_secret_hash");

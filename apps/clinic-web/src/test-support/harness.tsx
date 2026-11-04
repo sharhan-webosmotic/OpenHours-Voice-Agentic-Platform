@@ -1,10 +1,12 @@
 import { render, type RenderResult } from '@testing-library/react';
+import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router';
 import type { ReactNode } from 'react';
 import { ApiError, type ApiClient, type CurrentUser, type Session } from '@clinicai/api-client';
 import type { Role } from '@clinicai/shared';
 import { AuthProvider } from '../app/AuthProvider';
 import { createSessionBus, type SessionBus } from '../app/sessionBus';
+import { createAppStore } from '../app/store';
 
 /**
  * A stub API client, and the renderer the component tests use.
@@ -20,6 +22,21 @@ import { createSessionBus, type SessionBus } from '../app/sessionBus';
 export const problem = (status: number, type: string, detail: string): ApiError =>
   new ApiError({ type, title: 'Refused', status, detail });
 
+/**
+ * What the stubbed `request` answers, keyed by METHOD and PATH PREFIX.
+ *
+ * A screen reads four or five endpoints, so a test that stubbed one call at a time would
+ * spend more lines arranging than asserting. A route table reads like the API it is standing
+ * in for, and a path with no entry answers 404 rather than an empty 200: a screen that
+ * renders happily against a missing endpoint is a screen whose loading states are untested.
+ */
+export type StubRoute = {
+  readonly status?: number;
+  readonly body?: unknown;
+};
+
+export type StubRoutes = Readonly<Record<string, StubRoute>>;
+
 export type StubOptions = {
   /** The user a successful sign-in or boot produces. Absent means no session. */
   readonly user?: CurrentUser;
@@ -29,6 +46,14 @@ export type StubOptions = {
   readonly changePasswordError?: Error;
   /** When false, the boot refresh fails, which is the ordinary signed-out case. */
   readonly bootSucceeds?: boolean;
+  /**
+   * `'GET /api/v1/patients': { body: { items: [] } }`.
+   *
+   * Matched on the longest prefix, so a list and one of its rows can both be stubbed, and
+   * the query string is ignored because a filter is the screen's business rather than the
+   * stub's.
+   */
+  readonly routes?: StubRoutes;
 };
 
 export type Stub = {
@@ -39,18 +64,42 @@ export type Stub = {
     refresh: number;
     logout: number;
     changePassword: number;
+    /** Every authenticated request the screen made, in order. */
+    requests: {
+      path: string;
+      method: string;
+      body: unknown;
+      /** The headers the screen asked for, so a test can see the Idempotency-Key it sent. */
+      headers: Readonly<Record<string, string>> | undefined;
+    }[];
   };
 };
 
 export const stubClient = (options: StubOptions = {}): Stub => {
-  const calls = { login: 0, refresh: 0, logout: 0, changePassword: 0 };
+  const calls = {
+    login: 0,
+    refresh: 0,
+    logout: 0,
+    changePassword: 0,
+    requests: [] as {
+      path: string;
+      method: string;
+      body: unknown;
+      headers: Readonly<Record<string, string>> | undefined;
+    }[],
+  };
   const bus = createSessionBus();
   let current = options.user;
 
   const session = (user: CurrentUser): Session => ({
     accessToken: 'access-token',
     mustChangePassword: user.mustChangePassword,
-    user: { id: user.id, organisationId: user.organisationId, role: user.role },
+    user: {
+      id: user.id,
+      organisationId: user.organisationId,
+      role: user.role,
+      fullName: user.fullName,
+    },
   });
 
   const expired = () =>
@@ -88,7 +137,52 @@ export const stubClient = (options: StubOptions = {}): Stub => {
       current = undefined;
       return Promise.resolve();
     },
-    request: () => Promise.resolve(new Response(null, { status: 204 })),
+    /**
+     * Answers from `options.routes`, or 404.
+     *
+     * The recorded calls are what a test asserts a mutation actually sent, which matters for
+     * the ones whose body is built from several pieces of screen state.
+     */
+    request: (
+      path: string,
+      method = 'GET',
+      body?: unknown,
+      headers?: Readonly<Record<string, string>>,
+    ) => {
+      calls.requests.push({ path, method, body, headers });
+
+      const key = `${method.toUpperCase()} ${path.split('?')[0] ?? path}`;
+      const match = Object.keys(options.routes ?? {})
+        .filter((candidate) => key === candidate || key.startsWith(`${candidate}`))
+        .sort((a, b) => b.length - a.length)[0];
+
+      const route = match === undefined ? undefined : options.routes?.[match];
+
+      if (route === undefined) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              type: 'https://clinicai.health/problems/not-found',
+              title: 'Not Found',
+              status: 404,
+              detail: `No stub for ${key}`,
+            }),
+            { status: 404, headers: { 'Content-Type': 'application/problem+json' } },
+          ),
+        );
+      }
+
+      const status = route.status ?? (route.body === undefined ? 204 : 200);
+
+      return Promise.resolve(
+        status === 204
+          ? new Response(null, { status })
+          : new Response(JSON.stringify(route.body ?? null), {
+              status,
+              headers: { 'Content-Type': 'application/json' },
+            }),
+      );
+    },
     hasSession: () => current !== undefined,
   };
 
@@ -99,18 +193,29 @@ export const user = (role: Role, mustChangePassword = false): CurrentUser => ({
   id: 'user-1',
   organisationId: role === 'SUPER_ADMIN' || role === 'INTERNAL_ADMIN' ? null : 'org-1',
   role,
+  // Synthetic, like every name in these fixtures: obviously a test account, nobody real.
+  fullName: 'Test Person',
   mustChangePassword,
 });
 
+/**
+ * A fresh store per render.
+ *
+ * FRESH, because a store shared between tests would carry one test's cached response into
+ * the next and the assertions would then pass or fail depending on the order they ran in.
+ * The store is built by a factory for exactly this reason (`app/store.ts`).
+ */
 export const renderWith = (
   children: ReactNode,
   stub: Stub,
   initialEntries: readonly string[] = ['/'],
 ): RenderResult =>
   render(
-    <MemoryRouter initialEntries={[...initialEntries]}>
-      <AuthProvider client={stub.client} sessionLost={stub.bus.subscribe}>
-        {children}
-      </AuthProvider>
-    </MemoryRouter>,
+    <Provider store={createAppStore(stub.client)}>
+      <MemoryRouter initialEntries={[...initialEntries]}>
+        <AuthProvider client={stub.client} sessionLost={stub.bus.subscribe}>
+          {children}
+        </AuthProvider>
+      </MemoryRouter>
+    </Provider>,
   );

@@ -4,7 +4,6 @@ import { Spinner } from '../components/ui/Spinner';
 import { ChangePasswordPage } from '../features/auth/ChangePasswordPage';
 import { NoAccessPage } from '../features/auth/NoAccessPage';
 import { SignInPage } from '../features/auth/SignInPage';
-import { AppShell } from './AppShell';
 import { CLINIC_NAV, landingPath } from './navigation';
 import { RequirePermission } from './RequirePermission';
 import { RequireSession } from './RequireSession';
@@ -30,15 +29,86 @@ import { useAuth } from './AuthProvider';
 
 const placeholders = () => import('../features/placeholders/pages');
 
-const OverviewPage = lazy(async () => ({ default: (await placeholders()).OverviewPage }));
-const AppointmentsPage = lazy(async () => ({ default: (await placeholders()).AppointmentsPage }));
-const PatientsPage = lazy(async () => ({ default: (await placeholders()).PatientsPage }));
-const StaffPage = lazy(async () => ({ default: (await placeholders()).StaffPage }));
-const ServicesPage = lazy(async () => ({ default: (await placeholders()).ServicesPage }));
-const CallsPage = lazy(async () => ({ default: (await placeholders()).CallsPage }));
-const RemindersPage = lazy(async () => ({ default: (await placeholders()).RemindersPage }));
-const ReportsPage = lazy(async () => ({ default: (await placeholders()).ReportsPage }));
-const SettingsPage = lazy(async () => ({ default: (await placeholders()).SettingsPage }));
+/** Every lazily loaded route module, in the order declared below. */
+const pageLoaders: (() => Promise<unknown>)[] = [];
+
+/**
+ * `lazy`, plus a record of the loader so the modules can be fetched ahead of a render.
+ *
+ * Every route component below goes through this rather than calling `lazy` directly, so
+ * `preloadPages` can never miss one.
+ */
+const page: typeof lazy = (load) => {
+  pageLoaders.push(load);
+  return lazy(load);
+};
+
+/**
+ * Fetches every lazily loaded route module now, rather than on first render.
+ *
+ * WHY THE TESTS NEED IT. A lazy page is imported the first time something renders it, and
+ * the first test in a file to render it paid for that import inside its own assertion. Under
+ * the gate's parallel load importing the shell alone took over four seconds, which is most
+ * of testing-library's five-second wait, so "puts SUPER_ADMIN on a page their role can
+ * actually read" failed intermittently while the page itself was fine. The test setup calls
+ * this before any test, so an assertion measures rendering and nothing else.
+ *
+ * Also usable as a prefetch once a user has signed in.
+ */
+export const preloadPages = async (): Promise<void> => {
+  await Promise.all(pageLoaders.map((load) => load()));
+};
+
+/**
+ * The built screens, each lazily loaded on its own.
+ *
+ * ONE CHUNK EACH, unlike the placeholders, which share one. A placeholder is three lines of
+ * prose and nine route-level splits for nine of them would add nine requests to save
+ * nothing. A real screen carries its forms, its table and its feature's endpoints, so the
+ * split is what keeps the entry chunk inside the budget in `vite.config.ts`.
+ */
+const AppointmentsPage = page(async () => ({
+  default: (await import('../features/appointments/AppointmentsPage')).AppointmentsPage,
+}));
+const OverviewPage = page(async () => ({
+  default: (await import('../features/overview/OverviewPage')).OverviewPage,
+}));
+const SettingsPage = page(async () => ({
+  default: (await import('../features/settings/SettingsPage')).SettingsPage,
+}));
+const ServicesPage = page(async () => ({
+  default: (await import('../features/services/ServicesPage')).ServicesPage,
+}));
+const StaffPage = page(async () => ({
+  default: (await import('../features/staff/StaffPage')).StaffPage,
+}));
+const PatientsPage = page(async () => ({
+  default: (await import('../features/patients/PatientsPage')).PatientsPage,
+}));
+const PatientProfilePage = page(async () => ({
+  default: (await import('../features/patients/PatientProfilePage')).PatientProfilePage,
+}));
+
+/**
+ * The shell is lazy, which is what keeps the entry chunk inside the budget.
+ *
+ * It carries the sidebar, the top bar and every icon they use, and none of it is needed by
+ * the sign-in screen, which is the first thing a signed-out visitor loads. Importing it
+ * statically put all of that, lucide included, into the entry chunk and pushed the initial
+ * JavaScript over the 450 KB budget in `vite.config.ts` when the store was added. The admin
+ * console already ships its shell as its own chunk, so this also removes a divergence
+ * between the two rather than inventing a pattern.
+ *
+ * A signed-in user pays one extra request for it, behind the `Suspense` the shell route
+ * already needs, and it is cached from then on.
+ */
+const AppShell = page(async () => ({ default: (await import('./AppShell')).AppShell }));
+
+const CallsPage = page(async () => ({
+  default: (await import('../features/calls/CallsPage')).CallsPage,
+}));
+const RemindersPage = page(async () => ({ default: (await placeholders()).RemindersPage }));
+const ReportsPage = page(async () => ({ default: (await placeholders()).ReportsPage }));
 
 /**
  * The element for each navigation path.
@@ -75,13 +145,16 @@ const Shell = () => {
   }
 
   return (
-    <AppShell
-      role={user.role}
-      items={CLINIC_NAV}
-      onSignOut={() => {
-        void signOut();
-      }}
-    />
+    <Suspense fallback={<Spinner />}>
+      <AppShell
+        role={user.role}
+        items={CLINIC_NAV}
+        personName={user.fullName}
+        onSignOut={() => {
+          void signOut();
+        }}
+      />
+    </Suspense>
   );
 };
 
@@ -124,6 +197,25 @@ export const AppRoutes = () => (
     <Route element={<RequireSession />}>
       <Route element={<Shell />}>
         <Route index element={<Landing />} />
+        {/*
+         * Detail routes, which the navigation does not list.
+         *
+         * They sit beside the nav-driven routes rather than inside them because a patient
+         * profile is not a menu item: it is reached from a row. The permission is the same
+         * cell as the list, declared here rather than inherited, so reading this file
+         * answers "who may open this" without following a parent route.
+         */}
+        <Route
+          path="/patients/:patientId"
+          element={
+            <RequirePermission resource="patients" action="read" fallback={<NoAccessPage />}>
+              <Suspense fallback={<Spinner />}>
+                <PatientProfilePage />
+              </Suspense>
+            </RequirePermission>
+          }
+        />
+
         {CLINIC_NAV.map((item) => (
           <Route
             key={item.path}

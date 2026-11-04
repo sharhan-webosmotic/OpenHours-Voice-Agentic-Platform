@@ -16,9 +16,47 @@ export const ROLES = [
   'CLINIC_MANAGER',
   'DOCTOR',
   'STAFF',
+  /**
+   * The AI voice receptionist, which is a principal and NOT A PERSON.
+   *
+   * It is in this list so that what the agent may do is one readable row of the same
+   * matrix as everybody else, enforced by the same service-layer check, rather than a
+   * second capability table in a second place with its own bugs. Reading the
+   * `VOICE_AGENT` column tells the whole story, including that it may not touch
+   * recordings, prescriptions, follow-ups, analytics or the audit trail.
+   *
+   * IT IS NOT A ROLE A USER CAN HOLD, and four separate controls say so:
+   *   - the Prisma `Role` enum stays at six values, so no user row can store it
+   *   - `verifyAccessToken` refuses the claim, so no session can present it
+   *   - `USER_ROLES` is what every schema and every dropdown is built from
+   *   - it belongs to no login audience, so no sign-in can land on it
+   * Each of those has a test. The agent authenticates with a per-clinic secret on the
+   * voice tool endpoints (D-004) and never with a token.
+   */
+  'VOICE_AGENT',
 ] as const;
 
 export type Role = (typeof ROLES)[number];
+
+/**
+ * The roles a USER row may hold: every role except the voice agent.
+ *
+ * This is the list to build a dropdown, a zod enum or an invitation from. `ROLES` is the
+ * list to iterate when checking the matrix. Mixing them up is how `VOICE_AGENT` would end
+ * up offered as a job title in the admin console.
+ *
+ * `UserRole` IS A TYPE AND NOT ONLY A LIST, so a map of roles to labels or to form fields
+ * that accidentally includes the agent does not compile. A test can only catch the lists
+ * somebody remembered to test.
+ */
+export type UserRole = Exclude<Role, 'VOICE_AGENT'>;
+
+export const USER_ROLES: readonly UserRole[] = ROLES.filter(
+  (role): role is UserRole => role !== 'VOICE_AGENT',
+);
+
+export const isUserRole = (value: unknown): value is UserRole =>
+  typeof value === 'string' && (USER_ROLES as readonly string[]).includes(value);
 
 /**
  * Whether a value is one of the six roles.
@@ -109,6 +147,7 @@ export const PERMISSIONS: Matrix = {
     CLINIC_MANAGER: none,
     DOCTOR: none,
     STAFF: none,
+    VOICE_AGENT: none,
   },
   organisations: {
     SUPER_ADMIN: rwd(),
@@ -118,6 +157,7 @@ export const PERMISSIONS: Matrix = {
     CLINIC_MANAGER: none,
     DOCTOR: none,
     STAFF: none,
+    VOICE_AGENT: none,
   },
   phone_voice_mapping: {
     SUPER_ADMIN: rw(),
@@ -126,6 +166,7 @@ export const PERMISSIONS: Matrix = {
     CLINIC_MANAGER: none,
     DOCTOR: none,
     STAFF: none,
+    VOICE_AGENT: none,
   },
   clinic_settings: {
     SUPER_ADMIN: rw(),
@@ -134,6 +175,8 @@ export const PERMISSIONS: Matrix = {
     CLINIC_MANAGER: r(),
     DOCTOR: none,
     STAFF: none,
+    // Reads the clinic's own name, address, hours and answers, to speak them. Never writes.
+    VOICE_AGENT: r(),
   },
   clinic_users: {
     SUPER_ADMIN: rw(),
@@ -142,6 +185,7 @@ export const PERMISSIONS: Matrix = {
     CLINIC_MANAGER: r(),
     DOCTOR: none,
     STAFF: none,
+    VOICE_AGENT: none,
   },
   doctors_services_hours: {
     SUPER_ADMIN: rw(),
@@ -150,6 +194,8 @@ export const PERMISSIONS: Matrix = {
     CLINIC_MANAGER: rw(),
     DOCTOR: r(),
     STAFF: r(),
+    // Needed to offer a doctor and a service by name, and to run the slot engine.
+    VOICE_AGENT: r(),
   },
   patients: {
     // Platform roles see non-identifying fields only, until a support session is open.
@@ -159,6 +205,14 @@ export const PERMISSIONS: Matrix = {
     CLINIC_MANAGER: rw(),
     DOCTOR: r('own'),
     STAFF: rw(),
+    /**
+     * Write, because a first-time caller has no record and the alternative is an agent
+     * that cannot book for anybody new. The capability is bounded by the ABSENCE OF AN
+     * ENDPOINT rather than by the matrix: the tool surface exposes a lookup and a create,
+     * and no way to edit or delete an existing patient. `write` here cannot express
+     * "create but not update", so the endpoint list is the control and this is the ceiling.
+     */
+    VOICE_AGENT: rw(),
   },
   appointments: {
     SUPER_ADMIN: r('masked'),
@@ -167,6 +221,9 @@ export const PERMISSIONS: Matrix = {
     CLINIC_MANAGER: rwd(),
     DOCTOR: rw('own'),
     STAFF: rwd(),
+    // Books, reschedules and cancels, which is the whole job (root CLAUDE.md rule 9).
+    // No delete: a cancellation is a status, and nothing the agent does removes a row.
+    VOICE_AGENT: rw(),
   },
   call_history: {
     SUPER_ADMIN: r('metadata'),
@@ -175,6 +232,7 @@ export const PERMISSIONS: Matrix = {
     CLINIC_MANAGER: r(),
     DOCTOR: r('own'),
     STAFF: r(),
+    VOICE_AGENT: none,
   },
   recordings: {
     // Never for platform roles: a recording is the rawest PHI the platform holds.
@@ -184,6 +242,8 @@ export const PERMISSIONS: Matrix = {
     CLINIC_MANAGER: r(),
     DOCTOR: none,
     STAFF: r('clinic_opt_in'),
+    // The agent is IN the recording. Nothing it does needs to read one back.
+    VOICE_AGENT: none,
   },
   prescriptions: {
     SUPER_ADMIN: none,
@@ -192,6 +252,8 @@ export const PERMISSIONS: Matrix = {
     CLINIC_MANAGER: none,
     DOCTOR: rw('own'),
     STAFF: none,
+    // Rule 9: the agent never diagnoses, prescribes or decides anything clinical.
+    VOICE_AGENT: none,
   },
   follow_ups: {
     SUPER_ADMIN: none,
@@ -200,6 +262,7 @@ export const PERMISSIONS: Matrix = {
     CLINIC_MANAGER: rwd(),
     DOCTOR: rw(),
     STAFF: rw('assigned'),
+    VOICE_AGENT: none,
   },
   reminder_settings: {
     SUPER_ADMIN: r(),
@@ -208,6 +271,7 @@ export const PERMISSIONS: Matrix = {
     CLINIC_MANAGER: rw(),
     DOCTOR: none,
     STAFF: r(),
+    VOICE_AGENT: none,
   },
   forwarding_schedules: {
     SUPER_ADMIN: r(),
@@ -216,6 +280,7 @@ export const PERMISSIONS: Matrix = {
     CLINIC_MANAGER: rw(),
     DOCTOR: none,
     STAFF: none,
+    VOICE_AGENT: none,
   },
   analytics: {
     SUPER_ADMIN: r('usage'),
@@ -224,6 +289,7 @@ export const PERMISSIONS: Matrix = {
     CLINIC_MANAGER: r(),
     DOCTOR: r('own'),
     STAFF: none,
+    VOICE_AGENT: none,
   },
   audit_log: {
     SUPER_ADMIN: r(),
@@ -232,6 +298,7 @@ export const PERMISSIONS: Matrix = {
     CLINIC_MANAGER: none,
     DOCTOR: none,
     STAFF: none,
+    VOICE_AGENT: none,
   },
   integration_errors: {
     SUPER_ADMIN: r(),
@@ -240,6 +307,7 @@ export const PERMISSIONS: Matrix = {
     CLINIC_MANAGER: none,
     DOCTOR: none,
     STAFF: none,
+    VOICE_AGENT: none,
   },
 };
 
@@ -272,8 +340,18 @@ export type LoginAudience = (typeof LOGIN_AUDIENCES)[number];
  * itself and gains nothing. No route may ever treat it as a reason to skip a permission
  * check.
  */
-export const roleBelongsInAudience = (role: Role, audience: LoginAudience): boolean =>
-  audience === 'admin' ? isPlatformRole(role) : !isPlatformRole(role);
+export const roleBelongsInAudience = (role: Role, audience: LoginAudience): boolean => {
+  /**
+   * The voice agent belongs in NEITHER application, and this is written as its own branch
+   * rather than left to `!isPlatformRole`, which would have answered `true` for the clinic
+   * dashboard and made the agent look like an ordinary clinic sign-in.
+   */
+  if (role === 'VOICE_AGENT') {
+    return false;
+  }
+
+  return audience === 'admin' ? isPlatformRole(role) : !isPlatformRole(role);
+};
 
 /**
  * The scope at which `role` may perform `action` on `resource`, or false if it may not.

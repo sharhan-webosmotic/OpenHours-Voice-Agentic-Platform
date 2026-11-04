@@ -59,6 +59,29 @@
   --ca-slate-050: #f3f5fd;
   --ca-white: #ffffff;
 
+  /**
+   * The four tints the dashboard design uses and the palette above did not have.
+   *
+   * Taken from `ClinicFlow Interactive Prototype/src/DashboardDesign.tsx`, which is the
+   * high-fidelity Figma export rather than the interactive prototype's simpler shell. Each
+   * is a distinct value in that file, not a rounding of one of the others, and the
+   * difference is visible: the selected navigation item and the support card are two
+   * different blues sitting next to each other in the same sidebar.
+   */
+  --ca-blue-050: #eaf1ff; /* Selected navigation item, highlighted card. */
+  --ca-blue-025: #eef3ff; /* The support card at the foot of the sidebar. */
+  --ca-blue-100: #dce6ff; /* The avatar disc behind the signed-in person's initials. */
+  --ca-white-025: #f8faff; /* The search field, which is sunken rather than raised. */
+
+  /**
+   * The chrome border, which is NOT the card border.
+   *
+   * `#e9edf5` edges the sidebar, the header and the controls in them; `#e6eaf4` edges a
+   * card. Two values a shade apart, and the export uses them consistently, so they are kept
+   * apart rather than collapsed into one.
+   */
+  --ca-slate-150: #e9edf5;
+
   --ca-green-500: #20b486;
   --ca-green-050: #e7f8f2;
   --ca-orange-500: #bd7218;
@@ -88,6 +111,30 @@
   --ca-color-accent: var(--ca-blue-500);
   --ca-color-accent-strong: var(--ca-blue-600);
   --ca-color-accent-ring: rgba(53, 106, 230, 0.2);
+
+  /**
+   * `accent-surface` WAS USED BY FIVE COMPONENTS AND DEFINED BY NONE.
+   *
+   * `bg-accent-surface` appears in the appointment drawer, the call drawer, the booking
+   * form, the calendar and the overview, and Tailwind generated nothing for any of them,
+   * because an undefined colour utility is silently dropped rather than being an error. So
+   * the highlighted card at the top of a drawer and the selected day in the calendar have
+   * been rendering flat white since they were written. Defining it is the fix.
+   */
+  --ca-color-accent-surface: var(--ca-blue-050);
+  --ca-color-accent-surface-soft: var(--ca-blue-025);
+  --ca-color-accent-contrast: var(--ca-blue-100);
+
+  /**
+   * The veil behind a modal: the navy text colour at 42%, so a dialog reads as lifted off
+   * the page rather than floating over it. The old backdrop asked for `bg-navy/40`, a colour
+   * that was never defined, so every modal in the product has opened over an untinted page.
+   */
+  --ca-color-scrim: rgba(23, 38, 75, 0.42);
+
+  /** The chrome: sidebar, header, and the sunken field inside them. */
+  --ca-color-border-chrome: var(--ca-slate-150);
+  --ca-color-surface-sunken: var(--ca-white-025);
 
   /* Status, each a foreground and the wash it sits on. */
   --ca-color-success: var(--ca-green-500);
@@ -133,17 +180,49 @@
   --ca-font-weight-semibold: 600;
   --ca-font-weight-bold: 700;
 
-  /* ---- Radius. Five steps, snapped from the prototype's seventeen. ---- */
-  --ca-radius-sm: 0.5rem; /* 8px */
-  --ca-radius-md: 0.625rem; /* 10px */
-  --ca-radius-lg: 0.75rem; /* 12px */
-  --ca-radius-xl: 1rem; /* 16px */
+  /**
+   * Radius. Five steps, snapped from the prototype's seventeen and then tightened.
+   *
+   * The prototype's 8 to 22px corners read as a consumer app: soft, bubbly and a little
+   * toy-like on a screen staff use all day for clinical records. The scale was cut to 4 to
+   * 10px at the clinic's request, which is where restrained professional tools sit. The
+   * steps keep their names, so every component moved with the token and none was edited.
+   */
+  --ca-radius-sm: 0.25rem; /* 4px */
+  --ca-radius-md: 0.375rem; /* 6px */
+  --ca-radius-lg: 0.5rem; /* 8px */
+  --ca-radius-xl: 0.625rem; /* 10px */
   --ca-radius-full: 999px;
 
-  /* ---- Elevation. The prototype's card shadow, and two it uses for overlays. ---- */
-  --ca-shadow-card: 0 8px 26px rgba(31, 48, 89, 0.06);
-  --ca-shadow-popover: 0 2px 8px rgba(30, 49, 90, 0.08);
+  /**
+   * Two steps the dashboard design needs that the snapped scale does not have.
+   *
+   * Named for what they are rather than added as `2xl` and `3xl`, because they are not a
+   * continuation of the scale: they are the two radii the export uses everywhere, 11px on
+   * every control and 18px on every card, and a component reading `--ca-radius-card` says
+   * why it chose one.
+   */
+  --ca-radius-control: 0.375rem; /* 6px: buttons, icon buttons, the logo tile. */
+  --ca-radius-card: 0.625rem; /* 10px: every panel on the dashboard. */
+
+  /**
+   * Elevation. Tightened with the radius: the prototype's 30px card blur and accent glow
+   * made panels float. A crisp one-pixel edge plus a short soft fall-off reads as a
+   * surface that sits on the page, which is what a card is.
+   */
+  --ca-shadow-card: 0 1px 2px rgba(23, 38, 75, 0.04), 0 2px 8px rgba(23, 38, 75, 0.04);
+
+  /**
+   * The lift under an accent control, which the design applies to the primary button and the
+   * logo tile. It is a COLOURED shadow, tinted with the accent rather than with black, which
+   * is what makes the button look lit rather than stuck on.
+   */
+  --ca-shadow-accent: 0 1px 2px rgba(36, 87, 207, 0.24);
+  --ca-shadow-accent-strong: 0 1px 3px rgba(36, 87, 207, 0.3);
+  --ca-shadow-popover: 0 4px 16px rgba(23, 38, 75, 0.1), 0 1px 3px rgba(23, 38, 75, 0.06);
   --ca-shadow-modal: 0 24px 70px rgba(20, 34, 68, 0.2);
+  /** The one-pixel lift under a button, so it reads as pressable without glowing. */
+  --ca-shadow-control: 0 1px 2px rgba(23, 38, 75, 0.08);
 
   /* ---- Focus. One ring, every interactive element, no exceptions. ---- */
   --ca-focus-ring-width: 3px;

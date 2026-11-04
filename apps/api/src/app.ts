@@ -27,6 +27,15 @@ import { devicesRouter } from './modules/devices/devices.routes.js';
 import { forwardingRouter } from './modules/devices/forwarding.routes.js';
 import { supportSessionsRouter } from './modules/support-sessions/support-sessions.routes.js';
 import { auditRouter } from './modules/audit/audit.routes.js';
+import { organisationsRouter } from './modules/organisations/organisations.routes.js';
+import { patientsRouter } from './modules/patients/patients.routes.js';
+import { appointmentsRouter } from './modules/appointments/appointments.routes.js';
+import { callsRouter } from './modules/calls/calls.routes.js';
+import { analyticsRouter } from './modules/analytics/analytics.routes.js';
+import { bodyErrorKind } from './common/body-errors.js';
+import { redactRequestUrl } from './common/url-redaction.js';
+import { spokenBodyError, voiceToolsRouter } from './voice/tools.routes.js';
+import { refusedWebhookBody, sarvamWebhookRouter } from './voice/webhook.routes.js';
 
 export type AppDependencies = {
   readonly readiness: ReadinessProbe;
@@ -64,16 +73,6 @@ const buildCorsOptions = (config: Config): CorsOptions => ({
   maxAge: 600,
 });
 
-/** `express.json` rejects an oversized body with a 413; map it onto our error type. */
-const isBodyTooLarge = (error: unknown): boolean =>
-  typeof error === 'object' &&
-  error !== null &&
-  (error as { type?: string }).type === 'entity.too.large';
-
-/** A malformed JSON body is the client's mistake, so it is a 400, not a 500. */
-const isMalformedJson = (error: unknown): boolean =>
-  error instanceof SyntaxError && 'body' in error;
-
 /**
  * Every router and the prefix it is mounted at, as data rather than as five `app.use`
  * calls.
@@ -96,6 +95,21 @@ export const ROUTER_MOUNTS: readonly (readonly [string, () => Router])[] = [
   ['/api/v1/forwarding', forwardingRouter],
   ['/api/v1/support-sessions', supportSessionsRouter],
   ['/api/v1/audit-logs', auditRouter],
+  ['/api/v1/organisations', organisationsRouter],
+  ['/api/v1/patients', patientsRouter],
+  ['/api/v1/appointments', appointmentsRouter],
+  ['/api/v1/calls', callsRouter],
+  ['/api/v1/analytics', analyticsRouter],
+  /**
+   * Deliberately NOT under `/api/v1`: a provider-facing surface authenticated by a
+   * per-clinic secret rather than a session. See the note in `voice/tools.routes.ts`.
+   */
+  ['/voice/tools', voiceToolsRouter],
+  /**
+   * Also outside `/api/v1`, and for a stronger reason than the tool endpoints: the secret
+   * that authenticates it is IN THE PATH (D-006), so the URL itself is a credential.
+   */
+  ['/webhooks/sarvam', sarvamWebhookRouter],
 ];
 
 export const createApp = ({ readiness, config = appConfig }: AppDependencies): Express => {
@@ -122,11 +136,37 @@ export const createApp = ({ readiness, config = appConfig }: AppDependencies): E
       genReqId: () => getContext()?.requestId ?? 'unknown',
       // pino-http installs its own error serializer, which would re-introduce the
       // cause-into-message folding the base logger disables. See logger.ts.
-      serializers: { err: (value: unknown) => value },
+      // `req` runs after pino-http's standard request serializer: the webhook's secret is a
+      // path segment, and the URL it logs must not carry it (review C3).
+      serializers: { err: (value: unknown) => value, req: redactRequestUrl },
     }),
   );
 
+  /**
+   * The webhook's own parser, AHEAD of the general one, with a larger bound.
+   *
+   * The body is a call's whole transcript, in English and the original language side by side,
+   * and a long call passes the general 100 kb limit. The webhook stores what it is given and
+   * refuses an invalid body without storing it (D-006), so a real call over the general limit
+   * would simply be lost. body-parser marks a request it has read, so the general parser
+   * below skips this one.
+   */
+  app.use(
+    '/webhooks/sarvam',
+    express.json({ limit: config.WEBHOOK_BODY_LIMIT }),
+    refusedWebhookBody,
+  );
   app.use(express.json({ limit: config.BODY_LIMIT }));
+
+  /**
+   * A body the parser refused, on a voice tool path, is still a sentence for the agent.
+   *
+   * The parser runs before any router, so the tool router's own error handler never sees its
+   * failure: without this a broken body reached the patient as a 400 problem document, which
+   * D-022 forbids. Mounted on the prefix and straight after the parser, so it handles exactly
+   * those errors and nothing from any other surface.
+   */
+  app.use('/voice/tools', spokenBodyError);
 
   /**
    * Liveness: 200 whenever the process is up. It must never touch a dependency,
@@ -168,15 +208,13 @@ export const createApp = ({ readiness, config = appConfig }: AppDependencies): E
     }
 
     // Body-parser failures arrive as generic errors; translate before rendering.
-    let rendered: unknown = error;
-    if (isBodyTooLarge(error)) {
-      rendered = new PayloadTooLargeError(
-        'request body too large',
-        'The request body is too large.',
-      );
-    } else if (isMalformedJson(error)) {
-      rendered = new ValidationError('malformed json body', 'The request body is not valid JSON.');
-    }
+    const bodyError = bodyErrorKind(error);
+    const rendered: unknown =
+      bodyError === 'body-too-large'
+        ? new PayloadTooLargeError('request body too large', 'The request body is too large.')
+        : bodyError === 'malformed-json'
+          ? new ValidationError('malformed json body', 'The request body is not valid JSON.')
+          : error;
 
     const requestId = getContext()?.requestId;
     const problem = toProblemDetails(rendered, requestId);
@@ -184,7 +222,10 @@ export const createApp = ({ readiness, config = appConfig }: AppDependencies): E
     // Log the real cause server-side. For a 500 this is the ONLY record of it, because
     // the response deliberately carries no message or stack.
     const log = req.log ?? logger;
-    if (problem.status >= 500) {
+    if (bodyError !== undefined) {
+      // The kind only: the parser's error holds the raw body (see common/body-errors.ts).
+      log.warn({ bodyError, status: problem.status }, 'request body refused');
+    } else if (problem.status >= 500) {
       log.error({ err: error }, 'request failed');
     } else {
       log.warn({ err: error, status: problem.status }, 'request rejected');

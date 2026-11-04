@@ -24,7 +24,10 @@
   /* Surfaces and borders. */
   --color-background: var(--ca-color-background);
   --color-surface: var(--ca-color-surface);
+  --color-surface-sunken: var(--ca-color-surface-sunken);
   --color-border: var(--ca-color-border);
+  --color-border-chrome: var(--ca-color-border-chrome);
+  --color-scrim: var(--ca-color-scrim);
 
   /* Text. `text-default` rather than `text-text`, which reads like a typo. */
   --color-default: var(--ca-color-text);
@@ -36,6 +39,9 @@
   --color-accent: var(--ca-color-accent);
   --color-accent-strong: var(--ca-color-accent-strong);
   --color-accent-ring: var(--ca-color-accent-ring);
+  --color-accent-surface: var(--ca-color-accent-surface);
+  --color-accent-surface-soft: var(--ca-color-accent-surface-soft);
+  --color-accent-contrast: var(--ca-color-accent-contrast);
 
   /* Status. */
   --color-success: var(--ca-color-success);
@@ -62,9 +68,14 @@
   --radius-lg: var(--ca-radius-lg);
   --radius-xl: var(--ca-radius-xl);
   --radius-full: var(--ca-radius-full);
+  --radius-control: var(--ca-radius-control);
+  --radius-card: var(--ca-radius-card);
 
   /* Elevation. */
   --shadow-card: var(--ca-shadow-card);
+  --shadow-accent: var(--ca-shadow-accent);
+  --shadow-accent-strong: var(--ca-shadow-accent-strong);
   --shadow-popover: var(--ca-shadow-popover);
   --shadow-modal: var(--ca-shadow-modal);
+  --shadow-control: var(--ca-shadow-control);
 }

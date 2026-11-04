@@ -12,7 +12,7 @@ src/
 ```
 
 ## Rules
-- All server access goes through `packages/api-client`. No raw `fetch`/`axios` in features. Server state lives in TanStack Query, not in component state or global stores.
+- All server access goes through `packages/api-client`. No raw `fetch`/`axios` in features. Server state lives in RTK Query, not in component state and not copied into a Redux slice (D-015). Redux Toolkit holds only client state that outlives a screen.
 - Forms use React Hook Form with the zod schema from `packages/shared`; show field-level errors from problem+json.
 - Gate UI with `useCan(resource, action)` from the shared permission matrix. This is cosmetic only; the API is the real control.
 - Every data view handles four states: loading (skeleton), empty (with next action), error (with retry), success. Every mutation shows pending, success and failure feedback and invalidates the right queries.

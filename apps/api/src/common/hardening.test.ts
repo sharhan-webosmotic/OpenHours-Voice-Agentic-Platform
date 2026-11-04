@@ -81,7 +81,47 @@ describe('CORS allow-list', () => {
 const REQUIRED_ENV = {
   DATABASE_URL: 'postgresql://t:t@127.0.0.1:1/t',
   JWT_SECRET: 'config-test-jwt-secret-at-least-32-bytes',
+  SARVAM_WEBHOOK_IP_CHECK_DISABLED: 'true',
 } as const;
+
+/**
+ * The webhook's address check is configured or deliberately off, never missing (D-006). It
+ * used to be off whenever the list was empty, so it could be absent in production without
+ * anybody deciding that.
+ */
+describe('the webhook address check is an explicit choice', () => {
+  const { SARVAM_WEBHOOK_IP_CHECK_DISABLED: _omitted, ...withoutChoice } = REQUIRED_ENV;
+
+  it('refuses to start with neither an allow-list nor a decision to disable it', () => {
+    expect(() => parseConfig(withoutChoice)).toThrow(/SARVAM_WEBHOOK_IP_CHECK_DISABLED=true/);
+  });
+
+  it('starts with an allow-list', () => {
+    const config = parseConfig({
+      ...withoutChoice,
+      SARVAM_WEBHOOK_SOURCE_IPS: '4.213.167.70, 35.154.84.150',
+    });
+
+    expect(config.SARVAM_WEBHOOK_SOURCE_IPS).toEqual(['4.213.167.70', '35.154.84.150']);
+    expect(config.SARVAM_WEBHOOK_IP_CHECK_DISABLED).toBe(false);
+  });
+
+  it('starts with the check deliberately disabled', () => {
+    expect(parseConfig(REQUIRED_ENV).SARVAM_WEBHOOK_IP_CHECK_DISABLED).toBe(true);
+  });
+
+  it('refuses both at once, which is a contradiction rather than a choice', () => {
+    expect(() =>
+      parseConfig({ ...REQUIRED_ENV, SARVAM_WEBHOOK_SOURCE_IPS: '4.213.167.70' }),
+    ).toThrow(/contradicts SARVAM_WEBHOOK_SOURCE_IPS/);
+  });
+
+  it('does not treat an allow-list of only commas as a choice', () => {
+    expect(() => parseConfig({ ...withoutChoice, SARVAM_WEBHOOK_SOURCE_IPS: ' , ,' })).toThrow(
+      /SARVAM_WEBHOOK_SOURCE_IPS/,
+    );
+  });
+});
 
 describe('config refuses a wildcard origin with credentials', () => {
   const base = { ...REQUIRED_ENV, CORS_ALLOWED_ORIGINS: '*' };
