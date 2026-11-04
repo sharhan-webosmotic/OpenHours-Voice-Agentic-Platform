@@ -120,7 +120,14 @@ const provisionClinic = (
  * does, or those tests would not be testing the thing they claim to.
  */
 export const createAccounts = (repoRoot: string, appDir: string, readyCount: number): Accounts => {
-  const firstLoginUser = provisionClinic(repoRoot, 'E2E First Login')[0];
+  /**
+   * Every clinic name carries this run's suffix, because clinic names are unique platform-wide
+   * (`organisations_name_unique`, prisma/sql 003). With fixed names the suites could run once
+   * per database: the second run, or the other application's suite against the same database,
+   * failed in provisioning before any test started.
+   */
+  const run = Date.now().toString(36);
+  const firstLoginUser = provisionClinic(repoRoot, `E2E First Login ${run}`)[0];
 
   if (firstLoginUser === undefined) {
     throw new Error('provision:clinic returned no accounts');
@@ -128,7 +135,9 @@ export const createAccounts = (repoRoot: string, appDir: string, readyCount: num
 
   const provisioned: ProvisionedUser[] = [];
   for (let index = 0; index < Math.ceil(readyCount / 3); index += 1) {
-    provisioned.push(...provisionClinic(repoRoot, `E2E Ready ${index + 1}`, PREPARED_PASSWORD));
+    provisioned.push(
+      ...provisionClinic(repoRoot, `E2E Ready ${index + 1} ${run}`, PREPARED_PASSWORD),
+    );
   }
 
   const accounts: Accounts = {
